@@ -1,0 +1,1041 @@
+import React, { useState, useEffect } from 'react';
+import { AppProvider, useApp } from './context/AppContext';
+import { Sidebar } from './components/Sidebar';
+import { Dashboard } from './components/Dashboard';
+import { BuyerStorefront } from './components/BuyerStorefront';
+import { AdminLogin } from './components/AdminLogin';
+import { BuyerProductDetail } from './components/BuyerProductDetail';
+import { DesignDetail } from './components/DesignDetail';
+import { InventoryManagement } from './components/InventoryManagement';
+import { MediaLibrary } from './components/MediaLibrary';
+import { CategoryManagement } from './components/CategoryManagement';
+import { Reports } from './components/Reports';
+import { Customers } from './components/Customers';
+import { Variants } from './components/Variants';
+import { Collections } from './components/Collections';
+import { AboutUsModal } from './components/AboutUsModal';
+import { 
+  ShoppingBag, 
+  Trash2, 
+  ChevronRight, 
+  X, 
+  Store, 
+  TrendingUp, 
+  CheckCircle,
+  ArrowRight,
+  Clock,
+  User,
+  Plus,
+  AlertCircle,
+  Menu,
+  LogOut,
+  MessageCircle,
+  Phone,
+  Home,
+  Grid,
+  ChevronDown,
+  Info
+} from 'lucide-react';
+import axios from 'axios';
+import { API_BASE_URL } from './context/AppContext';
+import { ProductForm } from './components/ProductForm';
+
+const statusClass = (status: string) => {
+  if (status === 'Completed') return 'badge-success';
+  if (status === 'Ready To Ship' || status === 'QC') return 'badge-info';
+  if (status === 'Confirmed' || status === 'Production') return 'badge-warning';
+  if (status === 'Pending') return 'badge-neutral';
+  return 'badge-neutral';
+};
+
+const AppFooter: React.FC = () => {
+  const { navigateTo } = useApp();
+  return (
+    <footer className="enterprise-panel mt-4 overflow-hidden">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 p-8">
+        <div className="lg:col-span-2">
+          <div className="flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+              <img src="/logo.jpg" alt="SR Chains Logo" className="h-full w-full object-cover" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold tracking-widest text-gray-900">SR CHAINS</h3>
+              <p className="text-xs text-gray-500 uppercase tracking-wider mt-0.5">Premium Silver Jewelry Manufacturer</p>
+            </div>
+          </div>
+          <p className="text-sm text-gray-500 leading-relaxed mt-4 max-w-xl">
+            Enterprise wholesale platform for silver anklet manufacturing, dealer catalogs, inventory control, and B2B order processing.
+          </p>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Catalog</h4>
+          <div className="space-y-2 text-sm text-gray-500">
+            <p>Design Code Lookup</p>
+            <p>Variant Matrix</p>
+            <p>Size & Stock Availability</p>
+            <p>Live Silver Pricing</p>
+          </div>
+        </div>
+
+        <div>
+          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Operations</h4>
+          <div className="space-y-2 text-sm text-gray-500">
+            <p>Ready Stock Management</p>
+            <p>Made To Order Queue</p>
+            <p>Media Asset Library</p>
+            <p>Dealer Order Desk</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="border-t border-gray-200 px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
+        <p>© 2026 SR Chains. All rights reserved.</p>
+        <p className="flex items-center gap-1.5 flex-wrap">
+          <span>Silver Jewelry Manufacturing • B2B Distribution</span>
+        </p>
+      </div>
+    </footer>
+  );
+};
+
+const MainLayout: React.FC = () => {
+  const { 
+    mode, 
+    setMode, 
+    adminTab, 
+    setAdminTab,
+    selectedDesignCode, 
+    setSelectedDesignCode,
+    livePrice,
+    designs,
+    cart,
+    removeFromCart,
+    clearCart,
+    updateCartQuantity,
+    calculatePriceBreakdown,
+    fetchDesigns,
+    fetchCategories,
+    isAuthenticated,
+    logout,
+    navigateTo
+  } = useApp();
+
+  const [cartOpen, setCartOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [customerName, setCustomerName] = useState('');
+  const [mobileNumber, setMobileNumber] = useState('');
+  const [orderSubmitting, setOrderSubmitting] = useState(false);
+  const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
+  const [editingDesignCode, setEditingDesignCode] = useState<string | null>(null);
+  const [initialVariantId, setInitialVariantId] = useState<number | undefined>(undefined);
+  const [initialSizeId, setInitialSizeId] = useState<number | undefined>(undefined);
+
+  const [aboutModalOpen, setAboutModalOpen] = useState(false);
+  const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
+  const [catalogDropdownOpen, setCatalogDropdownOpen] = useState(false);
+  const [storefrontResetKey, setStorefrontResetKey] = useState(0);
+
+  const [orders, setOrders] = useState<any[]>([]);
+  const [mfgQueue, setMfgQueue] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [loadingQueue, setLoadingQueue] = useState(false);
+
+  const fetchOrders = async () => {
+    try {
+      setLoadingOrders(true);
+      const res = await axios.get(`${API_BASE_URL}/api/orders`);
+      setOrders(res.data);
+    } catch (err) {
+      console.error('Error fetching orders:', err);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
+
+  const fetchQueue = async () => {
+    try {
+      setLoadingQueue(true);
+      const res = await axios.get(`${API_BASE_URL}/api/orders/manufacturing-queue`);
+      setMfgQueue(res.data);
+    } catch (err) {
+      console.error('Error fetching mfg queue:', err);
+    } finally {
+      setLoadingQueue(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mode === 'admin') {
+      if (adminTab === 'orders' || adminTab === 'reports') {
+        fetchOrders();
+      } else if (adminTab === 'make-to-order') {
+        fetchQueue();
+      }
+    }
+  }, [mode, adminTab]);
+
+  const handleCheckout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerName.trim()) {
+      alert('Please enter a B2B Customer / Jeweler Name.');
+      return;
+    }
+    if (!mobileNumber.trim()) {
+      alert('Please enter a Mobile Number.');
+      return;
+    }
+    if (cart.length === 0) return;
+
+    try {
+      setOrderSubmitting(true);
+      
+      const itemsPayload = cart.map(item => {
+        const breakdown = calculatePriceBreakdown(
+          item.size.weight,
+          item.design.purity,
+          item.design.wastage_percent,
+          item.design.making_charge_per_gram
+        );
+        return {
+          design_code: item.design.design_code,
+          variant_code: item.variant.variant_code,
+          size: item.size.size.toString(),
+          weight: item.size.weight,
+          quantity: item.quantity,
+          order_type: item.orderType,
+          price: breakdown.total
+        };
+      });
+
+      const res = await axios.post(`${API_BASE_URL}/api/orders`, {
+        customer_name: customerName,
+        mobile_number: mobileNumber,
+        items: itemsPayload
+      });
+
+      // Construct the WhatsApp message estimate payload
+      const orderNumber = res.data.order_number;
+      let message = `*SR CHAINS - WHOLESALE ESTIMATE*\n`;
+      message += `*Customer/Jeweler:* ${customerName}\n`;
+      message += `*Mobile:* ${mobileNumber}\n`;
+      message += `*Order No:* ${orderNumber}\n\n`;
+      message += `*Items Details:*\n`;
+      
+      cart.forEach((item, idx) => {
+        const breakdown = calculatePriceBreakdown(
+          item.size.weight,
+          item.design.purity,
+          item.design.wastage_percent,
+          item.design.making_charge_per_gram
+        );
+        const itemPrice = breakdown.total * item.quantity;
+        const typeStr = item.orderType === 'ready_stock' ? 'Ready Stock' : 'Make Order (MTO)';
+        
+        message += `${idx + 1}. *${item.design.name}* (${item.design.design_code})\n`;
+        message += `   - Variant: ${item.variant.variant_name} (${item.variant.variant_code})\n`;
+        message += `   - Size: ${item.size.size.toFixed(2)}"\n`;
+        message += `   - Weight: ${item.size.weight.toFixed(2)}g\n`;
+        message += `   - Type: ${typeStr}\n`;
+        message += `   - Qty: ${item.quantity} | Subtotal: ₹${itemPrice.toLocaleString('en-IN')}\n\n`;
+      });
+      
+      message += `*Total Weight:* ${cartTotals.weight.toFixed(2)}g\n`;
+      message += `*Estimated Total Invoice:* ₹${cartTotals.price.toLocaleString('en-IN')}\n\n`;
+      message += `Thank you for your order!`;
+
+      // Open WhatsApp for Wholesaler
+      const wholesalerPhone = '917010674487';
+      const wholesalerUrl = `https://api.whatsapp.com/send?phone=${wholesalerPhone}&text=${encodeURIComponent(message)}`;
+      window.open(wholesalerUrl, '_blank');
+
+      setOrderSuccess(res.data.order_number);
+      clearCart();
+      setCustomerName('');
+      setMobileNumber('');
+      fetchDesigns();
+      setTimeout(() => {
+        setOrderSuccess(null);
+        setCartOpen(false);
+      }, 5000);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.detail || 'Failed to submit order. Check stock availability.');
+    } finally {
+      setOrderSubmitting(false);
+    }
+  };
+
+  const handleUpdateMfgStatus = async (orderItemId: number, status: string) => {
+    try {
+      await axios.post(`${API_BASE_URL}/api/orders/update-manufacturing-status`, {
+        order_item_id: orderItemId,
+        status: status
+      });
+      fetchQueue();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update status');
+    }
+  };
+
+  const handleDeleteDesign = async (designCode: string) => {
+    if (!confirm('Are you sure you want to completely delete this product design? This action cannot be undone.')) return;
+
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/products/designs/${designCode}`);
+      await axios.delete(`${API_BASE_URL}/api/products/designs/${res.data.id}`);
+      await fetchDesigns('');
+      setSelectedDesignCode(null);
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.detail || 'Failed to delete product');
+    }
+  };
+
+  useEffect(() => {
+    if (mode === 'admin' && ['dashboard', 'all-designs', 'add-design', 'categories', 'inventory'].includes(adminTab)) {
+      fetchDesigns('');
+      fetchCategories();
+    } else if (mode === 'buyer') {
+      fetchDesigns('Active');
+    }
+  }, [mode, adminTab]);
+
+  const cartTotals = cart.reduce((acc, item) => {
+    const breakdown = calculatePriceBreakdown(
+      item.size.weight,
+      item.design.purity,
+      item.design.wastage_percent,
+      item.design.making_charge_per_gram
+    );
+    return {
+      weight: acc.weight + (item.size.weight * item.quantity),
+      price: acc.price + (breakdown.total * item.quantity)
+    };
+  }, { weight: 0, price: 0 });
+
+  if (mode === 'admin' && !isAuthenticated) {
+    return <AdminLogin />;
+  }
+
+  return (
+    <div className="app-shell flex overflow-hidden font-sans">
+      {/* Mobile Sidebar backdrop */}
+      {mode === 'admin' && isSidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-40 md:hidden" 
+          onClick={() => setIsSidebarOpen(false)} 
+        />
+      )}
+
+      {/* Sidebar container */}
+      {mode === 'admin' && (
+        <div 
+          className={`fixed md:relative inset-y-0 left-0 z-50 transform md:transform-none transition-transform duration-300 md:flex ${
+            isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          }`}
+        >
+          <Sidebar onClose={() => setIsSidebarOpen(false)} />
+        </div>
+      )}
+
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
+        <header className="topbar px-8 py-4 flex items-center justify-between shrink-0 z-30">
+          {/* Left Side: Brand Logo */}
+          <div className="flex items-center space-x-3 shrink-0">
+            {/* Hamburger for Admin Mobile */}
+            {mode === 'admin' && (
+              <button
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 -ml-2 text-gray-600 hover:text-gray-900 md:hidden cursor-pointer shrink-0"
+              >
+                <Menu className="h-5.5 w-5.5" />
+              </button>
+            )}
+
+            {/* Admin Brand on Mobile */}
+            {mode === 'admin' && (
+              <div className="flex items-center space-x-2 md:hidden select-none mr-2">
+                <div className="h-8 w-8 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                  <img src="/logo.jpg" alt="SR Chains Logo" className="h-full w-full object-cover" />
+                </div>
+                <span className="text-sm font-bold tracking-wider topbar-brand">SR CHAINS</span>
+              </div>
+            )}
+
+            {/* Company Logo & Name */}
+            {mode === 'buyer' && (
+              <div 
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setSelectedCollectionFilter(null);
+                  setStorefrontResetKey(prev => prev + 1);
+                }}
+                className="flex items-center space-x-3 select-none cursor-pointer shrink-0"
+              >
+                <div className="h-10 w-10 rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden shadow-xs">
+                  <img src="/logo.jpg" alt="SR Chains Logo" className="h-full w-full object-cover" />
+                </div>
+                <div>
+                  <span className="text-lg font-bold tracking-widest topbar-brand text-gray-900">SR CHAINS</span>
+                  <p className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider">B2B Silver Jewelry</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Center: Navigation Links (Home, Catalog, About Us) */}
+          {mode === 'buyer' && (
+            <nav className="hidden md:flex items-center justify-center space-x-4 lg:space-x-8 flex-1 px-6">
+              {/* Home Button */}
+              <button
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setSelectedCollectionFilter(null);
+                  setAboutModalOpen(false);
+                  setCatalogDropdownOpen(false);
+                  setStorefrontResetKey(prev => prev + 1);
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                <Home className="h-4 w-4" />
+                <span>Home</span>
+              </button>
+
+              {/* Catalog Dropdown */}
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    setSelectedDesignCode(null);
+                    setCatalogDropdownOpen(!catalogDropdownOpen);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    selectedCollectionFilter || catalogDropdownOpen
+                      ? 'bg-gray-900 text-white shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  }`}
+                >
+                  <Grid className="h-4 w-4" />
+                  <span>Catalog</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${catalogDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {catalogDropdownOpen && (
+                  <div 
+                    className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-56 bg-white rounded-xl border border-gray-200 shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+                  >
+                    <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-3 py-1.5 border-b border-gray-100 mb-1">
+                      Collections Catalog
+                    </div>
+                    
+                    <button
+                      onClick={() => {
+                        setSelectedDesignCode(null);
+                        setSelectedCollectionFilter(null);
+                        setCatalogDropdownOpen(false);
+                        setStorefrontResetKey(prev => prev + 1);
+                      }}
+                      className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+                        !selectedCollectionFilter ? 'bg-gray-100 text-gray-900 font-semibold' : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      <span>All Collections</span>
+                      <span className="text-[10px] font-mono text-gray-400">All</span>
+                    </button>
+
+                    {Array.from(
+                      new Set(
+                        designs
+                          .filter(d => d.status === 'Active')
+                          .map(d => {
+                            if (d.collection && d.collection.trim()) return d.collection.trim();
+                            if (d.name && d.name.trim()) {
+                              const parts = d.name.split('-');
+                              return parts[0].trim();
+                            }
+                            return null;
+                          })
+                          .filter(Boolean) as string[]
+                      )
+                    ).map((collName) => (
+                      <button
+                        key={collName}
+                        onClick={() => {
+                          setSelectedDesignCode(null);
+                          setSelectedCollectionFilter(collName);
+                          setCatalogDropdownOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+                          selectedCollectionFilter?.toLowerCase() === collName.toLowerCase()
+                            ? 'bg-gray-900 text-white font-semibold'
+                            : 'text-gray-700 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span>{collName} Collection</span>
+                        <span className="text-[10px] font-mono opacity-60">View →</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* About Us Button */}
+              <button
+                onClick={() => setAboutModalOpen(true)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  aboutModalOpen 
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                <Info className="h-4 w-4" />
+                <span>About Us</span>
+              </button>
+            </nav>
+          )}
+          
+          {/* Right Controls: Live Silver Spot Rate & Cart */}
+          <div className="flex items-center space-x-6 sm:space-x-8 shrink-0">
+            <div className="hidden lg:flex items-center space-x-2 text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 shadow-2xs">
+              <TrendingUp className="h-4 w-4 text-gray-600" />
+              <span className="font-medium text-gray-600">Silver Spot:</span>
+              <span className="text-gray-900 font-bold font-mono">₹{livePrice?.silver_gram_rate.toFixed(2)}/g • ₹{livePrice ? livePrice.silver_kg_rate.toLocaleString('en-IN') : '2,26,539'}/kg</span>
+              <span className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
+                LIVE
+              </span>
+            </div>
+
+            {mode === 'buyer' && (
+              <button 
+                onClick={() => setCartOpen(true)}
+                className="relative p-2.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 rounded-xl transition-all cursor-pointer shadow-xs"
+              >
+                <ShoppingBag className="h-5 w-5" />
+                {cart.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white text-[9px] font-bold h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white shadow-sm">
+                    {cart.reduce((s, i) => s + i.quantity, 0)}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        </header>
+
+        <main className="app-main flex-1 overflow-y-auto px-8 py-8 scrollbar-thin">
+          {mode === 'buyer' && (
+            selectedDesignCode === null ? (
+              <BuyerStorefront 
+                key={storefrontResetKey}
+                onSelectProduct={(code, variantId, sizeId) => {
+                  setSelectedDesignCode(code);
+                  setInitialVariantId(variantId);
+                  setInitialSizeId(sizeId);
+                }} 
+                selectedCollectionFilter={selectedCollectionFilter}
+                onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
+              />
+            ) : (
+              <BuyerProductDetail 
+                designCode={selectedDesignCode} 
+                initialVariantId={initialVariantId}
+                initialSizeId={initialSizeId}
+                onBack={() => {
+                  setSelectedDesignCode(null);
+                  setInitialVariantId(undefined);
+                  setInitialSizeId(undefined);
+                }} 
+              />
+            )
+          )}
+
+          {mode === 'admin' && (
+            <>
+              {adminTab === 'dashboard' && <Dashboard />}
+
+              {adminTab === 'reports' && <Reports orders={orders} loading={loadingOrders} />}
+
+              {adminTab === 'all-designs' && (
+                selectedDesignCode === null ? (
+                  <div className="space-y-6">
+                    <div className="section-header">
+                      <div>
+                        <h2 className="page-title">Product Catalog</h2>
+                        <p className="muted-text text-sm mt-2">Browse and modify design matrix records for wholesale silver anklets.</p>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setEditingDesignCode(null);
+                          setAdminTab('add-design');
+                        }}
+                        className="btn-primary"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Add Design</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                      {designs.map(d => (
+                        <div 
+                          key={d.id}
+                          className="catalog-card flex flex-col justify-between group"
+                        >
+                          <div className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200">
+                            <img 
+                              src={
+                                d.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                                d.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
+                                  ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                                'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
+                              } 
+                              alt={d.name} 
+                              className="w-full h-full object-cover" 
+                            />
+                            <span className="absolute top-2 right-2 bg-white border border-gray-200 px-2 py-1 rounded-md text-[10px] font-bold text-gray-700 uppercase tracking-wider">
+                              {d.collection || 'Active'}
+                            </span>
+                          </div>
+                          <div className="p-5 space-y-4">
+                            <div>
+                              <span className="text-xs text-gray-500 font-mono font-semibold">{d.design_code}</span>
+                              <h3 className="text-base font-bold text-gray-900 tracking-tight truncate mt-1">{d.name}</h3>
+                              <p className="text-xs text-gray-500 mt-1">{d.variants.length} Variants • {d.metal}</p>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              <button
+                                onClick={() => setSelectedDesignCode(d.design_code)}
+                                className="btn-secondary w-full text-xs sm:col-span-3"
+                              >
+                                <span>Manage Specification</span>
+                                <ArrowRight className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEditingDesignCode(d.design_code);
+                                  setAdminTab('add-design');
+                                }}
+                                className="btn-secondary w-full text-xs sm:col-span-2"
+                              >
+                                <span>Edit</span>
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDesign(d.design_code)}
+                                className="btn-secondary w-full text-xs border-red-200 text-red-700 hover:bg-red-50"
+                              >
+                                <span>Delete</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <DesignDetail
+                    designCode={selectedDesignCode}
+                    onEdit={(code) => {
+                      setEditingDesignCode(code);
+                      setSelectedDesignCode(null);
+                      setAdminTab('add-design');
+                    }}
+                  />
+                )
+              )}
+
+              {adminTab === 'add-design' && (
+                editingDesignCode ? (
+                  <ProductForm 
+                    editingCode={editingDesignCode} 
+                    onSuccess={() => {
+                      setEditingDesignCode(null);
+                      fetchDesigns('');
+                      setAdminTab('all-designs');
+                    }}
+                    onCancel={() => {
+                      setEditingDesignCode(null);
+                      setAdminTab('all-designs');
+                    }}
+                  />
+                ) : (
+                  <ProductForm 
+                    editingCode={null}
+                    onSuccess={() => {
+                      fetchDesigns('');
+                      setAdminTab('all-designs');
+                    }}
+                    onCancel={() => setAdminTab('all-designs')}
+                  />
+                )
+              )}
+
+              {adminTab === 'categories' && <CategoryManagement />}
+              {adminTab === 'inventory' && <InventoryManagement />}
+              {adminTab === 'media-library' && <MediaLibrary />}
+              {adminTab === 'customers' && <Customers />}
+              {adminTab === 'variants' && <Variants />}
+              {adminTab === 'collections' && <Collections />}
+
+              {adminTab === 'orders' && (
+                <div className="space-y-6">
+                  <div className="section-header">
+                    <div>
+                      <h2 className="page-title">Wholesale B2B Orders</h2>
+                      <p className="muted-text text-sm mt-2">Review customer invoices, ready stock clearances, and make-order links.</p>
+                    </div>
+                    <span className="badge-neutral">{orders.length} Orders</span>
+                  </div>
+
+                  {loadingOrders ? (
+                    <div className="empty-state">Loading orders...</div>
+                  ) : orders.length > 0 ? (
+                    <div className="enterprise-panel overflow-hidden">
+                      <table className="enterprise-table">
+                        <thead>
+                          <tr>
+                            <th>Order Code</th>
+                            <th>Jeweler / Customer Name</th>
+                            <th>Order Date</th>
+                            <th className="text-center">Items Count</th>
+                            <th className="text-center">Status</th>
+                            <th className="text-right">Invoice Value</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {orders.map((o) => {
+                            const totalVal = o.items.reduce((s: number, i: any) => s + (i.price * i.quantity), 0);
+                            return (
+                              <tr key={o.id}>
+                                <td className="font-semibold text-gray-900 font-mono">{o.order_number}</td>
+                                <td className="font-semibold text-gray-900">{o.customer_name}</td>
+                                <td className="text-gray-500">{new Date(o.order_date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
+                                <td className="text-center text-gray-900 font-semibold font-mono">{o.items.length}</td>
+                                <td className="text-center">
+                                  <span className={statusClass(o.status)}>{o.status}</span>
+                                </td>
+                                <td className="text-right font-bold text-gray-900 font-mono">₹{totalVal.toLocaleString('en-IN')}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="empty-state">No orders logged in system yet.</div>
+                  )}
+                </div>
+              )}
+
+              {adminTab === 'make-to-order' && (
+                <div className="space-y-6">
+                  <div className="section-header">
+                    <div>
+                      <h2 className="page-title">Manufacturing Production Board</h2>
+                      <p className="muted-text text-sm mt-2">Track made-to-order anklets throughout factory workflows.</p>
+                    </div>
+                    <span className="badge-warning">Production Queue</span>
+                  </div>
+
+                  <div className="enterprise-panel p-5">
+                    <h3 className="card-title mb-4">Order Status Timeline</h3>
+                    <div className="timeline">
+                      {['Pending', 'Confirmed', 'Production', 'QC', 'Ready To Ship', 'Completed'].map((stage, idx) => (
+                        <div key={stage} className={`timeline-step ${idx <= 2 ? 'timeline-step-active' : ''}`}>
+                          {stage}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {loadingQueue ? (
+                    <div className="empty-state">Loading manufacturing queue...</div>
+                  ) : mfgQueue.length > 0 ? (
+                    <div className="enterprise-panel overflow-hidden">
+                      <table className="enterprise-table">
+                        <thead>
+                          <tr>
+                            <th>Design / Variant</th>
+                            <th>Size (Inch)</th>
+                            <th className="text-center">Order Qty</th>
+                            <th>Est. Delivery</th>
+                            <th className="text-center">Workflow Stage</th>
+                            <th className="text-right">Advance Workflow</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {mfgQueue.map((item) => {
+                            const mfg = item.manufacturing_detail;
+                            const status = mfg?.status || 'Pending';
+                            
+                            return (
+                              <tr key={item.id}>
+                                <td>
+                                  <span className="font-bold text-gray-900 block">{item.design_code}</span>
+                                  <span className="text-xs text-gray-500">{item.variant_code}</span>
+                                </td>
+                                <td className="font-semibold text-gray-900 font-mono">{item.size}&quot;</td>
+                                <td className="text-center text-gray-900 font-bold font-mono">{item.quantity} pcs</td>
+                                <td className="text-gray-500">
+                                  <div className="flex items-center space-x-1">
+                                    <Clock className="h-3.5 w-3.5 text-gray-400" />
+                                    <span>{mfg?.lead_time_days || 10} Days Lead</span>
+                                  </div>
+                                </td>
+                                <td className="text-center">
+                                  <span className={statusClass(status)}>{status}</span>
+                                </td>
+                                <td className="text-right">
+                                  {status !== 'Completed' && (
+                                    <select 
+                                      value={status}
+                                      onChange={(e) => handleUpdateMfgStatus(item.id, e.target.value)}
+                                      className="select w-40 py-1.5 text-sm"
+                                    >
+                                      <option value="Pending">Pending</option>
+                                      <option value="Confirmed">Confirmed</option>
+                                      <option value="Production">Production</option>
+                                      <option value="QC">QC</option>
+                                      <option value="Ready To Ship">Ready To Ship</option>
+                                      <option value="Completed">Completed</option>
+                                    </select>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="empty-state">No made-to-order manufacturing jobs enqueued.</div>
+                  )}
+                </div>
+              )}
+
+              {['settings'].includes(adminTab) && (
+                <div className="module-placeholder">
+                  <div className="mx-auto h-12 w-12 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 mb-4">
+                    <AlertCircle className="h-6 w-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">B2B Module Template</h4>
+                  <p className="text-sm text-gray-500 mt-1 max-w-sm mx-auto">This panel is linked dynamically. Data hooks will display updates once custom data streams are mapped.</p>
+                </div>
+              )}
+            </>
+          )}
+          <AppFooter />
+        </main>
+      </div>
+
+      {cartOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex justify-end">
+          <div className="absolute inset-0" onClick={() => setCartOpen(false)}></div>
+          
+          <div className="drawer-light relative w-full max-w-md h-full flex flex-col justify-between z-50">
+            <div className="drawer-header p-6 flex justify-between items-center">
+              <div className="flex items-center space-x-2.5">
+                <div className="h-9 w-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700">
+                  <ShoppingBag className="h-5 w-5" />
+                </div>
+                <span className="font-bold text-sm tracking-wider uppercase">Wholesale Cart</span>
+              </div>
+              <button onClick={() => setCartOpen(false)} className="text-gray-500 hover:text-gray-900 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+              {orderSuccess && (
+                <div className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm space-y-1.5">
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="h-4.5 w-4.5" />
+                    <span className="font-bold">Wholesale Order Logged!</span>
+                  </div>
+                  <p className="text-xs text-gray-600">Order ID: <span className="font-mono text-gray-900 font-semibold">{orderSuccess}</span> has been saved and ready stock weights cleared.</p>
+                </div>
+              )}
+
+              {cart.length > 0 ? (
+                cart.map((item, idx) => {
+                  const breakdown = calculatePriceBreakdown(
+                    item.size.weight,
+                    item.design.purity,
+                    item.design.wastage_percent,
+                    item.design.making_charge_per_gram
+                  );
+                  return (
+                    <div 
+                      key={idx} 
+                      onClick={() => {
+                        setSelectedDesignCode(item.design.design_code);
+                        setInitialVariantId(item.variant.id);
+                        setInitialSizeId(item.size.id);
+                        setCartOpen(false);
+                      }}
+                      className="cart-item space-y-3 relative group cursor-pointer hover:bg-gray-50/50 p-2.5 rounded-xl transition-all"
+                    >
+                      <div className="flex items-start space-x-3 text-sm">
+                        <div className="h-14 w-14 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden shrink-0">
+                          <img 
+                            src={
+                              item.design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                              item.design.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
+                                ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                              'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
+                            } 
+                            alt="cart item" 
+                            className="w-full h-full object-cover" 
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="font-mono text-xs text-gray-500 block">{item.design.design_code}</span>
+                          <h4 className="font-bold text-gray-900 truncate">{item.design.name}</h4>
+                          <div className="flex flex-wrap gap-x-2 mt-1 text-xs text-gray-500">
+                            <span>Variant: <span className="font-semibold text-gray-700">{item.variant.variant_name}</span></span>
+                            <span>•</span>
+                            <span>Size: <span className="font-bold text-gray-700 font-mono">{item.size.size.toFixed(2)}&quot;</span></span>
+                            <span>•</span>
+                            <span>Weight: <span className="font-bold text-gray-700 font-mono">{item.size.weight.toFixed(2)}g</span></span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-between items-center border-t border-gray-200 pt-2.5 text-xs">
+                        <div className="flex items-center space-x-2">
+                          <span className={`badge ${item.orderType === 'ready_stock' ? 'badge-success' : 'badge-warning'}`}>
+                            {item.orderType === 'ready_stock' ? 'Stock' : 'MTO'}
+                          </span>
+                          
+                          <div className="qty-control" onClick={(e) => e.stopPropagation()}>
+                            <button onClick={() => updateCartQuantity(idx, Math.max(item.design.moq, item.quantity - 1))}>-</button>
+                            <span>{item.quantity}</span>
+                            <button onClick={() => updateCartQuantity(idx, item.quantity + 1)}>+</button>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-xs text-gray-500 font-medium">Subtotal</span>
+                          <p className="font-bold text-gray-900 font-mono">₹{(breakdown.total * item.quantity).toLocaleString('en-IN')}</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-gray-50 rounded-lg p-2.5 mt-3 border border-gray-200 text-[11px] text-gray-500 space-y-1.5">
+                        <div className="flex justify-between">
+                          <span>Silver Base ({breakdown.effectiveWeight.toFixed(2)}g × ₹{livePrice?.silver_gram_rate || 222})</span>
+                          <span className="font-mono text-gray-700">₹{(breakdown.basePrice * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Making Charge</span>
+                          <span className="font-mono text-gray-700">₹{(breakdown.makingCharges * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                        </div>
+                        <div className="flex justify-between font-medium text-gray-600 border-t border-gray-200 pt-1 mt-1">
+                          <span>GST (3%)</span>
+                          <span className="font-mono">₹{(breakdown.gst * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                        </div>
+                      </div>
+
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); removeFromCart(idx); }}
+                        className="absolute top-2 right-2 text-gray-400 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                !orderSuccess && (
+                  <div className="text-center py-12 text-gray-500 flex flex-col items-center space-y-2 select-none">
+                    <ShoppingBag className="h-10 w-10 text-gray-300" />
+                    <span className="text-sm font-bold text-gray-700">Wholesale cart is empty</span>
+                    <p className="text-xs text-gray-500 max-w-[200px]">Add designs from the catalog page to compile invoice pricing.</p>
+                  </div>
+                )
+              )}
+            </div>
+
+            {cart.length > 0 && (
+              <div className="drawer-footer p-6 space-y-4 shrink-0">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-gray-500">Total Weight (g)</span>
+                    <span className="text-gray-900 font-mono font-semibold">{cartTotals.weight.toFixed(2)}g</span>
+                  </div>
+                  <div className="flex justify-between font-extrabold border-t border-gray-200 pt-2.5 text-base text-gray-900">
+                    <span>Estimated Total Invoice</span>
+                    <span className="font-mono">₹{cartTotals.price.toLocaleString('en-IN')}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 leading-relaxed pt-1.5">
+                    * Total calculated pricing incorporates BIS hallmarking, wastage rates, 3% GST, and making charges corresponding to live spot rates.
+                  </p>
+                </div>
+
+                <form onSubmit={handleCheckout} className="space-y-3 pt-2">
+                  <div className="space-y-1">
+                    <label className="field-label">Wholesale Jeweler / Client Name</label>
+                    <div className="relative">
+                      <input 
+                        type="text" 
+                        required
+                        placeholder="e.g. Royal Gold & Silver Jewellers" 
+                        value={customerName}
+                        onChange={(e) => setCustomerName(e.target.value)}
+                        className="input pl-9"
+                      />
+                      <User className="h-4 w-4 text-gray-400 absolute left-3 top-3" />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="field-label">Mobile Number</label>
+                    <div className="relative">
+                      <input 
+                        type="tel" 
+                        required
+                        placeholder="e.g. 9876543210" 
+                        value={mobileNumber}
+                        onChange={(e) => setMobileNumber(e.target.value)}
+                        className="input pl-9"
+                      />
+                      <Phone className="h-4 w-4 text-gray-400 absolute left-3 top-3" />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={orderSubmitting}
+                    className="btn-primary w-full"
+                  >
+                    <span>{orderSubmitting ? 'Filing Order...' : 'Submit Wholesale Order'}</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </form>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* About Us Modal */}
+      <AboutUsModal 
+        isOpen={aboutModalOpen} 
+        onClose={() => setAboutModalOpen(false)} 
+      />
+    </div>
+  );
+};
+
+function App() {
+  return (
+    <AppProvider>
+      <MainLayout />
+    </AppProvider>
+  )
+}
+
+export default App;
