@@ -94,6 +94,12 @@ export interface LivePrice {
   history?: LivePriceHistory[];
 }
 
+export interface CustomerInfo {
+  name: string;
+  email: string;
+  mobile_number: string;
+}
+
 interface AppContextType {
   mode: 'buyer' | 'admin';
   setMode: (mode: 'buyer' | 'admin') => void;
@@ -126,11 +132,26 @@ interface AppContextType {
     gst: number;
     total: number;
   };
+
+  // Admin auth
   token: string | null;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   navigateTo: (path: string) => void;
+
+  // Customer auth
+  customerToken: string | null;
+  isCustomerAuthenticated: boolean;
+  currentCustomer: CustomerInfo | null;
+  customerLogin: (token: string, name: string, email: string, mobile: string) => void;
+  customerLogout: () => void;
+
+  // Wishlist
+  wishlist: ProductDesign[];
+  addToWishlist: (design: ProductDesign) => void;
+  removeFromWishlist: (designId: number) => void;
+  isInWishlist: (designId: number) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -154,6 +175,37 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [loadingDesigns, setLoadingDesigns] = useState(false);
+
+  // Customer auth state
+  const [customerToken, setCustomerToken] = useState<string | null>(localStorage.getItem('customer_token'));
+  const [currentCustomer, setCurrentCustomer] = useState<CustomerInfo | null>(() => {
+    try {
+      const stored = localStorage.getItem('customer_info');
+      return stored ? JSON.parse(stored) : null;
+    } catch {
+      return null;
+    }
+  });
+  const isCustomerAuthenticated = !!customerToken && !!currentCustomer;
+
+  // Wishlist state — persisted in localStorage
+  const [wishlist, setWishlist] = useState<ProductDesign[]>(() => {
+    try {
+      const stored = localStorage.getItem('buyer_wishlist');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persist wishlist to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('buyer_wishlist', JSON.stringify(wishlist));
+    } catch {
+      // Storage quota exceeded — ignore
+    }
+  }, [wishlist]);
 
   // WebSocket reference for real-time price updates
   const wsRef = useRef<WebSocket | null>(null);
@@ -367,6 +419,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [token]);
 
+  // Admin login
   const login = async (email: string, password: string) => {
     try {
       const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
@@ -392,6 +445,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
     setMode(path.startsWith('/admin') ? 'admin' : 'buyer');
+  };
+
+  // Customer login (called after successful API response)
+  const customerLogin = (token: string, name: string, email: string, mobile: string) => {
+    const info: CustomerInfo = { name, email, mobile_number: mobile };
+    localStorage.setItem('customer_token', token);
+    localStorage.setItem('customer_info', JSON.stringify(info));
+    setCustomerToken(token);
+    setCurrentCustomer(info);
+  };
+
+  // Customer logout
+  const customerLogout = () => {
+    localStorage.removeItem('customer_token');
+    localStorage.removeItem('customer_info');
+    setCustomerToken(null);
+    setCurrentCustomer(null);
+  };
+
+  // Wishlist management
+  const addToWishlist = (design: ProductDesign) => {
+    setWishlist(prev => {
+      if (prev.find(d => d.id === design.id)) return prev; // already in wishlist
+      return [...prev, design];
+    });
+  };
+
+  const removeFromWishlist = (designId: number) => {
+    setWishlist(prev => prev.filter(d => d.id !== designId));
+  };
+
+  const isInWishlist = (designId: number) => {
+    return wishlist.some(d => d.id === designId);
   };
 
   // Initialize live price updates on mount
@@ -457,7 +543,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       isAuthenticated,
       login,
       logout,
-      navigateTo
+      navigateTo,
+      // Customer auth
+      customerToken,
+      isCustomerAuthenticated,
+      currentCustomer,
+      customerLogin,
+      customerLogout,
+      // Wishlist
+      wishlist,
+      addToWishlist,
+      removeFromWishlist,
+      isInWishlist,
     }}>
       {children}
     </AppContext.Provider>

@@ -23,7 +23,7 @@ interface DesignDetailProps {
 export const DesignDetail: React.FC<DesignDetailProps> = ({ designCode, onEdit }) => {
   const { designs, setSelectedDesignCode, livePrice, categories, fetchDesigns } = useApp();
   
-  const design = designs.find(d => d.design_code === designCode);
+  const design = designs.find(d => d.name === designCode || d.design_code === designCode);
   
   if (!design) {
     return (
@@ -202,7 +202,7 @@ export const DesignDetail: React.FC<DesignDetailProps> = ({ designCode, onEdit }
           
           <div className="divide-y divide-gray-200 text-sm">
             <div className="py-3 flex justify-between"><span className="text-gray-500">Total Variants</span><span className="font-bold">{design.variants.length}</span></div>
-            <div className="py-3 flex justify-between"><span className="text-gray-500">Total Sizes</span><span className="font-bold">33 (4.5&quot; - 12.5&quot;)</span></div>
+            <div className="py-3 flex justify-between"><span className="text-gray-500">Total Sizes</span><span className="font-bold">(5.0&quot; - 11.0&quot;)</span></div>
             <div className="py-3 flex justify-between"><span className="text-gray-500">Ready Stock SKUs</span><span className="font-bold">156</span></div>
             <div className="py-3 flex justify-between"><span className="text-gray-500">Out of Stock SKUs</span><span className="font-bold">18</span></div>
             <div className="py-3 flex justify-between"><span className="text-gray-500">MTO Available</span><span className="font-bold text-green-700">Yes</span></div>

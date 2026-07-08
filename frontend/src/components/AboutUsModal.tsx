@@ -86,7 +86,7 @@ export const AboutUsModal: React.FC<AboutUsModalProps> = ({ isOpen, onClose }) =
               <Phone className="h-4 w-4 text-gray-500 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold text-gray-900">Wholesale Contact</p>
-                <p>+91 98765 43210 / Support Desk</p>
+                <p>+91 70106 74487 / Support Desk</p>
               </div>
             </div>
 

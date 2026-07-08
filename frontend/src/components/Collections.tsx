@@ -1,24 +1,20 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
-import { 
-  Layers, 
-  FolderOpen, 
-  ChevronDown, 
-  ChevronUp, 
-  Image as ImageIcon, 
-  Eye, 
-  AlertCircle,
-  Search,
-  ArrowUpDown
-} from 'lucide-react';
+import { useApp, API_BASE_URL } from '../context/AppContext';
+import { Layers, FolderOpen, ChevronDown, ChevronUp, Image as ImageIcon, Eye, AlertCircle } from 'lucide-react';
+
+interface CollectionGroup {
+  name: string;
+  designs: any[];
+  totalVariants: number;
+  totalStock: number;
+  thumbnails: string[];
+}
 
 export const Collections: React.FC = () => {
   const { designs, setSelectedDesignCode, setAdminTab } = useApp();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [sortOption, setSortOption] = useState('name-asc');
   const [expandedCollections, setExpandedCollections] = useState<Record<string, boolean>>({});
 
-  // Group designs by their collection and filter/sort them
+  // Group designs by their collection
   const collectionsData = useMemo(() => {
     const groups: Record<string, any[]> = {};
     
@@ -30,7 +26,7 @@ export const Collections: React.FC = () => {
       groups[colName].push(design);
     });
 
-    let list = Object.keys(groups).map(name => {
+    return Object.keys(groups).map(name => {
       const colDesigns = groups[name];
       let totalVariants = 0;
       let totalStock = 0;
@@ -59,39 +55,13 @@ export const Collections: React.FC = () => {
         totalStock,
         thumbnails: Array.from(thumbnailsSet).slice(0, 4) // Show up to 4 thumbnails
       };
-    });
-
-    // Filter by search query
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase().trim();
-      list = list.filter(col => col.name.toLowerCase().includes(q));
-    }
-
-    // Sort options
-    list.sort((a, b) => {
-      // Keep 'Unassigned Collection' at the bottom
+    }).sort((a, b) => {
+      // Keep 'Unassigned Collection' at the bottom, others sorted alphabetically
       if (a.name === 'Unassigned Collection') return 1;
       if (b.name === 'Unassigned Collection') return -1;
-
-      switch (sortOption) {
-        case 'designs-desc':
-          return b.designs.length - a.designs.length;
-        case 'designs-asc':
-          return a.designs.length - b.designs.length;
-        case 'stock-desc':
-          return b.totalStock - a.totalStock;
-        case 'stock-asc':
-          return a.totalStock - b.totalStock;
-        case 'name-desc':
-          return b.name.localeCompare(a.name);
-        case 'name-asc':
-        default:
-          return a.name.localeCompare(b.name);
-      }
+      return a.name.localeCompare(b.name);
     });
-
-    return list;
-  }, [designs, searchQuery, sortOption]);
+  }, [designs]);
 
   const toggleExpand = (name: string) => {
     setExpandedCollections(prev => ({
@@ -120,46 +90,14 @@ export const Collections: React.FC = () => {
         </div>
       </div>
 
-      {/* Filters & Search Toolbar */}
-      <div className="enterprise-panel p-4 bg-white border border-gray-200 rounded-xl shadow-2xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center gap-4">
-          <div className="search-field flex-1">
-            <input 
-              type="text" 
-              placeholder="Search collections by name..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input pr-10"
-            />
-            <Search className="h-4 w-4 search-icon text-gray-400" />
-          </div>
-
-          <div className="flex items-center space-x-2 bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-1.5 shrink-0">
-            <ArrowUpDown className="h-3.5 w-3.5 text-gray-500" />
-            <select
-              value={sortOption}
-              onChange={(e) => setSortOption(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-gray-700 outline-none border-none cursor-pointer"
-            >
-              <option value="name-asc">Name: A to Z</option>
-              <option value="name-desc">Name: Z to A</option>
-              <option value="designs-desc">Designs: High to Low</option>
-              <option value="designs-asc">Designs: Low to High</option>
-              <option value="stock-desc">Stock: High to Low</option>
-              <option value="stock-asc">Stock: Low to High</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
       <div className="space-y-4">
         {collectionsData.map((collection) => {
-          const isExpanded = !!expandedCollections[collection.name] || !!searchQuery;
+          const isExpanded = !!expandedCollections[collection.name];
           
           return (
             <div 
               key={collection.name} 
-              className={`enterprise-panel overflow-hidden border border-gray-200 rounded-xl bg-white shadow-xs transition-all duration-200 ${
+              className={`enterprise-panel overflow-hidden transition-all duration-200 ${
                 collection.name === 'Unassigned Collection' ? 'border-dashed border-gray-300' : ''
               }`}
             >
@@ -169,7 +107,7 @@ export const Collections: React.FC = () => {
                 className="p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 cursor-pointer hover:bg-gray-50/50 select-none"
               >
                 <div className="flex items-center space-x-4">
-                  <div className="h-12 w-12 rounded-xl bg-gray-950 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                  <div className="h-12 w-12 rounded-xl bg-gray-900 text-white flex items-center justify-center shrink-0">
                     <FolderOpen className="h-6 w-6" />
                   </div>
                   <div>

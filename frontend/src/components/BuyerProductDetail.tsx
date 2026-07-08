@@ -25,8 +25,9 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   initialSizeId,
   onBack 
 }) => {
-  const { designs, livePrice, calculatePriceBreakdown, addToCart } = useApp();
-  const design = designs.find(d => d.design_code === designCode);
+  const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
+
+  const design = designs.find(d => d.name === designCode || d.design_code === designCode);
 
   if (!design) {
     return (
@@ -39,8 +40,13 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   const [selectedVariantId, setSelectedVariantId] = useState<number>(initialVariantId || design.variants[0]?.id || 0);
   const activeVariant = design.variants.find(v => v.id === selectedVariantId) || design.variants[0];
 
-  const [selectedSizeId, setSelectedSizeId] = useState<number>(initialSizeId || activeVariant?.sizes.find(s => s.id === initialSizeId)?.id || activeVariant?.sizes[0]?.id || 0);
-  const activeSize = activeVariant?.sizes.find(s => s.id === selectedSizeId) || activeVariant?.sizes[0];
+  const availableSizes = activeVariant?.sizes.filter(s => s.size >= 5.0 && s.size <= 11.0) || activeVariant?.sizes || [];
+  const [selectedSizeId, setSelectedSizeId] = useState<number>(
+    (initialSizeId && availableSizes.some(s => s.id === initialSizeId))
+      ? initialSizeId
+      : availableSizes[0]?.id || activeVariant?.sizes[0]?.id || 0
+  );
+  const activeSize = availableSizes.find(s => s.id === selectedSizeId) || availableSizes[0] || activeVariant?.sizes[0];
 
   const [orderType, setOrderType] = useState<'ready_stock' | 'make_order'>('ready_stock');
   const [quantity, setQuantity] = useState<number>(design.moq);
@@ -48,7 +54,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
   const [activeMediaIdx, setActiveMediaIdx] = useState(0);
 
-  const [isLiked, setIsLiked] = useState(false);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const handleShare = async () => {
@@ -82,6 +87,98 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       setSelectedSizeId(initialSizeId);
     }
   }, [initialSizeId]);
+
+  // Keep URL search parameters in sync with selected variant and size
+  useEffect(() => {
+    if (!designCode) return;
+    const params = new URLSearchParams(window.location.search);
+    let changed = false;
+
+    if (params.get('design') !== designCode) {
+      params.set('design', designCode);
+      changed = true;
+    }
+
+    if (selectedVariantId) {
+      const vStr = String(selectedVariantId);
+      if (params.get('variant') !== vStr) {
+        params.set('variant', vStr);
+        changed = true;
+      }
+    } else {
+      if (params.has('variant')) {
+        params.delete('variant');
+        changed = true;
+      }
+    }
+
+    if (selectedSizeId) {
+      const sStr = String(selectedSizeId);
+      if (params.get('size') !== sStr) {
+        params.set('size', sStr);
+        changed = true;
+      }
+    } else {
+      if (params.has('size')) {
+        params.delete('size');
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      window.history.replaceState(null, '', `?${params.toString()}`);
+    }
+  }, [designCode, selectedVariantId, selectedSizeId]);
+
+  // Sticky header scroll detection & top-scroll reset
+  const [showStickyHeader, setShowStickyHeader] = useState(true);
+  const [isScrolled, setIsScrolled] = useState(false);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.app-main');
+    if (!scrollContainer) return;
+
+    // Reset scroll to top on mount / designCode change
+    scrollContainer.scrollTop = 0;
+    setShowStickyHeader(true);
+    setIsScrolled(false);
+    lastScrollY.current = 0;
+
+    const handleScroll = () => {
+      const currentScrollY = scrollContainer.scrollTop;
+      
+      // Determine if page has been scrolled
+      setIsScrolled(currentScrollY > 10);
+
+      // Determine scroll direction & apply threshold
+      if (currentScrollY <= 50) {
+        setShowStickyHeader(true);
+      } else if (currentScrollY > lastScrollY.current + 5) {
+        // Scrolling down
+        setShowStickyHeader(false);
+      } else if (currentScrollY < lastScrollY.current - 5) {
+        // Scrolling up
+        setShowStickyHeader(true);
+      }
+      
+      lastScrollY.current = currentScrollY;
+    };
+
+    scrollContainer.addEventListener('scroll', handleScroll);
+    return () => {
+      scrollContainer.removeEventListener('scroll', handleScroll);
+    };
+  }, [designCode]);
+
+  // Automatically switch to 'make_order' if activeSize has no stock
+  useEffect(() => {
+    if (activeSize && activeSize.stock_available === 0) {
+      setOrderType('make_order');
+    } else {
+      setOrderType('ready_stock');
+    }
+  }, [activeSize]);
 
   // ── Image Zoom (pure DOM, no React state, works on desktop + mobile) ──
   const imageContainerRef = useRef<HTMLDivElement>(null);
@@ -144,10 +241,9 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     const onTouchEnd = () => zoomOut();
 
     // ── Click: open lightbox only if not a zoom-drag ──
-    const onClick = () => {
-      if (touchMovedRef.current) { touchMovedRef.current = false; return; }
-      setIsLightboxOpen(true);
-    };
+    // NOTE: click is handled via React onClick prop on the container div
+    // (NOT via addEventListener) so that e.stopPropagation() from child
+    // buttons (Like, Share) correctly prevents the lightbox from opening.
 
     container.addEventListener('mousemove',   onMouseMove);
     container.addEventListener('mouseenter',  onMouseEnter);
@@ -156,7 +252,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     container.addEventListener('touchmove',   onTouchMove,   { passive: false });
     container.addEventListener('touchend',    onTouchEnd);
     container.addEventListener('touchcancel', onTouchEnd);
-    container.addEventListener('click',       onClick);
 
     return () => {
       container.removeEventListener('mousemove',   onMouseMove);
@@ -166,9 +261,15 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       container.removeEventListener('touchmove',   onTouchMove);
       container.removeEventListener('touchend',    onTouchEnd);
       container.removeEventListener('touchcancel', onTouchEnd);
-      container.removeEventListener('click',       onClick);
     };
   }, []);
+
+  // Handler for clicking the image area to open lightbox
+  // (used as React onClick so child stopPropagation() works correctly)
+  const handleImageContainerClick = () => {
+    if (touchMovedRef.current) { touchMovedRef.current = false; return; }
+    setIsLightboxOpen(true);
+  };
 
   // Price flash animation state
   const [priceFlash, setPriceFlash] = useState(false);
@@ -214,6 +315,11 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       return;
     }
 
+    if (orderType === 'ready_stock' && activeSize.stock_available === 0) {
+      alert("Stock is empty, please select Make Order.");
+      return;
+    }
+
     if (orderType === 'ready_stock' && quantity > activeSize.stock_available) {
       alert(`Only ${activeSize.stock_available} pieces are currently available in Ready Stock. Switch to 'Make Order' to purchase larger quantities.`);
       return;
@@ -251,13 +357,43 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
   return (
     <div className="space-y-6 pb-2">
-      <div>
+      {/* Floating Back to Catalog Button */}
+      <button 
+        onClick={onBack}
+        className={`fixed top-24 left-8 z-40 flex items-center space-x-2 bg-white/95 backdrop-blur-md border border-gray-200 shadow-md px-4 py-2.5 rounded-full text-xs font-bold text-gray-600 hover:text-gray-900 hover:shadow-lg transition-all duration-300 transform cursor-pointer ${
+          isScrolled && showStickyHeader ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-4 opacity-0 scale-95 pointer-events-none'
+        }`}
+      >
+        <ArrowLeft className="h-3.5 w-3.5 text-gray-500" />
+        <span>Back to Catalog</span>
+      </button>
+
+      <div className="flex items-center justify-between">
         <button 
           onClick={onBack}
           className="flex items-center space-x-2 text-xs font-semibold text-gray-500 hover:text-gray-900 transition-colors uppercase tracking-wider cursor-pointer"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
           <span>Back to Catalog</span>
+        </button>
+
+        {/* Wishlist button on product detail */}
+        <button
+          onClick={() => {
+            if (isInWishlist(design.id)) {
+              removeFromWishlist(design.id);
+            } else {
+              addToWishlist(design);
+            }
+          }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+            isInWishlist(design.id)
+              ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+              : 'bg-white border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500'
+          }`}
+        >
+          <Heart className={`h-3.5 w-3.5 ${isInWishlist(design.id) ? 'fill-red-500 text-red-500' : ''}`} />
+          <span>{isInWishlist(design.id) ? 'Wishlisted' : 'Wishlist'}</span>
         </button>
       </div>
 
@@ -269,8 +405,9 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
           <div className="enterprise-panel overflow-hidden p-4">
             <div
               ref={imageContainerRef}
+              onClick={handleImageContainerClick}
               className="image-frame relative overflow-hidden cursor-zoom-in select-none w-full bg-white rounded-xl border border-gray-200"
-              style={{ aspectRatio: '1500 / 700', touchAction: 'none' }}
+              style={{ aspectRatio: '16 / 9', touchAction: 'none' }}
             >
               {currentMedia?.file_type?.startsWith('video') ? (
                 <video
@@ -299,10 +436,18 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
               <div className="absolute top-4 right-4 flex flex-col gap-2" style={{ zIndex: 10 }}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (isInWishlist(design.id)) {
+                      removeFromWishlist(design.id);
+                    } else {
+                      addToWishlist(design);
+                    }
+                  }}
+                  title={isInWishlist(design.id) ? 'Remove from wishlist' : 'Add to wishlist'}
                   className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:text-gray-900 shadow-sm cursor-pointer transition-colors"
                 >
-                  <Heart className={`h-4.5 w-4.5 ${isLiked ? 'fill-red-500 text-red-500' : ''}`} />
+                  <Heart className={`h-4.5 w-4.5 transition-colors ${isInWishlist(design.id) ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
                 </button>
                 
                 <button
@@ -348,7 +493,13 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                 <span className="text-xs font-mono font-bold text-gray-500 tracking-wider uppercase">{design.design_code}</span>
                 <h2 className="text-3xl font-bold text-gray-900 tracking-tight mt-2">{design.name}</h2>
               </div>
-              <span className="badge-success">{design.status}</span>
+              <span className={`px-4 py-1.5 rounded-full text-sm font-bold border shadow-sm transition-all ${
+                activeSize && activeSize.stock_available > 0
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                  : 'bg-amber-50 text-amber-800 border-amber-300'
+              }`}>
+                {activeSize && activeSize.stock_available > 0 ? 'In Stock' : 'Make Order'}
+              </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -378,8 +529,13 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                     onClick={() => {
                       setSelectedVariantId(v.id);
                       setActiveMediaIdx(0); // Reset variant media slide index
-                      const matchedSize = v.sizes.find(s => s.size === activeSize?.size);
-                      if (matchedSize) setSelectedSizeId(matchedSize.id);
+                      const nextVariantSizes = v.sizes.filter(s => s.size >= 5.0 && s.size <= 11.0);
+                      const matchedSize = nextVariantSizes.find(s => s.size === activeSize?.size);
+                      if (matchedSize) {
+                        setSelectedSizeId(matchedSize.id);
+                      } else if (nextVariantSizes[0]) {
+                        setSelectedSizeId(nextVariantSizes[0].id);
+                      }
                     }}
                     className={`variant-button ${selectedVariantId === v.id ? 'variant-button-selected' : ''}`}
                   >
@@ -395,7 +551,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                 <span className="text-gray-500">Running Sizes: 5.0" - 11.0"</span>
               </div>
               <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-7 gap-2">
-                {activeVariant?.sizes.map((s) => {
+                {availableSizes.map((s) => {
                   const isSelected = selectedSizeId === s.id;
                   return (
                     <button
@@ -463,7 +619,14 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
           <div className="enterprise-panel p-5 space-y-4">
             <div className="grid grid-cols-2 gap-3 bg-gray-50 p-1 border border-gray-200 rounded-xl text-sm">
               <button
-                onClick={() => setOrderType('ready_stock')}
+                onClick={() => {
+                  if (activeSize && activeSize.stock_available === 0) {
+                    alert("Stock is empty, please select Make Order.");
+                    setOrderType('make_order');
+                  } else {
+                    setOrderType('ready_stock');
+                  }
+                }}
                 className={`py-2 rounded-lg font-semibold flex flex-col items-center justify-center transition-all cursor-pointer ${
                   orderType === 'ready_stock' 
                     ? 'bg-white border border-gray-300 text-gray-900 shadow-sm' 
@@ -508,11 +671,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               </div>
             </div>
 
-            {orderType === 'ready_stock' && activeSize && activeSize.stock_available < design.moq && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs flex items-center space-x-2 font-medium">
-                <span>Ready stock quantity is below MOQ ({design.moq} pcs). Please select 'Make Order (MTO)' to order.</span>
-              </div>
-            )}
+
 
             {addedToCartMsg && (
               <div className="p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-xs flex items-center space-x-2 font-medium">

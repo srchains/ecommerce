@@ -10,7 +10,9 @@ import {
   X,
   CheckCircle,
   Info,
+  Heart,
 } from 'lucide-react';
+
 
 interface BuyerStorefrontProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
@@ -23,7 +25,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   selectedCollectionFilter,
   onClearCollectionFilter
 }) => {
-  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories } = useApp();
+  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
+
   const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [babySizesOnly, setBabySizesOnly] = useState(false);
@@ -607,7 +610,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                       <div
                         key={`${design.id}-${matchedV.id}`}
                         className="enterprise-card overflow-hidden flex flex-col sm:flex-row group cursor-pointer hover:shadow-md transition-shadow"
-                        onClick={() => onSelectProduct(design.design_code, matchedV.id, firstSize?.id)}
+                        onClick={() => onSelectProduct(design.name, matchedV.id, firstSize?.id)}
                       >
                         {/* Image */}
                         <div className="relative sm:w-56 shrink-0 aspect-video sm:aspect-auto bg-gray-100 overflow-hidden">
@@ -699,7 +702,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                       key={sz.id || idx}
                                       onClick={(e) => {
                                         e.stopPropagation();
-                                        onSelectProduct(design.design_code, matchedV.id, sz.id);
+                                        onSelectProduct(design.name, matchedV.id, sz.id);
                                       }}
                                       className="flex items-center justify-between px-3 py-2 hover:bg-blue-50 hover:border-l-2 hover:border-l-blue-500 transition-all cursor-pointer group/sz"
                                     >
@@ -736,7 +739,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onSelectProduct(design.design_code, matchedV.id, firstSize?.id);
+                                onSelectProduct(design.name, matchedV.id, firstSize?.id);
                               }}
                               className="btn-primary flex items-center gap-2 text-sm"
                             >
@@ -832,7 +835,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               return (
                 <div
                   key={design.id}
-                  onClick={() => onSelectProduct(design.design_code, targetVariantId, targetSizeId)}
+                  onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
                   className="catalog-card group cursor-pointer"
                 >
                   <div className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200">
@@ -873,7 +876,24 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         Baby Sizes ({babyDetails.babySizes.map(s => `${s}"`).join(', ')})
                       </span>
                     )}
+
+                    {/* Wishlist Heart Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isInWishlist(design.id)) {
+                          removeFromWishlist(design.id);
+                        } else {
+                          addToWishlist(design);
+                        }
+                      }}
+                      className="absolute top-3 left-3 h-8 w-8 flex items-center justify-center rounded-full bg-white/90 border border-gray-200 shadow-sm hover:scale-110 transition-all cursor-pointer"
+                      title={isInWishlist(design.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+                    >
+                      <Heart className={`h-4 w-4 transition-colors ${isInWishlist(design.id) ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
+                    </button>
                   </div>
+
 
                   <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                     <div className="space-y-2">
@@ -913,7 +933,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                 key={`${item.variantId}-${item.sizeId}-${idx}`}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  onSelectProduct(design.design_code, item.variantId, item.sizeId);
+                                  onSelectProduct(design.name, item.variantId, item.sizeId);
                                 }}
                                 className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-center justify-between text-xs hover:border-emerald-500 hover:shadow-xs transition-all cursor-pointer group/item"
                               >

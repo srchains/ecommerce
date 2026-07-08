@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -7,49 +7,54 @@ import {
   ShoppingBag, 
   Hammer, 
   AlertTriangle,
-  Award
+  Award,
+  Wrench,
+  CheckCircle,
+  XCircle
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import axios from 'axios';
+import { useApp, API_BASE_URL } from '../context/AppContext';
+import { TradingViewChart } from './TradingViewChart';
 
 export const Dashboard: React.FC = () => {
-  const { livePrice, designs } = useApp();
+  const { livePrice, designs, fetchDesigns, fetchCategories } = useApp();
+  const [diagResult, setDiagResult] = useState<any>(null);
+  const [fixResult, setFixResult] = useState<any>(null);
+  const [diagLoading, setDiagLoading] = useState(false);
+  const [fixLoading, setFixLoading] = useState(false);
+  const [diagError, setDiagError] = useState<string | null>(null);
 
-  const chartData = React.useMemo(() => {
-    if (!livePrice || !livePrice.history || livePrice.history.length === 0) {
-      // Fallback data if history is not available
-      return [
-        { time: '00:00', rate: 220.5 },
-        { time: '03:00', rate: 221.2 },
-        { time: '06:00', rate: 220.8 },
-        { time: '09:00', rate: 222.4 },
-        { time: '12:00', rate: 221.9 },
-        { time: '15:00', rate: 223.1 },
-        { time: '18:00', rate: 222.7 },
-        { time: '21:00', rate: 224.2 }
-      ];
+  const runDiagnose = async () => {
+    try {
+      setDiagLoading(true);
+      setDiagError(null);
+      setDiagResult(null);
+      setFixResult(null);
+      const res = await axios.get(`${API_BASE_URL}/api/products/diagnose-categories`);
+      setDiagResult(res.data);
+    } catch (err: any) {
+      setDiagError(err.response?.data?.detail || 'Diagnose failed');
+    } finally {
+      setDiagLoading(false);
     }
-    return livePrice.history.map(h => {
-      const date = new Date(h.timestamp);
-      const timeStr = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
-      return {
-        time: timeStr,
-        rate: h.rate
-      };
-    });
-  }, [livePrice]);
-
-  const CustomTooltip = ({ active, payload }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white border border-gray-200 rounded-xl p-3 shadow-md text-xs font-sans">
-          <p className="text-gray-500 font-medium">{payload[0].payload.time}</p>
-          <p className="text-gray-900 font-bold font-mono mt-1">₹{payload[0].value.toFixed(2)}/g</p>
-        </div>
-      );
-    }
-    return null;
   };
+
+  const runFix = async () => {
+    try {
+      setFixLoading(true);
+      setDiagError(null);
+      const res = await axios.post(`${API_BASE_URL}/api/products/fix-categories`);
+      setFixResult(res.data);
+      // Refresh data so sidebar counts update immediately
+      await Promise.all([fetchDesigns(''), fetchCategories()]);
+    } catch (err: any) {
+      setDiagError(err.response?.data?.detail || 'Fix failed');
+    } finally {
+      setFixLoading(false);
+    }
+  };
+
+
 
   const metrics = [
     {
@@ -166,42 +171,7 @@ export const Dashboard: React.FC = () => {
               <span className="text-xs text-gray-500 font-mono">Source: {livePrice?.source || 'Mock Data'}</span>
             </div>
             <div className="h-[260px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={chartData}
-                  margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                >
-                  <defs>
-                    <linearGradient id="rateGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#111827" stopOpacity={0.15}/>
-                      <stop offset="95%" stopColor="#111827" stopOpacity={0.01}/>
-                    </linearGradient>
-                  </defs>
-                  <XAxis 
-                    dataKey="time" 
-                    tick={{ fill: '#6b7280', fontSize: 10 }}
-                    axisLine={false}
-                    tickLine={false}
-                    dy={10}
-                  />
-                  <YAxis 
-                    domain={['auto', 'auto']}
-                    tick={{ fill: '#6b7280', fontSize: 10, fontFamily: 'monospace' }}
-                    axisLine={false}
-                    tickLine={false}
-                    dx={-5}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area 
-                    type="monotone" 
-                    dataKey="rate" 
-                    stroke="#111827" 
-                    strokeWidth={2}
-                    fillOpacity={1} 
-                    fill="url(#rateGradient)" 
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+              <TradingViewChart history={livePrice?.history || []} />
             </div>
           </div>
 
@@ -252,6 +222,126 @@ export const Dashboard: React.FC = () => {
             </table>
           </div>
         </div>
+      </div>
+
+      {/* ── Category Fix Tool ── */}
+      <div className="enterprise-panel p-6">
+        <div className="flex items-start justify-between border-b border-gray-200 pb-4 mb-5">
+          <div>
+            <h3 className="card-title flex items-center gap-2">
+              <Wrench className="h-4 w-4 text-amber-600" />
+              Category Fix Tool
+            </h3>
+            <p className="text-sm text-gray-500 mt-1">
+              If products appear in "All Collections" but disappear when you click a specific category (e.g. Flower, Titanic), use this tool to auto-detect and fix the issue.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 mb-5">
+          <button
+            onClick={runDiagnose}
+            disabled={diagLoading}
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            {diagLoading ? (
+              <span className="inline-block h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Database className="h-4 w-4" />
+            )}
+            {diagLoading ? 'Diagnosing...' : 'Diagnose Categories'}
+          </button>
+
+          {diagResult && diagResult.missing_from_sidebar > 0 && (
+            <button
+              onClick={runFix}
+              disabled={fixLoading}
+              className="btn-primary flex items-center gap-2 text-sm"
+            >
+              {fixLoading ? (
+                <span className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Wrench className="h-4 w-4" />
+              )}
+              {fixLoading ? 'Fixing...' : `Fix ${diagResult.missing_from_sidebar} Missing Product(s)`}
+            </button>
+          )}
+        </div>
+
+        {diagError && (
+          <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+            <XCircle className="h-4 w-4 shrink-0" />
+            {diagError}
+          </div>
+        )}
+
+        {diagResult && (
+          <div className="space-y-4">
+            <div className={`flex items-center gap-2 text-sm font-semibold px-4 py-3 rounded-lg border ${
+              diagResult.missing_from_sidebar === 0
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-amber-50 border-amber-200 text-amber-800'
+            }`}>
+              {diagResult.missing_from_sidebar === 0 ? (
+                <CheckCircle className="h-4 w-4" />
+              ) : (
+                <AlertTriangle className="h-4 w-4" />
+              )}
+              {diagResult.missing_from_sidebar === 0
+                ? `All ${diagResult.total_active_designs} active products are properly categorized!`
+                : `Found ${diagResult.missing_from_sidebar} product(s) missing from category filters (visible in All Collections only).`
+              }
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {diagResult.sidebar_counts.map((s: any) => (
+                <div key={s.category_id} className="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center">
+                  <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">{s.category_name}</p>
+                  <p className="text-2xl font-bold font-mono mt-1">{s.active_count}</p>
+                </div>
+              ))}
+            </div>
+
+            {diagResult.orphaned_designs.length > 0 && (
+              <div>
+                <p className="text-sm font-semibold text-gray-700 mb-2">Affected Products:</p>
+                <div className="space-y-2">
+                  {diagResult.orphaned_designs.map((d: any) => (
+                    <div key={d.design_id} className="flex items-center gap-3 text-sm bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                      <span className="font-mono font-bold text-gray-900">{d.design_code}</span>
+                      <span className="text-gray-500">{d.name}</span>
+                      <span className="ml-auto text-xs text-amber-700">category: {d.current_category_name || 'None'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {fixResult && (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm font-semibold text-green-800 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+              <CheckCircle className="h-4 w-4" />
+              {fixResult.message}
+            </div>
+            {fixResult.fixed.map((f: any) => (
+              <div key={f.design_code} className="flex items-center gap-3 text-sm bg-green-50 border border-green-200 rounded-lg px-4 py-2">
+                <CheckCircle className="h-3.5 w-3.5 text-green-600 shrink-0" />
+                <span className="font-mono font-bold">{f.design_code}</span>
+                <span className="text-gray-500">→ moved to <strong>{f.new_category_name}</strong></span>
+              </div>
+            ))}
+            {fixResult.could_not_fix.map((f: any) => (
+              <div key={f.design_code} className="flex items-center gap-3 text-sm bg-red-50 border border-red-200 rounded-lg px-4 py-2">
+                <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                <span className="font-mono font-bold">{f.design_code}</span>
+                <span className="text-gray-500">{f.reason} — please edit manually in All Designs</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

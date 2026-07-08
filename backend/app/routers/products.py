@@ -87,12 +87,12 @@ class SizeGenerationRequest(BaseModel):
 @router.post("/generate-sizes", response_model=List[VariantSizeCreate])
 def generate_standard_sizes(req: SizeGenerationRequest, admin_user: dict = Depends(get_admin_user)):
     """
-    Generate sizes from 4.5" to 12.5" with increments of 0.25".
+    Generate sizes from 5.0" to 11.0" with increments of 0.25".
     Calculates weights proportionally: weight = base_weight * (size / base_size).
     """
     sizes = []
-    current_size = 4.5
-    while current_size <= 12.5:
+    current_size = 5.0
+    while current_size <= 11.0:
         # Calculate proportional weight
         calculated_weight = round(req.base_weight * (current_size / req.base_size), 2)
         
@@ -173,7 +173,7 @@ def get_design_by_code(design_code: str, db: Session = Depends(get_db)):
         selectinload(ProductDesign.variants).selectinload(ProductVariant.sizes),
         selectinload(ProductDesign.variants).selectinload(ProductVariant.media),
         selectinload(ProductDesign.media)
-    ).filter(ProductDesign.design_code == design_code).first()
+    ).filter((ProductDesign.design_code == design_code) | (ProductDesign.name == design_code)).first()
     
     if not design:
         raise HTTPException(status_code=404, detail="Design not found")
@@ -181,10 +181,10 @@ def get_design_by_code(design_code: str, db: Session = Depends(get_db)):
 
 @router.post("/designs", response_model=ProductDesignResponse)
 def create_design(design_in: ProductDesignCreate, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
-    # Check if design code is duplicate
-    existing = db.query(ProductDesign).filter(ProductDesign.design_code == design_in.design_code).first()
+    # Check if design name is duplicate (name must be unique)
+    existing = db.query(ProductDesign).filter(ProductDesign.name == design_in.name.strip()).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Design code already exists")
+        raise HTTPException(status_code=400, detail="Design name already exists. Please use a unique name.")
 
     variant_codes = [var.variant_code for var in design_in.variants]
     if len(variant_codes) != len(set(variant_codes)):
@@ -281,13 +281,14 @@ def update_design(design_id: int, design_in: ProductDesignCreate, db: Session = 
     if not db_design:
         raise HTTPException(status_code=404, detail="Design not found")
 
+    # Check if design name is taken by another design (name must be unique)
     duplicate_design = (
         db.query(ProductDesign)
-        .filter(ProductDesign.design_code == design_in.design_code, ProductDesign.id != design_id)
+        .filter(ProductDesign.name == design_in.name.strip(), ProductDesign.id != design_id)
         .first()
     )
     if duplicate_design:
-        raise HTTPException(status_code=400, detail="Design code already exists")
+        raise HTTPException(status_code=400, detail="Design name already exists. Please use a unique name.")
 
     variant_codes = [var.variant_code for var in design_in.variants]
     if len(variant_codes) != len(set(variant_codes)):
@@ -452,4 +453,154 @@ def update_variant_status(variant_id: int, req: VariantStatusRequest, db: Sessio
         "variant_id": variant_id,
         "status": db_var.status,
         "message": "Variant status updated successfully"
+    }
+
+
+# ─── CATEGORY DIAGNOSTICS & FIX ──────────────────────────────────────────────
+
+def _build_subtree(cat_id: int, children_map: dict) -> list:
+    """Recursively collect all category IDs under a given root."""
+    ids = [cat_id]
+    for child_id in children_map.get(cat_id, []):
+        ids.extend(_build_subtree(child_id, children_map))
+    return ids
+
+
+@router.get("/diagnose-categories")
+def diagnose_categories(db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    """
+    Returns a full category-tree report and identifies any product designs
+    whose category_id is NOT reachable from any root category (sidebar orphans).
+    These designs appear in 'All Collections' but disappear when a category is clicked.
+    """
+    all_cats = db.query(Category).all()
+    # Build parent→children map
+    children_map: dict = {}
+    for c in all_cats:
+        children_map.setdefault(c.parent_id, [])
+        children_map[c.parent_id].append(c.id)
+
+    root_cats = [c for c in all_cats if c.parent_id is None]
+
+    # Compute full reachable set from all roots
+    all_reachable = set()
+    root_subtrees = {}
+    for root in root_cats:
+        subtree = _build_subtree(root.id, children_map)
+        root_subtrees[root.id] = subtree
+        all_reachable.update(subtree)
+
+    all_designs = db.query(ProductDesign).all()
+
+    # Identify orphaned designs (category_id not reachable from any root)
+    orphaned = []
+    for d in all_designs:
+        if d.category_id not in all_reachable:
+            cat = db.query(Category).filter(Category.id == d.category_id).first() if d.category_id else None
+            orphaned.append({
+                "design_id": d.id,
+                "design_code": d.design_code,
+                "name": d.name,
+                "collection": d.collection,
+                "status": d.status,
+                "current_category_id": d.category_id,
+                "current_category_name": cat.name if cat else None,
+            })
+
+    # Build sidebar count summary
+    sidebar_counts = []
+    for root in root_cats:
+        subtree = set(root_subtrees[root.id])
+        count = sum(1 for d in all_designs if d.status == "Active" and d.category_id in subtree)
+        sidebar_counts.append({"category_id": root.id, "category_name": root.name, "active_count": count})
+
+    total_active = sum(1 for d in all_designs if d.status == "Active")
+    total_counted = sum(s["active_count"] for s in sidebar_counts)
+
+    return {
+        "total_active_designs": total_active,
+        "total_counted_in_sidebar": total_counted,
+        "missing_from_sidebar": total_active - total_counted,
+        "sidebar_counts": sidebar_counts,
+        "orphaned_designs": orphaned,
+        "root_categories": [{"id": c.id, "name": c.name} for c in root_cats],
+    }
+
+
+@router.post("/fix-categories")
+def fix_categories(db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    """
+    Auto-fixes product designs that are invisible when a sidebar category is clicked.
+    
+    Strategy: For each orphaned design, find the best-matching root category by
+    comparing the design's 'collection', 'name', and 'design_code' fields against
+    root category names. Updates category_id accordingly.
+    """
+    all_cats = db.query(Category).all()
+    children_map: dict = {}
+    for c in all_cats:
+        children_map.setdefault(c.parent_id, [])
+        children_map[c.parent_id].append(c.id)
+
+    root_cats = [c for c in all_cats if c.parent_id is None]
+
+    all_reachable = set()
+    for root in root_cats:
+        all_reachable.update(_build_subtree(root.id, children_map))
+
+    all_designs = db.query(ProductDesign).all()
+    orphaned = [d for d in all_designs if d.category_id not in all_reachable]
+
+    if not orphaned:
+        return {"message": "No orphaned designs found. All products are properly categorized.", "fixed": []}
+
+    fixes_applied = []
+    could_not_fix = []
+
+    for d in orphaned:
+        collection = (d.collection or "").lower()
+        design_name = (d.name or "").lower()
+        design_code = (d.design_code or "").lower()
+
+        best_match = None
+        best_score = 0
+
+        for root in root_cats:
+            root_name = root.name.lower()
+            score = 0
+            if root_name and root_name in collection:
+                score = 10
+            elif root_name and root_name in design_name:
+                score = 8
+            elif root_name and root_name in design_code:
+                score = 6
+            elif root_name and len(root_name) >= 4 and collection.startswith(root_name[:4]):
+                score = 4
+
+            if score > best_score:
+                best_score = score
+                best_match = root
+
+        if best_match and best_score > 0:
+            old_cat_id = d.category_id
+            d.category_id = best_match.id
+            fixes_applied.append({
+                "design_code": d.design_code,
+                "old_category_id": old_cat_id,
+                "new_category_id": best_match.id,
+                "new_category_name": best_match.name,
+            })
+        else:
+            could_not_fix.append({
+                "design_code": d.design_code,
+                "collection": d.collection,
+                "reason": "No matching root category found by name",
+            })
+
+    db.commit()
+
+    return {
+        "message": f"Fixed {len(fixes_applied)} design(s). {len(could_not_fix)} could not be auto-fixed.",
+        "fixed": fixes_applied,
+        "could_not_fix": could_not_fix,
     }

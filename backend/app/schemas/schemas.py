@@ -151,6 +151,7 @@ class OrderResponse(OrderBase):
     id: int
     order_number: str
     mobile_number: Optional[str] = None
+    email: Optional[str] = None
     order_date: datetime
     status: str
     items: List[OrderItemResponse] = []
@@ -158,11 +159,37 @@ class OrderResponse(OrderBase):
         from_attributes = True
 
 
+class CustomerRegister(BaseModel):
+    name: str
+    mobile_number: str
+    email: str
+    password: str
+
+class CustomerLoginRequest(BaseModel):
+    email: str
+    password: str
+
+class CustomerLoginResponse(BaseModel):
+    token: str
+    name: str
+    email: str
+    mobile_number: str
+
+class CustomerProfile(BaseModel):
+    id: int
+    name: str
+    mobile_number: str
+    email: Optional[str] = None
+    created_at: datetime
+    class Config:
+        from_attributes = True
+
 class CustomerResponse(BaseModel):
     id: int
     name: str
     mobile_number: str
-    order_number: str
+    email: Optional[str] = None
+    order_number: Optional[str] = None
     created_at: datetime
     class Config:
         from_attributes = True

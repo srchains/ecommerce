@@ -20,15 +20,22 @@ class LiveRateManager:
         self.last_updated = datetime.now(timezone.utc)
         self.source = "Initial"
         
-        # Pre-populate history with 12 hourly intervals leading up to now
+        # Pre-populate history with 288 5-minute intervals (24 hours) leading up to now
+        # using a continuous random walk starting from the initial rate
         self.history = []
         base_time = self.last_updated
-        for i in range(12, 0, -1):
-            h_time = base_time - timedelta(hours=i)
-            # Generate a small fluctuation
-            fluctuation = random.uniform(-1.5, 1.5)
+        temp_rate = self.silver_gram_rate
+        rates = []
+        for _ in range(288):
+            fluctuation = random.uniform(-0.35, 0.35)
+            temp_rate = max(180.0, min(300.0, temp_rate + fluctuation))
+            rates.append(round(temp_rate, 2))
+        rates.reverse()
+        
+        for i in range(288, 0, -1):
+            h_time = base_time - timedelta(minutes=i*5)
             self.history.append({
-                "rate": round(self.silver_gram_rate + fluctuation, 2),
+                "rate": rates[288 - i],
                 "timestamp": h_time.isoformat()
             })
 
@@ -39,14 +46,19 @@ class LiveRateManager:
         self.last_updated = datetime.now(timezone.utc)
         self.source = source
         
-        # Add to history if rate changes or if last entry is older than 1 minute
+        # Group by 5-minute intervals
+        minutes_since_epoch = int(self.last_updated.timestamp() / 300)
+        
         should_add = True
         if self.history:
             last_entry = self.history[-1]
             try:
                 last_time = datetime.fromisoformat(last_entry["timestamp"])
-                time_diff = (self.last_updated - last_time).total_seconds()
-                if last_entry["rate"] == self.silver_gram_rate and time_diff < 60:
+                last_minutes_since_epoch = int(last_time.timestamp() / 300)
+                if last_minutes_since_epoch == minutes_since_epoch:
+                    # Update existing 5-minute block
+                    last_entry["rate"] = self.silver_gram_rate
+                    last_entry["timestamp"] = self.last_updated.isoformat()
                     should_add = False
             except Exception:
                 pass
@@ -56,7 +68,7 @@ class LiveRateManager:
                 "rate": self.silver_gram_rate,
                 "timestamp": self.last_updated.isoformat()
             })
-            if len(self.history) > 24:
+            while len(self.history) > 288:
                 self.history.pop(0)
 
     def generate_mock_fluctuation(self) -> None:

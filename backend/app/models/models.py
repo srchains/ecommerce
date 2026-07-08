@@ -19,8 +19,8 @@ class ProductDesign(Base):
     __tablename__ = "product_designs"
 
     id = Column(Integer, primary_key=True, index=True)
-    design_code = Column(String, unique=True, index=True, nullable=False) # e.g. ANK-1025
-    name = Column(String, nullable=False)
+    design_code = Column(String, index=True, nullable=False) # e.g. ANK-1025 (not unique, multiple designs can share a code)
+    name = Column(String, unique=True, index=True, nullable=False) # Design name must be unique
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="SET NULL"), nullable=True)
     collection = Column(String, nullable=True)
     tags = Column(String, nullable=True) # Comma separated
@@ -142,5 +142,7 @@ class Customer(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     mobile_number = Column(String, nullable=False)
-    order_number = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=True)
+    password_hash = Column(String, nullable=True)
+    order_number = Column(String, nullable=True)  # null for sign-up only customers
     created_at = Column(DateTime, default=datetime.utcnow)

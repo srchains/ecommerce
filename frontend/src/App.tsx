@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { BuyerStorefront } from './components/BuyerStorefront';
 import { AdminLogin } from './components/AdminLogin';
+import { BuyerLogin } from './components/BuyerLogin';
 import { BuyerProductDetail } from './components/BuyerProductDetail';
 import { DesignDetail } from './components/DesignDetail';
 import { InventoryManagement } from './components/InventoryManagement';
@@ -14,6 +15,7 @@ import { Customers } from './components/Customers';
 import { Variants } from './components/Variants';
 import { Collections } from './components/Collections';
 import { AboutUsModal } from './components/AboutUsModal';
+import { InvoiceModal } from './components/InvoiceModal';
 import { 
   ShoppingBag, 
   Trash2, 
@@ -34,11 +36,15 @@ import {
   Home,
   Grid,
   ChevronDown,
-  Info
+  Info,
+  Heart,
+  UserCircle,
+  ChevronUp
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
 import { ProductForm } from './components/ProductForm';
+
 
 const statusClass = (status: string) => {
   if (status === 'Completed') return 'badge-success';
@@ -48,8 +54,13 @@ const statusClass = (status: string) => {
   return 'badge-neutral';
 };
 
-const AppFooter: React.FC = () => {
-  const { navigateTo } = useApp();
+interface AppFooterProps {
+  onHomeClick: () => void;
+  onCatalogClick: () => void;
+  onAboutClick: () => void;
+}
+
+const AppFooter: React.FC<AppFooterProps> = ({ onHomeClick, onCatalogClick, onAboutClick }) => {
   return (
     <footer className="enterprise-panel mt-4 overflow-hidden">
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 p-8">
@@ -69,22 +80,29 @@ const AppFooter: React.FC = () => {
         </div>
 
         <div>
-          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Catalog</h4>
-          <div className="space-y-2 text-sm text-gray-500">
-            <p>Design Code Lookup</p>
-            <p>Variant Matrix</p>
-            <p>Size & Stock Availability</p>
-            <p>Live Silver Pricing</p>
+          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Navigation</h4>
+          <div className="space-y-2 text-sm">
+            <p
+              className="text-gray-500 hover:text-gray-900 cursor-pointer transition-colors"
+              onClick={onHomeClick}
+            >Home</p>
+            <p
+              className="text-gray-500 hover:text-gray-900 cursor-pointer transition-colors"
+              onClick={onCatalogClick}
+            >Catalogue</p>
+            <p
+              className="text-gray-500 hover:text-gray-900 cursor-pointer transition-colors"
+              onClick={onAboutClick}
+            >About Us</p>
           </div>
         </div>
 
         <div>
-          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Operations</h4>
+          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Contact</h4>
           <div className="space-y-2 text-sm text-gray-500">
-            <p>Ready Stock Management</p>
-            <p>Made To Order Queue</p>
-            <p>Media Asset Library</p>
-            <p>Dealer Order Desk</p>
+            <p className="leading-relaxed">64, Arumuga Pillayar Koil Street,<br />Gugai,<br />Salem - 636 005</p>
+            <p>Ph no : <a href="tel:+917010674487" className="hover:text-gray-900 transition-colors">70106 74487</a></p>
+            <p>Email : <a href="mailto:srchains19@gmail.com" className="hover:text-gray-900 transition-colors">srchains19@gmail.com</a></p>
           </div>
         </div>
       </div>
@@ -92,7 +110,7 @@ const AppFooter: React.FC = () => {
       <div className="border-t border-gray-200 px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
         <p>© 2026 SR Chains. All rights reserved.</p>
         <p className="flex items-center gap-1.5 flex-wrap">
-          <span>Silver Jewelry Manufacturing • B2B Distribution</span>
+          <span>Silver Jewelry Manufacture</span>
         </p>
       </div>
     </footer>
@@ -118,13 +136,23 @@ const MainLayout: React.FC = () => {
     fetchCategories,
     isAuthenticated,
     logout,
-    navigateTo
+    navigateTo,
+    // Customer auth
+    isCustomerAuthenticated,
+    currentCustomer,
+    customerLogin,
+    customerLogout,
+    // Wishlist
+    wishlist,
+    removeFromWishlist,
+    isInWishlist,
   } = useApp();
 
   const [cartOpen, setCartOpen] = useState(false);
+  const [wishlistOpen, setWishlistOpen] = useState(false);
+  const [buyerLoginOpen, setBuyerLoginOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [customerName, setCustomerName] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [editingDesignCode, setEditingDesignCode] = useState<string | null>(null);
@@ -135,6 +163,63 @@ const MainLayout: React.FC = () => {
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [catalogDropdownOpen, setCatalogDropdownOpen] = useState(false);
   const [storefrontResetKey, setStorefrontResetKey] = useState(0);
+  const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
+  const catalogDropdownRef = useRef<HTMLDivElement>(null);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (
+        catalogDropdownOpen &&
+        catalogDropdownRef.current &&
+        !catalogDropdownRef.current.contains(e.target as Node)
+      ) {
+        setCatalogDropdownOpen(false);
+      }
+      if (
+        profileMenuOpen &&
+        profileMenuRef.current &&
+        !profileMenuRef.current.contains(e.target as Node)
+      ) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, [catalogDropdownOpen, profileMenuOpen]);
+
+  // Synchronize design and parameters state with URL query parameters on mount & popstate
+  useEffect(() => {
+    const handleUrlSync = () => {
+      if (mode === 'buyer') {
+        const params = new URLSearchParams(window.location.search);
+        const designCode = params.get('design');
+        const variantId = params.get('variant');
+        const sizeId = params.get('size');
+
+        if (designCode) {
+          setSelectedDesignCode(designCode);
+          if (variantId) setInitialVariantId(Number(variantId));
+          if (sizeId) setInitialSizeId(Number(sizeId));
+        } else {
+          setSelectedDesignCode(null);
+          setInitialVariantId(undefined);
+          setInitialSizeId(undefined);
+        }
+      }
+    };
+
+    handleUrlSync();
+
+    window.addEventListener('popstate', handleUrlSync);
+    return () => {
+      window.removeEventListener('popstate', handleUrlSync);
+    };
+  }, [mode]);
+
 
   const [orders, setOrders] = useState<any[]>([]);
   const [mfgQueue, setMfgQueue] = useState<any[]>([]);
@@ -177,15 +262,14 @@ const MainLayout: React.FC = () => {
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!customerName.trim()) {
-      alert('Please enter a B2B Customer / Jeweler Name.');
-      return;
-    }
-    if (!mobileNumber.trim()) {
-      alert('Please enter a Mobile Number.');
+    if (!currentCustomer) {
+      setBuyerLoginOpen(true);
       return;
     }
     if (cart.length === 0) return;
+
+    const customerName = currentCustomer.name;
+    const mobileNumber = currentCustomer.mobile_number;
 
     try {
       setOrderSubmitting(true);
@@ -217,7 +301,7 @@ const MainLayout: React.FC = () => {
       // Construct the WhatsApp message estimate payload
       const orderNumber = res.data.order_number;
       let message = `*SR CHAINS - WHOLESALE ESTIMATE*\n`;
-      message += `*Customer/Jeweler:* ${customerName}\n`;
+      message += `*Customer:* ${customerName}\n`;
       message += `*Mobile:* ${mobileNumber}\n`;
       message += `*Order No:* ${orderNumber}\n\n`;
       message += `*Items Details:*\n`;
@@ -251,8 +335,6 @@ const MainLayout: React.FC = () => {
 
       setOrderSuccess(res.data.order_number);
       clearCart();
-      setCustomerName('');
-      setMobileNumber('');
       fetchDesigns();
       setTimeout(() => {
         setOrderSuccess(null);
@@ -276,6 +358,22 @@ const MainLayout: React.FC = () => {
     } catch (err) {
       console.error(err);
       alert('Failed to update status');
+    }
+  };
+
+  const handleUpdateOrderStatus = async (orderId: number, status: string) => {
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/orders/update-status`, {
+        order_id: orderId,
+        status: status
+      });
+      fetchOrders();
+      if (status === 'Confirmed') {
+        alert(`Order status updated to Confirmed! Bill generated and automatically sent to ${res.data.customer_name} via WhatsApp and Email.`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.detail || 'Failed to update order status');
     }
   };
 
@@ -408,7 +506,7 @@ const MainLayout: React.FC = () => {
               </button>
 
               {/* Catalog Dropdown */}
-              <div className="relative">
+              <div className="relative" ref={catalogDropdownRef}>
                 <button
                   onClick={() => {
                     setSelectedDesignCode(null);
@@ -499,8 +597,8 @@ const MainLayout: React.FC = () => {
             </nav>
           )}
           
-          {/* Right Controls: Live Silver Spot Rate & Cart */}
-          <div className="flex items-center space-x-6 sm:space-x-8 shrink-0">
+          {/* Right Controls: Live Silver Spot Rate, Wishlist, Login/Profile & Cart */}
+          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
             <div className="hidden lg:flex items-center space-x-2 text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 shadow-2xs">
               <TrendingUp className="h-4 w-4 text-gray-600" />
               <span className="font-medium text-gray-600">Silver Spot:</span>
@@ -512,20 +610,81 @@ const MainLayout: React.FC = () => {
             </div>
 
             {mode === 'buyer' && (
-              <button 
-                onClick={() => setCartOpen(true)}
-                className="relative p-2.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 rounded-xl transition-all cursor-pointer shadow-xs"
-              >
-                <ShoppingBag className="h-5 w-5" />
-                {cart.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white text-[9px] font-bold h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white shadow-sm">
-                    {cart.reduce((s, i) => s + i.quantity, 0)}
-                  </span>
-                )}
-              </button>
+              <>
+                {/* Wishlist Button */}
+                <button
+                  onClick={() => setWishlistOpen(true)}
+                  className="relative p-2.5 bg-white border border-gray-200 hover:border-red-300 text-gray-700 hover:text-red-500 rounded-xl transition-all cursor-pointer shadow-xs"
+                  title="Wishlist"
+                >
+                  <Heart className={`h-5 w-5 transition-colors ${wishlist.length > 0 ? 'fill-red-500 text-red-500' : ''}`} />
+                  {wishlist.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[9px] font-bold h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white shadow-sm">
+                      {wishlist.length}
+                    </span>
+                  )}
+                </button>
+
+                {/* Login / Profile Button */}
+                <div className="relative" ref={profileMenuRef}>
+                  {isCustomerAuthenticated && currentCustomer ? (
+                    <button
+                      onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                      className="flex items-center gap-2 px-3 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-all cursor-pointer shadow-xs"
+                    >
+                      <UserCircle className="h-4 w-4" />
+                      <span className="hidden sm:block max-w-[80px] truncate">{currentCustomer.name.split(' ')[0]}</span>
+                      {profileMenuOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => setBuyerLoginOpen(true)}
+                      className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                    >
+                      <UserCircle className="h-4 w-4" />
+                      <span className="hidden sm:block">Login</span>
+                    </button>
+                  )}
+
+                  {/* Profile Dropdown */}
+                  {profileMenuOpen && isCustomerAuthenticated && currentCustomer && (
+                    <div className="absolute top-full right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                      <div className="px-3 py-2.5 border-b border-gray-100 mb-1">
+                        <p className="text-xs font-bold text-gray-900 truncate">{currentCustomer.name}</p>
+                        <p className="text-[10px] text-gray-500 truncate mt-0.5">{currentCustomer.email}</p>
+                        <p className="text-[10px] text-gray-500 mt-0.5">{currentCustomer.mobile_number}</p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          customerLogout();
+                          setProfileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-600 hover:bg-red-50 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="h-3.5 w-3.5" />
+                        <span>Sign Out</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cart Button */}
+                <button 
+                  onClick={() => setCartOpen(true)}
+                  className="relative p-2.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 rounded-xl transition-all cursor-pointer shadow-xs"
+                >
+                  <ShoppingBag className="h-5 w-5" />
+                  {cart.length > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 bg-gray-900 text-white text-[9px] font-bold h-4.5 w-4.5 rounded-full flex items-center justify-center border border-white shadow-sm">
+                      {cart.reduce((s, i) => s + i.quantity, 0)}
+                    </span>
+                  )}
+                </button>
+              </>
             )}
           </div>
         </header>
+
 
         <main className="app-main flex-1 overflow-y-auto px-8 py-8 scrollbar-thin">
           {mode === 'buyer' && (
@@ -536,6 +695,13 @@ const MainLayout: React.FC = () => {
                   setSelectedDesignCode(code);
                   setInitialVariantId(variantId);
                   setInitialSizeId(sizeId);
+
+                  // Update URL with query parameters using pushState
+                  const params = new URLSearchParams();
+                  params.set('design', code);
+                  if (variantId) params.set('variant', String(variantId));
+                  if (sizeId) params.set('size', String(sizeId));
+                  window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
                 }} 
                 selectedCollectionFilter={selectedCollectionFilter}
                 onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
@@ -549,6 +715,9 @@ const MainLayout: React.FC = () => {
                   setSelectedDesignCode(null);
                   setInitialVariantId(undefined);
                   setInitialSizeId(undefined);
+
+                  // Clear URL parameters using pushState
+                  window.history.pushState(null, '', window.location.pathname);
                 }} 
               />
             )
@@ -609,7 +778,7 @@ const MainLayout: React.FC = () => {
                             </div>
                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                               <button
-                                onClick={() => setSelectedDesignCode(d.design_code)}
+                                onClick={() => setSelectedDesignCode(d.name)}
                                 className="btn-secondary w-full text-xs sm:col-span-3"
                               >
                                 <span>Manage Specification</span>
@@ -617,7 +786,7 @@ const MainLayout: React.FC = () => {
                               </button>
                               <button
                                 onClick={() => {
-                                  setEditingDesignCode(d.design_code);
+                                  setEditingDesignCode(d.name);
                                   setAdminTab('add-design');
                                 }}
                                 className="btn-secondary w-full text-xs sm:col-span-2"
@@ -703,6 +872,7 @@ const MainLayout: React.FC = () => {
                             <th>Order Date</th>
                             <th className="text-center">Items Count</th>
                             <th className="text-center">Status</th>
+                            <th className="text-center font-semibold">Bill</th>
                             <th className="text-right">Invoice Value</th>
                           </tr>
                         </thead>
@@ -716,7 +886,29 @@ const MainLayout: React.FC = () => {
                                 <td className="text-gray-500">{new Date(o.order_date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</td>
                                 <td className="text-center text-gray-900 font-semibold font-mono">{o.items.length}</td>
                                 <td className="text-center">
-                                  <span className={statusClass(o.status)}>{o.status}</span>
+                                  <select
+                                    value={o.status}
+                                    onChange={(e) => handleUpdateOrderStatus(o.id, e.target.value)}
+                                    className={`select py-1 px-2 text-xs font-semibold rounded-lg ${
+                                      o.status === 'Completed' ? 'bg-green-50 border-green-200 text-green-700 font-bold' :
+                                      o.status === 'Confirmed' ? 'bg-blue-50 border-blue-200 text-blue-700 font-bold' :
+                                      o.status === 'Pending' ? 'bg-amber-50 border-amber-200 text-amber-700 font-bold' :
+                                      'bg-gray-50 border-gray-200 text-gray-700'
+                                    }`}
+                                  >
+                                    <option value="Pending">Pending</option>
+                                    <option value="Confirmed">Confirmed</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="Cancelled">Cancelled</option>
+                                  </select>
+                                </td>
+                                <td className="text-center">
+                                  <button
+                                    onClick={() => setSelectedInvoiceOrder(o)}
+                                    className="p-1 px-3 text-xs bg-gray-900 text-white font-medium rounded-lg hover:bg-gray-800 transition-colors cursor-pointer shadow-xs"
+                                  >
+                                    View Bill
+                                  </button>
                                 </td>
                                 <td className="text-right font-bold text-gray-900 font-mono">₹{totalVal.toLocaleString('en-IN')}</td>
                               </tr>
@@ -828,7 +1020,25 @@ const MainLayout: React.FC = () => {
               )}
             </>
           )}
-          <AppFooter />
+          <AppFooter
+            onHomeClick={() => {
+              setSelectedDesignCode(null);
+              setSelectedCollectionFilter(null);
+              setAboutModalOpen(false);
+              setCatalogDropdownOpen(false);
+              setStorefrontResetKey(prev => prev + 1);
+            }}
+            onCatalogClick={() => {
+              setSelectedDesignCode(null);
+              setSelectedCollectionFilter(null);
+              setAboutModalOpen(false);
+              setCatalogDropdownOpen(false);
+              setStorefrontResetKey(prev => prev + 1);
+            }}
+            onAboutClick={() => {
+              setAboutModalOpen(true);
+            }}
+          />
         </main>
       </div>
 
@@ -872,7 +1082,7 @@ const MainLayout: React.FC = () => {
                     <div 
                       key={idx} 
                       onClick={() => {
-                        setSelectedDesignCode(item.design.design_code);
+                        setSelectedDesignCode(item.design.name);
                         setInitialVariantId(item.variant.id);
                         setInitialSizeId(item.size.id);
                         setCartOpen(false);
@@ -975,43 +1185,35 @@ const MainLayout: React.FC = () => {
                   </p>
                 </div>
 
-                <form onSubmit={handleCheckout} className="space-y-3 pt-2">
-                  <div className="space-y-1">
-                    <label className="field-label">Wholesale Jeweler / Client Name</label>
-                    <div className="relative">
-                      <input 
-                        type="text" 
-                        required
-                        placeholder="e.g. Royal Gold & Silver Jewellers" 
-                        value={customerName}
-                        onChange={(e) => setCustomerName(e.target.value)}
-                        className="input pl-9"
-                      />
-                      <User className="h-4 w-4 text-gray-400 absolute left-3 top-3" />
+                {/* Customer info or login prompt */}
+                {isCustomerAuthenticated && currentCustomer ? (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-full bg-gray-900 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                      {currentCustomer.name.charAt(0).toUpperCase()}
                     </div>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="field-label">Mobile Number</label>
-                    <div className="relative">
-                      <input 
-                        type="tel" 
-                        required
-                        placeholder="e.g. 9876543210" 
-                        value={mobileNumber}
-                        onChange={(e) => setMobileNumber(e.target.value)}
-                        className="input pl-9"
-                      />
-                      <Phone className="h-4 w-4 text-gray-400 absolute left-3 top-3" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-gray-900 truncate">{currentCustomer.name}</p>
+                      <p className="text-[10px] text-gray-500 truncate">{currentCustomer.mobile_number} • {currentCustomer.email}</p>
                     </div>
+                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
                   </div>
+                ) : (
+                  <button
+                    onClick={() => setBuyerLoginOpen(true)}
+                    className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-xl text-xs font-bold text-gray-600 hover:border-gray-500 hover:text-gray-900 transition-all cursor-pointer"
+                  >
+                    <UserCircle className="h-4 w-4" />
+                    <span>Login / Sign Up to Place Order</span>
+                  </button>
+                )}
 
+                <form onSubmit={handleCheckout} className="pt-1">
                   <button
                     type="submit"
-                    disabled={orderSubmitting}
-                    className="btn-primary w-full"
+                    disabled={orderSubmitting || !isCustomerAuthenticated}
+                    className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    <span>{orderSubmitting ? 'Filing Order...' : 'Submit Wholesale Order'}</span>
+                    <span>{orderSubmitting ? 'Filing Order...' : 'Submit Order'}</span>
                     <ChevronRight className="h-4 w-4" />
                   </button>
                 </form>
@@ -1021,11 +1223,108 @@ const MainLayout: React.FC = () => {
         </div>
       )}
 
+      {/* ─── Wishlist Drawer ─────────────────────────────────────────── */}
+      {wishlistOpen && (
+        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex justify-end">
+          <div className="absolute inset-0" onClick={() => setWishlistOpen(false)}></div>
+
+          <div className="drawer-light relative w-full max-w-md h-full flex flex-col z-50">
+            <div className="drawer-header p-6 flex justify-between items-center">
+              <div className="flex items-center space-x-2.5">
+                <div className="h-9 w-9 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-red-500">
+                  <Heart className="h-5 w-5 fill-red-500" />
+                </div>
+                <div>
+                  <span className="font-bold text-sm tracking-wider uppercase">Wishlist</span>
+                  <p className="text-[10px] text-gray-500 font-medium">{wishlist.length} Saved {wishlist.length === 1 ? 'Item' : 'Items'}</p>
+                </div>
+              </div>
+              <button onClick={() => setWishlistOpen(false)} className="text-gray-500 hover:text-gray-900 cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+              {wishlist.length > 0 ? (
+                wishlist.map((design) => {
+                  const firstImage = design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                    design.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
+                      ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                    'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+                  return (
+                    <div key={design.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 bg-white group transition-all">
+                      <div
+                        className="h-16 w-16 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden shrink-0 cursor-pointer"
+                        onClick={() => {
+                          setSelectedDesignCode(design.name);
+                          setWishlistOpen(false);
+                        }}
+                      >
+                        <img src={firstImage} alt={design.name} className="w-full h-full object-cover" />
+                      </div>
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => {
+                          setSelectedDesignCode(design.name);
+                          setWishlistOpen(false);
+                        }}
+                      >
+                        <span className="font-mono text-[10px] text-gray-500 block">{design.design_code}</span>
+                        <h4 className="font-bold text-gray-900 text-sm truncate">{design.name}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">{design.variants?.length || 0} Variants • {design.metal}</p>
+                      </div>
+                      <button
+                        onClick={() => removeFromWishlist(design.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer opacity-0 group-hover:opacity-100"
+                        title="Remove from wishlist"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-16 flex flex-col items-center space-y-3 select-none">
+                  <Heart className="h-12 w-12 text-gray-200" />
+                  <span className="text-sm font-bold text-gray-700">Your wishlist is empty</span>
+                  <p className="text-xs text-gray-500 max-w-[200px]">Click the heart icon on any product to save it here. Your wishlist is saved forever!</p>
+                  <button
+                    onClick={() => setWishlistOpen(false)}
+                    className="btn-secondary text-xs mt-2"
+                  >
+                    Browse Catalog
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Buyer Login Modal ──────────────────────────────────────────── */}
+      {buyerLoginOpen && (
+        <BuyerLogin
+          onClose={() => setBuyerLoginOpen(false)}
+          onLoginSuccess={(token, name, email, mobile) => {
+            customerLogin(token, name, email, mobile);
+            setBuyerLoginOpen(false);
+          }}
+        />
+      )}
+
       {/* About Us Modal */}
       <AboutUsModal 
         isOpen={aboutModalOpen} 
         onClose={() => setAboutModalOpen(false)} 
       />
+
+      {/* Invoice Modal */}
+      {selectedInvoiceOrder && (
+        <InvoiceModal 
+          order={selectedInvoiceOrder} 
+          onClose={() => setSelectedInvoiceOrder(null)} 
+        />
+      )}
     </div>
   );
 };
@@ -1039,3 +1338,4 @@ function App() {
 }
 
 export default App;
+

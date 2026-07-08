@@ -55,12 +55,11 @@ interface ProductFormData {
 }
 
 const DEFAULT_SIZES = [
-  { size: 4.5, weight: 18.5 }, { size: 5.0, weight: 20.56 }, { size: 5.5, weight: 22.61 },
+  { size: 5.0, weight: 20.56 }, { size: 5.5, weight: 22.61 },
   { size: 6.0, weight: 24.67 }, { size: 6.5, weight: 26.72 }, { size: 7.0, weight: 28.78 },
   { size: 7.5, weight: 30.83 }, { size: 8.0, weight: 32.89 }, { size: 8.5, weight: 34.94 },
   { size: 9.0, weight: 37.0 },  { size: 9.5, weight: 39.06 }, { size: 10.0, weight: 41.11 },
-  { size: 10.5, weight: 43.17 },{ size: 11.0, weight: 45.22 }, { size: 11.5, weight: 47.28 },
-  { size: 12.0, weight: 49.33 },{ size: 12.5, weight: 51.39 },
+  { size: 10.5, weight: 43.17 },{ size: 11.0, weight: 45.22 },
 ];
 
 const emptyVariant = (): ProductVariantData => ({
@@ -292,9 +291,10 @@ const MediaUploadGrid: React.FC<{
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); removeSlot(slot.url); }}
-              className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-1 right-1 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 shadow-sm cursor-pointer z-10 transition-all"
+              title="Delete media"
             >
-              <X className="h-3 w-3" />
+              <X className="h-3.5 w-3.5" />
             </button>
           </>
         )}
@@ -577,10 +577,12 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
                 file_size: m.file_size, url: m.url, category: m.category,
               })),
             })),
-            media: (d.media || []).map((m: any) => ({
-              file_name: m.file_name, file_type: m.file_type,
-              file_size: m.file_size, url: m.url, category: m.category,
-            })),
+            media: (d.media || [])
+              .filter((m: any) => !m.variant_id)
+              .map((m: any) => ({
+                file_name: m.file_name, file_type: m.file_type,
+                file_size: m.file_size, url: m.url, category: m.category,
+              })),
           });
           setExpandedVariants(new Set(d.variants.map((_: any, i: number) => i)));
         })
@@ -640,6 +642,10 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
     setErrors([]);
     if (!formData.design_code.trim() || !formData.name.trim()) {
       setErrors(['Design Code and Design Name are required']);
+      return;
+    }
+    if (!formData.category_id) {
+      setErrors(['Please select a Category. Products without a category will not appear in the buyer catalog filters.']);
       return;
     }
     const bad = formData.variants.find(v => !v.variant_code.trim() || !v.variant_name.trim());
@@ -725,15 +731,15 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
             <label className="field-label">Design Code <span className="text-red-500">*</span></label>
             <input type="text" value={formData.design_code}
               onChange={e => upd('design_code', e.target.value)}
-              placeholder="e.g. ANK-1027" className="input"
-              disabled={!!editingCode} />
-            {!!editingCode && <p className="text-xs text-gray-400">Design code cannot be changed after creation.</p>}
+              placeholder="e.g. ANK-1027" className="input" />
+            <p className="text-xs text-gray-400">Design code can be shared across multiple designs (not unique).</p>
           </div>
           <div className="space-y-1">
             <label className="field-label">Design Name <span className="text-red-500">*</span></label>
             <input type="text" value={formData.name}
               onChange={e => upd('name', e.target.value)}
               placeholder="e.g. Traditional Royal Anklet" className="input" />
+            <p className="text-xs text-gray-400">Design name must be unique across all designs.</p>
           </div>
         </div>
 
@@ -741,7 +747,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
           {/* Category with full tree dropdown + inline creator */}
           <div className="space-y-1 md:col-span-1">
             <div className="flex justify-between items-center">
-              <label className="field-label mb-0">Category</label>
+              <label className="field-label mb-0">Category <span className="text-red-500">*</span></label>
               {formData.category_id && !isRenamingCat && (
                 <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                   <button
@@ -792,8 +798,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
               <>
                 <select value={formData.category_id ?? ''}
                   onChange={e => upd('category_id', e.target.value ? Number(e.target.value) : null)}
-                  className="select">
-                  <option value="">— Select Category —</option>
+                  className={`select ${!formData.category_id ? 'border-red-300 bg-red-50' : ''}`}>
+                  <option value="">— Select Category (Required) —</option>
                   {roots.map(root => (
                     <React.Fragment key={root.id}>
                       <option value={root.id}>{root.name}</option>
