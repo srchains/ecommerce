@@ -220,6 +220,21 @@ const MainLayout: React.FC = () => {
     };
   }, [mode]);
 
+  const prevDesignCodeRef = useRef<string | null>(null);
+
+  // Clear URL parameters when returning to storefront (selectedDesignCode is null)
+  useEffect(() => {
+    if (mode === 'buyer') {
+      if (selectedDesignCode === null && prevDesignCodeRef.current !== null) {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('design') || params.has('variant') || params.has('size')) {
+          window.history.pushState(null, '', window.location.pathname);
+        }
+      }
+      prevDesignCodeRef.current = selectedDesignCode;
+    }
+  }, [selectedDesignCode, mode]);
+
 
   const [orders, setOrders] = useState<any[]>([]);
   const [mfgQueue, setMfgQueue] = useState<any[]>([]);
