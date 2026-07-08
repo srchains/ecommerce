@@ -25,7 +25,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   initialSizeId,
   onBack 
 }) => {
-  const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
+  const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist, wishlist } = useApp();
 
   const design = designs.find(d => d.name === designCode || d.design_code === designCode);
 
@@ -380,20 +380,21 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
         {/* Wishlist button on product detail */}
         <button
           onClick={() => {
-            if (isInWishlist(design.id)) {
-              removeFromWishlist(design.id);
+            const currentVariantId = selectedVariantId || design.variants[0]?.id;
+            if (isInWishlist(design.id, currentVariantId)) {
+              removeFromWishlist(design.id, currentVariantId);
             } else {
-              addToWishlist(design);
+              addToWishlist(design, currentVariantId);
             }
           }}
           className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
-            isInWishlist(design.id)
+            isInWishlist(design.id, selectedVariantId || design.variants[0]?.id)
               ? 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
               : 'bg-white border-gray-200 text-gray-500 hover:border-red-300 hover:text-red-500'
           }`}
         >
-          <Heart className={`h-3.5 w-3.5 ${isInWishlist(design.id) ? 'fill-red-500 text-red-500' : ''}`} />
-          <span>{isInWishlist(design.id) ? 'Wishlisted' : 'Wishlist'}</span>
+          <Heart className={`h-3.5 w-3.5 ${isInWishlist(design.id, selectedVariantId || design.variants[0]?.id) ? 'fill-red-500 text-red-500' : ''}`} />
+          <span>{isInWishlist(design.id, selectedVariantId || design.variants[0]?.id) ? 'Wishlisted' : 'Wishlist'}</span>
         </button>
       </div>
 
@@ -438,16 +439,17 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (isInWishlist(design.id)) {
-                      removeFromWishlist(design.id);
+                    const currentVariantId = selectedVariantId || design.variants[0]?.id;
+                    if (isInWishlist(design.id, currentVariantId)) {
+                      removeFromWishlist(design.id, currentVariantId);
                     } else {
-                      addToWishlist(design);
+                      addToWishlist(design, currentVariantId);
                     }
                   }}
-                  title={isInWishlist(design.id) ? 'Remove from wishlist' : 'Add to wishlist'}
+                  title={isInWishlist(design.id, selectedVariantId || design.variants[0]?.id) ? 'Remove from wishlist' : 'Add to wishlist'}
                   className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:text-gray-900 shadow-sm cursor-pointer transition-colors"
                 >
-                  <Heart className={`h-4.5 w-4.5 transition-colors ${isInWishlist(design.id) ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
+                  <Heart className={`h-4.5 w-4.5 transition-colors ${isInWishlist(design.id, selectedVariantId || design.variants[0]?.id) ? 'fill-red-500 text-red-500' : 'text-gray-400 hover:text-red-400'}`} />
                 </button>
                 
                 <button

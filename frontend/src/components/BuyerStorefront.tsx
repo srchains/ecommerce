@@ -25,7 +25,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   selectedCollectionFilter,
   onClearCollectionFilter
 }) => {
-  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
+  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, wishlist } = useApp();
 
   const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -884,7 +884,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         if (isInWishlist(design.id)) {
                           removeFromWishlist(design.id);
                         } else {
-                          addToWishlist(design);
+                          addToWishlist(design, design.variants?.[0]?.id);
                         }
                       }}
                       className="absolute top-3 left-3 h-8 w-8 flex items-center justify-center rounded-full bg-white/90 border border-gray-200 shadow-sm hover:scale-110 transition-all cursor-pointer"

@@ -1261,35 +1261,38 @@ const MainLayout: React.FC = () => {
 
             <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
               {wishlist.length > 0 ? (
-                wishlist.map((design) => {
-                  const firstImage = design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                    design.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
-                      ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                wishlist.map((item) => {
+                  const { design, variantId } = item;
+                  const variant = design.variants?.find((v: any) => v.id === variantId) || design.variants?.[0];
+                  const firstImage = variant?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                    design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
                     'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
                   return (
-                    <div key={design.id} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 bg-white group transition-all">
+                    <div key={`${design.id}-${variantId}`} className="flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 bg-white group transition-all">
                       <div
                         className="h-16 w-16 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden shrink-0 cursor-pointer"
                         onClick={() => {
                           setSelectedDesignCode(design.name);
+                          if (variantId) setInitialVariantId(variantId);
                           setWishlistOpen(false);
                         }}
                       >
-                        <img src={firstImage} alt={design.name} className="w-full h-full object-cover" />
+                        <img src={firstImage} alt={variant?.variant_name || design.name} className="w-full h-full object-cover" />
                       </div>
                       <div
                         className="flex-1 min-w-0 cursor-pointer"
                         onClick={() => {
                           setSelectedDesignCode(design.name);
+                          if (variantId) setInitialVariantId(variantId);
                           setWishlistOpen(false);
                         }}
                       >
-                        <span className="font-mono text-[10px] text-gray-500 block">{design.design_code}</span>
-                        <h4 className="font-bold text-gray-900 text-sm truncate">{design.name}</h4>
-                        <p className="text-xs text-gray-500 mt-0.5">{design.variants?.length || 0} Variants • {design.metal}</p>
+                        <span className="font-mono text-[10px] text-gray-500 block">{variant?.variant_code || design.design_code}</span>
+                        <h4 className="font-bold text-gray-900 text-sm truncate">{variant?.variant_name || design.name}</h4>
+                        <p className="text-xs text-gray-500 mt-0.5">{design.metal}</p>
                       </div>
                       <button
-                        onClick={() => removeFromWishlist(design.id)}
+                        onClick={() => removeFromWishlist(design.id, variantId)}
                         className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all cursor-pointer opacity-0 group-hover:opacity-100"
                         title="Remove from wishlist"
                       >

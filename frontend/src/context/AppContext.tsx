@@ -41,6 +41,11 @@ export interface MediaItem {
   uploaded_at: string;
 }
 
+export interface WishlistItem {
+  design: ProductDesign;
+  variantId?: number;
+}
+
 
 export interface ProductDesign {
   id: number;
@@ -148,10 +153,10 @@ interface AppContextType {
   customerLogout: () => void;
 
   // Wishlist
-  wishlist: ProductDesign[];
-  addToWishlist: (design: ProductDesign) => void;
-  removeFromWishlist: (designId: number) => void;
-  isInWishlist: (designId: number) => boolean;
+  wishlist: WishlistItem[];
+  addToWishlist: (design: ProductDesign, variantId?: number) => void;
+  removeFromWishlist: (designId: number, variantId?: number) => void;
+  isInWishlist: (designId: number, variantId?: number) => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -189,10 +194,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const isCustomerAuthenticated = !!customerToken && !!currentCustomer;
 
   // Wishlist state — persisted in localStorage
-  const [wishlist, setWishlist] = useState<ProductDesign[]>(() => {
+  const [wishlist, setWishlist] = useState<WishlistItem[]>(() => {
     try {
       const stored = localStorage.getItem('buyer_wishlist');
-      return stored ? JSON.parse(stored) : [];
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // Migrating old database scheme where wishlist stored ProductDesign directly:
+        return parsed.map((item: any) => {
+          if (item && item.id !== undefined && item.design_code !== undefined) {
+            return { design: item, variantId: item.variants?.[0]?.id };
+          }
+          return item;
+        });
+      }
+      return [];
     } catch {
       return [];
     }
@@ -465,19 +480,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   // Wishlist management
-  const addToWishlist = (design: ProductDesign) => {
+  const addToWishlist = (design: ProductDesign, variantId?: number) => {
     setWishlist(prev => {
-      if (prev.find(d => d.id === design.id)) return prev; // already in wishlist
-      return [...prev, design];
+      if (prev.find(item => item.design.id === design.id && item.variantId === variantId)) return prev; // already in wishlist
+      return [...prev, { design, variantId }];
     });
   };
 
-  const removeFromWishlist = (designId: number) => {
-    setWishlist(prev => prev.filter(d => d.id !== designId));
+  const removeFromWishlist = (designId: number, variantId?: number) => {
+    setWishlist(prev => prev.filter(item => {
+      if (item.design.id !== designId) return true;
+      if (variantId !== undefined && variantId !== null) {
+        return item.variantId !== variantId;
+      }
+      return false; // if no variantId is specified, remove all items matching designId
+    }));
   };
 
-  const isInWishlist = (designId: number) => {
-    return wishlist.some(d => d.id === designId);
+  const isInWishlist = (designId: number, variantId?: number) => {
+    return wishlist.some(item => {
+      if (item.design.id !== designId) return false;
+      if (variantId !== undefined && variantId !== null) {
+        return item.variantId === variantId;
+      }
+      return true; // if no variantId specified, return true if any variant is wishlisted
+    });
   };
 
   // Initialize live price updates on mount
