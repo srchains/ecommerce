@@ -18,6 +18,7 @@ interface ProductVariantData {
   variant_code: string;
   variant_name: string;
   status: string;
+  weight_per_inch?: number;
   sizes: {
     size: number;
     weight: number;
@@ -66,7 +67,8 @@ const emptyVariant = (): ProductVariantData => ({
   variant_code: '',
   variant_name: '',
   status: 'Active',
-  sizes: DEFAULT_SIZES.map(s => ({ ...s, stock_available: 0, moq: 10, status: 'Active' })),
+  weight_per_inch: 4.112,
+  sizes: DEFAULT_SIZES.map(s => ({ ...s, weight: Math.round(s.size * 4.112 * 100) / 100, stock_available: 0, moq: 10, status: 'Active' })),
   media: [],
 });
 
@@ -77,7 +79,7 @@ const initialFormData = (): ProductFormData => ({
   collection: 'New Arrival',
   tags: '',
   purity: 92.5,
-  making_charge_per_gram: 20.0,
+  making_charge_per_gram: 0.4,
   wastage_percent: 10.0,
   gst_percent: 3.0,
   moq: 10,
@@ -564,19 +566,29 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
             lock_type: d.lock_type,
             returnable: d.returnable,
             exchangeable: d.exchangeable,
-            variants: d.variants.map((v: any) => ({
-              variant_code: v.variant_code,
-              variant_name: v.variant_name,
-              status: v.status,
-              sizes: v.sizes.map((s: any) => ({
-                size: s.size, weight: s.weight,
-                stock_available: s.stock_available, moq: s.moq, status: s.status,
-              })),
-              media: (v.media || []).map((m: any) => ({
-                file_name: m.file_name, file_type: m.file_type,
-                file_size: m.file_size, url: m.url, category: m.category,
-              })),
-            })),
+            variants: d.variants.map((v: any) => {
+              let derivedWpi = 4.112;
+              if (v.sizes && v.sizes.length > 0) {
+                const firstSz = v.sizes[0];
+                if (firstSz.size > 0 && firstSz.weight > 0) {
+                  derivedWpi = Math.round((firstSz.weight / firstSz.size) * 1000) / 1000;
+                }
+              }
+              return {
+                variant_code: v.variant_code,
+                variant_name: v.variant_name,
+                status: v.status,
+                weight_per_inch: derivedWpi,
+                sizes: v.sizes.map((s: any) => ({
+                  size: s.size, weight: s.weight,
+                  stock_available: s.stock_available, moq: s.moq, status: s.status,
+                })),
+                media: (v.media || []).map((m: any) => ({
+                  file_name: m.file_name, file_type: m.file_type,
+                  file_size: m.file_size, url: m.url, category: m.category,
+                })),
+              };
+            }),
             media: (d.media || [])
               .filter((m: any) => !m.variant_id)
               .map((m: any) => ({
@@ -613,6 +625,22 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
       const sizes = [...variants[vIdx].sizes];
       (sizes[sIdx] as any)[field] = value;
       variants[vIdx] = { ...variants[vIdx], sizes };
+      return { ...p, variants };
+    });
+  };
+
+  const updWeightPerInch = (vIdx: number, wpi: number) => {
+    setFormData(p => {
+      const variants = [...p.variants];
+      const sizes = variants[vIdx].sizes.map(sz => ({
+        ...sz,
+        weight: Math.round(sz.size * wpi * 100) / 100
+      }));
+      variants[vIdx] = {
+        ...variants[vIdx],
+        weight_per_inch: wpi,
+        sizes
+      };
       return { ...p, variants };
     });
   };
@@ -1000,6 +1028,20 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
                       <span className="ml-3 text-xs text-gray-400">
                         Stock: {totalStock} pcs | {variant.sizes.length} sizes
                       </span>
+
+                      {/* Weight per Inch box next to stock info */}
+                      <div className="ml-5 inline-flex items-center space-x-1.5" onClick={e => e.stopPropagation()}>
+                        <span className="text-[10px] text-gray-500 font-extrabold uppercase tracking-wide">Weight per Inch:</span>
+                        <input 
+                          type="number" 
+                          step="0.001" 
+                          placeholder="e.g. 8.6"
+                          value={variant.weight_per_inch !== undefined ? variant.weight_per_inch : ''}
+                          onChange={e => updWeightPerInch(vIdx, parseFloat(e.target.value) || 0)}
+                          className="input w-20 py-0.5 text-center text-xs font-bold bg-white" 
+                        />
+                        <span className="text-[10px] text-gray-400 font-bold">g</span>
+                      </div>
                     </div>
                   </button>
                   <button type="button" onClick={() => removeVariant(vIdx)}
@@ -1045,7 +1087,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
                           <thead>
                             <tr>
                               <th className="w-20">Size (in)</th>
-                              <th>Weight (g)</th>
+                              <th className="text-center">Weight (g)</th>
                               <th>Stock</th>
                               <th>MOQ</th>
                               <th>Status</th>
@@ -1055,10 +1097,8 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
                             {variant.sizes.map((size, sIdx) => (
                               <tr key={sIdx} className={size.stock_available > 0 ? 'bg-green-50/30' : ''}>
                                 <td className="font-mono font-semibold text-gray-900">{size.size.toFixed(2)}</td>
-                                <td>
-                                  <input type="number" step="0.01" value={size.weight}
-                                    onChange={e => updSize(vIdx, sIdx, 'weight', parseFloat(e.target.value) || 0)}
-                                    className="input w-24 py-1.5 text-center" />
+                                <td className="text-center font-mono font-bold text-gray-700 bg-gray-50/50">
+                                  {size.weight.toFixed(2)}g
                                 </td>
                                 <td>
                                   <input type="number" value={size.stock_available}

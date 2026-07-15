@@ -14,10 +14,11 @@ import {
 import axios from 'axios';
 
 export const InventoryManagement: React.FC = () => {
-  const { designs, fetchDesigns } = useApp();
+  const { designs, fetchDesigns, categories } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
   const [editingSizeId, setEditingSizeId] = useState<number | null>(null);
   const [newStockVal, setNewStockVal] = useState<number>(0);
+  const [newReservedVal, setNewReservedVal] = useState<number>(0);
   const [msg, setMsg] = useState('');
   const [expandedDesigns, setExpandedDesigns] = useState<Record<string, boolean>>({});
 
@@ -35,23 +36,83 @@ export const InventoryManagement: React.FC = () => {
     }, 0);
   }, [designs]);
 
-  // Grouped designs with summary statistics
+  // Grouped designs with summary statistics, grouped by design_code (collection group)
   const groupedInventory = useMemo(() => {
-    return designs.map(design => {
-      let totalPhysicalStock = 0;
-      let totalReserved = 0;
-      let totalAvailable = 0;
-      let hasLowStock = false;
+    const groupsMap: Record<string, {
+      design_code: string;
+      collection: string;
+      totalPhysicalStock: number;
+      totalReserved: number;
+      totalAvailable: number;
+      totalWeight: number;
+      hasLowStock: boolean;
+      designs: Array<{
+        name: string;
+        variants: Array<{
+          variant_name: string;
+          variant_code: string;
+          variantWeight: number;
+          variantPhysicalStock: number;
+          variantAvailable: number;
+          sizes: Array<{
+            size_id: number;
+            size: number;
+            weight: number;
+            stock: number;
+            reserved: number;
+            available: number;
+          }>;
+        }>;
+      }>;
+    }> = {};
+
+    designs.forEach(design => {
+      const catId = design.category_id || 0;
+      const groupKey = categories.find(c => c.id === catId)?.name || 'Uncategorized';
+      
+      if (!groupsMap[groupKey]) {
+        groupsMap[groupKey] = {
+          design_code: groupKey,
+          collection: design.collection || 'General',
+          totalPhysicalStock: 0,
+          totalReserved: 0,
+          totalAvailable: 0,
+          totalWeight: 0,
+          hasLowStock: false,
+          designs: []
+        };
+      }
+
+      const group = groupsMap[groupKey];
+
+      let designPhysicalStock = 0;
+      let designReserved = 0;
+      let designAvailable = 0;
+      let designWeight = 0;
+      let designHasLowStock = false;
 
       const variantsData = design.variants.map(variant => {
+        let variantWeight = 0;
+        let variantPhysicalStock = 0;
+        let variantReserved = 0;
+        let variantAvailable = 0;
+
         const sizesData = variant.sizes.map(size => {
-          const reserved = Math.max(0, Math.floor((size.stock_available * 15) / 100));
+          const reserved = size.stock_reserved || 0;
           const available = Math.max(0, size.stock_available - reserved);
-          totalPhysicalStock += size.stock_available;
-          totalReserved += reserved;
-          totalAvailable += available;
+          
+          designPhysicalStock += size.stock_available;
+          designReserved += reserved;
+          designAvailable += available;
+          designWeight += size.stock_available * size.weight;
+          
+          variantWeight += size.stock_available * size.weight;
+          variantPhysicalStock += size.stock_available;
+          variantReserved += reserved;
+          variantAvailable += available;
+
           if (size.stock_available <= 5) {
-            hasLowStock = true;
+            designHasLowStock = true;
           }
 
           return {
@@ -67,52 +128,79 @@ export const InventoryManagement: React.FC = () => {
         return {
           variant_name: variant.variant_name,
           variant_code: variant.variant_code,
+          variantWeight,
+          variantPhysicalStock,
+          variantReserved,
+          variantAvailable,
           sizes: sizesData
         };
       });
 
-      return {
-        design_code: design.design_code,
-        name: design.name,
-        collection: design.collection || 'General',
-        totalPhysicalStock,
-        totalReserved,
-        totalAvailable,
-        hasLowStock,
+      // Add design to group
+      group.designs.push({
+        name: design.name, // e.g. RAS-01, RAS-02
         variants: variantsData
-      };
-    });
-  }, [designs]);
+      });
 
-  // Filter based on search query matching design code, design name, or variant name
+      // Accumulate to group totals
+      group.totalPhysicalStock += designPhysicalStock;
+      group.totalReserved += designReserved;
+      group.totalAvailable += designAvailable;
+      group.totalWeight += designWeight;
+      if (designHasLowStock) {
+        group.hasLowStock = true;
+      }
+    });
+
+    // Return as array sorted by design_code name
+    return Object.values(groupsMap).sort((a, b) => a.design_code.localeCompare(b.design_code));
+  }, [designs, categories]);
+
+  // Filter based on search query
   const filteredInventory = useMemo(() => {
     if (!searchQuery.trim()) return groupedInventory;
     const query = searchQuery.toLowerCase();
-    return groupedInventory.filter(design => 
-      design.design_code.toLowerCase().includes(query) ||
-      design.name.toLowerCase().includes(query) ||
-      design.variants.some(v => v.variant_name.toLowerCase().includes(query))
+    
+    return groupedInventory.filter(group => 
+      group.design_code.toLowerCase().includes(query) ||
+      group.designs.some(d => 
+        d.name.toLowerCase().includes(query) ||
+        d.variants.some(v => v.variant_name.toLowerCase().includes(query))
+      )
     );
   }, [groupedInventory, searchQuery]);
 
-  const handleAdjustClick = (sizeId: number, currentStock: number) => {
+  const handleAdjustClick = (sizeId: number, currentStock: number, currentReserved: number) => {
     setEditingSizeId(sizeId);
     setNewStockVal(currentStock);
+    setNewReservedVal(currentReserved);
   };
 
-  const handleSaveStock = async (sizeId: number) => {
+  const handleSaveStock = async (sizeId: number, originalStock: number, originalReserved: number) => {
     try {
-      await axios.post('http://localhost:8000/api/products/adjust-stock', {
-        variant_size_id: sizeId,
-        new_stock: newStockVal
-      });
-      setMsg('Stock adjusted successfully');
+      // 1. Save Physical Stock if changed
+      if (newStockVal !== originalStock) {
+        await axios.post('http://localhost:8000/api/products/adjust-stock', {
+          variant_size_id: sizeId,
+          new_stock: newStockVal
+        });
+      }
+      
+      // 2. Save Reserved Stock if changed
+      if (newReservedVal !== originalReserved) {
+        await axios.post('http://localhost:8000/api/products/adjust-reserved-stock', {
+          variant_size_id: sizeId,
+          new_reserved: newReservedVal
+        });
+      }
+
+      setMsg('Stock and reservations adjusted successfully');
       setEditingSizeId(null);
       fetchDesigns();
       setTimeout(() => setMsg(''), 3000);
     } catch (err) {
       console.error(err);
-      alert('Error adjusting stock');
+      alert('Error adjusting stock values');
     }
   };
 
@@ -136,7 +224,7 @@ export const InventoryManagement: React.FC = () => {
         <div className="search-field">
           <input 
             type="text" 
-            placeholder="Search design code, name or variant..." 
+            placeholder="Search collection, design code or variant..." 
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="input"
@@ -161,14 +249,14 @@ export const InventoryManagement: React.FC = () => {
       )}
 
       <div className="space-y-4">
-        {filteredInventory.map((design, idx) => {
-          const isExpanded = !!expandedDesigns[design.design_code] || !!searchQuery;
+        {filteredInventory.map((group, idx) => {
+          const isExpanded = !!expandedDesigns[group.design_code] || !!searchQuery;
           
           return (
             <div key={idx} className="enterprise-panel overflow-hidden border border-gray-200 rounded-xl bg-white shadow-sm">
-              {/* Mother Row: Product Design Details */}
+              {/* Mother Row: Collection Group Details (e.g. Rasakulla) */}
               <div 
-                onClick={() => toggleDesignExpand(design.design_code)}
+                onClick={() => toggleDesignExpand(group.design_code)}
                 className="p-5 flex items-center justify-between cursor-pointer hover:bg-gray-50/60 transition-colors select-none"
               >
                 <div className="flex items-center space-x-4">
@@ -176,126 +264,162 @@ export const InventoryManagement: React.FC = () => {
                     {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
                   </div>
                   <div>
-                    <span className="text-xs text-gray-500 font-mono font-semibold uppercase">{design.design_code}</span>
-                    <h3 className="text-base font-bold text-gray-900 leading-tight mt-0.5">{design.name}</h3>
+                    <span className="text-xs text-gray-500 font-mono font-semibold uppercase">{group.collection}</span>
+                    <h3 className="text-base font-bold text-gray-900 leading-tight mt-0.5">{group.design_code}</h3>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-8 text-sm">
                   <div className="hidden sm:block text-right">
-                    <span className="text-xs text-gray-500 uppercase font-semibold">Collection</span>
-                    <p className="font-semibold text-gray-800 mt-0.5">{design.collection}</p>
-                  </div>
-                  
-                  <div className="hidden sm:block text-right">
-                    <span className="text-xs text-gray-500 uppercase font-semibold">Variants</span>
-                    <p className="font-mono font-bold text-gray-900 mt-0.5">{design.variants.length}</p>
+                    <span className="text-xs text-gray-500 uppercase font-semibold">Designs</span>
+                    <p className="font-mono font-bold text-gray-900 mt-0.5">{group.designs.length}</p>
                   </div>
 
                   <div className="text-right">
                     <span className="text-xs text-gray-500 uppercase font-semibold">Total Stock</span>
-                    <p className="font-mono font-bold text-gray-900 mt-0.5">{design.totalPhysicalStock} pcs</p>
+                    <p className="font-mono font-bold text-gray-900 mt-0.5">{group.totalPhysicalStock} pcs</p>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-xs text-gray-500 uppercase font-semibold">Total Weight</span>
+                    <p className="font-mono font-bold text-gray-900 mt-0.5">{group.totalWeight.toFixed(2)}g</p>
                   </div>
 
                   <div className="text-right">
                     <span className="text-xs text-gray-500 uppercase font-semibold">Available</span>
-                    <p className="font-mono font-bold text-gray-900 mt-0.5 text-green-700">{design.totalAvailable} pcs</p>
+                    <p className="font-mono font-bold text-gray-900 mt-0.5 text-green-700">{group.totalAvailable} pcs</p>
                   </div>
 
-                  {design.hasLowStock && (
+                  {group.hasLowStock && (
                     <span className="badge-warning flex items-center text-xs px-2 py-0.5"><AlertTriangle className="h-3.5 w-3.5 mr-1" /> Low Stock</span>
                   )}
                 </div>
               </div>
 
-              {/* Children Panel: Variants & Sizes Table */}
+              {/* Children Panel: Nested Designs Inside Group */}
               {isExpanded && (
-                <div className="border-t border-gray-100 bg-gray-50/30 p-4">
-                  <div className="overflow-x-auto border border-gray-200 rounded-xl bg-white">
-                    <table className="enterprise-table text-xs">
-                      <thead>
-                        <tr>
-                          <th>Variant Finish</th>
-                          <th>Size (Inch)</th>
-                          <th>Weight (Grams)</th>
-                          <th className="text-center">Physical Stock</th>
-                          <th className="text-center">Reserved (Inquiries)</th>
-                          <th className="text-center">Available Stock</th>
-                          <th className="text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {design.variants.flatMap((variant, vIdx) => 
-                          variant.sizes.map((row, sIdx) => {
-                            const isLow = row.stock <= 5;
-                            const isEditing = editingSizeId === row.size_id;
+                <div className="border-t border-gray-100 bg-gray-50/30 p-5 space-y-6">
+                  {group.designs.map((design, dIdx) => {
+                    return (
+                      <div key={dIdx} className="space-y-4 border border-gray-200/60 rounded-xl p-4 bg-white shadow-xs">
+                        <h4 className="text-sm font-extrabold text-gray-950 border-b border-gray-100 pb-2">
+                          Design Code: <span className="text-indigo-600">{design.name}</span>
+                        </h4>
+                        
+                        {design.variants.map((variant, vIdx) => {
+                          return (
+                            <div key={vIdx} className="space-y-2">
+                              <h5 className="text-xs font-bold text-gray-700">
+                                Variant: <span className="text-gray-900">{variant.variant_name}</span> <span className="text-[10px] text-gray-400 font-mono">({variant.variant_code})</span>
+                              </h5>
+                              <div className="overflow-x-auto border border-gray-100 rounded-lg bg-white">
+                                <table className="enterprise-table text-xs">
+                                  <thead>
+                                    <tr>
+                                      <th>Size (Inch)</th>
+                                      <th>Weight (Grams)</th>
+                                      <th className="text-center">Physical Stock</th>
+                                      <th className="text-center">Reserved (Inquiries)</th>
+                                      <th className="text-center">Available Stock</th>
+                                      <th className="text-right">Actions</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {variant.sizes.map((row, sIdx) => {
+                                      const isLow = row.stock <= 5;
+                                      const isEditing = editingSizeId === row.size_id;
 
-                            return (
-                              <tr key={`${vIdx}-${sIdx}`}>
-                                {sIdx === 0 ? (
-                                  <td 
-                                    rowSpan={variant.sizes.length} 
-                                    className="font-semibold text-gray-900 align-middle border-r border-gray-100 bg-gray-50/10 px-4"
-                                    style={{ width: '180px' }}
-                                  >
-                                    <span className="block text-sm font-semibold">{variant.variant_name}</span>
-                                    <span className="block text-[10px] text-gray-500 font-mono mt-0.5">{variant.variant_code}</span>
-                                  </td>
-                                ) : null}
-                                <td className="text-gray-700 font-mono font-medium">{row.size.toFixed(2)}</td>
-                                <td className="text-gray-700 font-mono">{row.weight.toFixed(2)}g</td>
-                                
-                                <td className="text-center">
-                                  {isEditing ? (
-                                    <div className="flex items-center justify-center space-x-1.5" onClick={e => e.stopPropagation()}>
-                                      <input 
-                                        type="number" 
-                                        value={newStockVal}
-                                        onChange={(e) => setNewStockVal(parseInt(e.target.value) || 0)}
-                                        className="input w-16 py-1 text-center text-xs"
-                                        autoFocus
-                                      />
-                                    </div>
-                                  ) : (
-                                    <span className={isLow ? 'badge-danger text-[10px] px-2 py-0.5' : 'badge-neutral text-[10px] px-2 py-0.5'}>{row.stock}</span>
-                                  )}
-                                </td>
+                                      return (
+                                        <tr key={sIdx}>
+                                          <td className="text-gray-700 font-mono font-medium">{row.size.toFixed(2)}</td>
+                                          <td className="text-gray-700 font-mono">{row.weight.toFixed(2)}g</td>
+                                          
+                                          <td className="text-center">
+                                            {isEditing ? (
+                                              <div className="flex items-center justify-center space-x-1.5" onClick={e => e.stopPropagation()}>
+                                                <input 
+                                                  type="number" 
+                                                  value={newStockVal}
+                                                  onChange={(e) => setNewStockVal(parseInt(e.target.value) || 0)}
+                                                  className="input w-16 py-1 text-center text-xs"
+                                                  autoFocus
+                                                />
+                                              </div>
+                                            ) : (
+                                              <span className={isLow ? 'badge-danger text-[10px] px-2 py-0.5' : 'badge-neutral text-[10px] px-2 py-0.5'}>{row.stock}</span>
+                                            )}
+                                          </td>
 
-                                <td className="text-center text-gray-500 font-semibold font-mono">{row.reserved}</td>
-                                <td className="text-center text-gray-900 font-semibold font-mono">{row.available}</td>
+                                          <td className="text-center">
+                                            {isEditing ? (
+                                              <div className="flex items-center justify-center space-x-1.5" onClick={e => e.stopPropagation()}>
+                                                <input 
+                                                  type="number" 
+                                                  value={newReservedVal}
+                                                  onChange={(e) => setNewReservedVal(parseInt(e.target.value) || 0)}
+                                                  className="input w-16 py-1 text-center text-xs"
+                                                />
+                                              </div>
+                                            ) : (
+                                              <span className="text-gray-500 font-semibold font-mono">{row.reserved}</span>
+                                            )}
+                                          </td>
 
-                                <td className="text-right" onClick={e => e.stopPropagation()}>
-                                  {isEditing ? (
-                                    <div className="flex justify-end space-x-2">
-                                      <button 
-                                        onClick={() => handleSaveStock(row.size_id)}
-                                        className="btn-primary px-2.5 py-1 text-[10px]"
-                                      >
-                                        Save
-                                      </button>
-                                      <button 
-                                        onClick={() => setEditingSizeId(null)}
-                                        className="btn-secondary px-2.5 py-1 text-[10px]"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  ) : (
-                                    <button 
-                                      onClick={() => handleAdjustClick(row.size_id, row.stock)}
-                                      className="text-gray-900 hover:text-gray-700 font-semibold text-xs"
-                                    >
-                                      Adjust Stock
-                                    </button>
-                                  )}
-                                </td>
-                              </tr>
-                            );
-                          })
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
+                                          <td className="text-center text-gray-900 font-semibold font-mono">
+                                            {isEditing ? (
+                                              Math.max(0, newStockVal - newReservedVal)
+                                            ) : (
+                                              row.available
+                                            )}
+                                          </td>
+
+                                          <td className="text-right" onClick={e => e.stopPropagation()}>
+                                            {isEditing ? (
+                                              <div className="flex justify-end space-x-2">
+                                                <button 
+                                                  onClick={() => handleSaveStock(row.size_id, row.stock, row.reserved)}
+                                                  className="btn-primary px-2.5 py-1 text-[10px]"
+                                                >
+                                                  Save
+                                                </button>
+                                                <button 
+                                                  onClick={() => setEditingSizeId(null)}
+                                                  className="btn-secondary px-2.5 py-1 text-[10px]"
+                                                >
+                                                  Cancel
+                                                </button>
+                                              </div>
+                                            ) : (
+                                              <button 
+                                                onClick={() => handleAdjustClick(row.size_id, row.stock, row.reserved)}
+                                                className="text-gray-900 hover:text-gray-700 font-semibold text-xs cursor-pointer"
+                                              >
+                                                Adjust Stock
+                                              </button>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                  <tfoot className="bg-gray-50/80 font-bold border-t border-gray-200">
+                                    <tr>
+                                      <td className="text-gray-900">Total</td>
+                                      <td className="text-gray-900 font-mono">{variant.variantWeight.toFixed(2)}g</td>
+                                      <td className="text-center text-gray-900 font-mono">{variant.variantPhysicalStock} pcs</td>
+                                      <td className="text-center text-gray-500 font-mono">{variant.variantReserved} pcs</td>
+                                      <td className="text-center text-green-700 font-mono">{variant.variantAvailable} pcs</td>
+                                      <td></td>
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

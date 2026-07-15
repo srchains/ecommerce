@@ -20,6 +20,7 @@ class VariantSizeBase(BaseModel):
     size: float
     weight: float
     stock_available: int
+    stock_reserved: int = 0
     moq: int = 10
     status: str = "Active"
 
@@ -77,7 +78,7 @@ class ProductDesignBase(BaseModel):
     collection: Optional[str] = None
     tags: Optional[str] = None
     purity: float = 92.5
-    making_charge_per_gram: float = 15.0
+    making_charge_per_gram: float = 0.4
     wastage_percent: float = 10.0
     gst_percent: float = 3.0
     moq: int = 10
@@ -200,3 +201,23 @@ class LivePriceResponse(BaseModel):
     silver_kg_rate: float
     last_updated: datetime
     source: str
+
+
+# Worker Order Schemas
+class WorkerOrderBase(BaseModel):
+    customer_name: str
+    mobile_number: Optional[str] = None
+    variant_size_id: int
+    quantity: int = 1
+
+class WorkerOrderCreate(WorkerOrderBase):
+    pass
+
+class WorkerOrderResponse(WorkerOrderBase):
+    id: int
+    status: str
+    created_at: datetime
+    variant_size: Optional[VariantSizeResponse] = None
+    
+    class Config:
+        from_attributes = True

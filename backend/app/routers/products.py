@@ -7,11 +7,13 @@ from pydantic import BaseModel
 from app.database import get_db
 from app.routers.auth import get_admin_user
 from app.models.models import Category, ProductDesign, ProductVariant, VariantSize, MediaItem
+import app.models.models as models
 from app.schemas.schemas import (
     CategoryCreate, CategoryResponse,
     ProductDesignCreate, ProductDesignResponse,
     VariantSizeCreate
 )
+import app.schemas.schemas as schemas
 
 router = APIRouter(prefix="/api/products", tags=["Products"])
 
@@ -437,6 +439,27 @@ def adjust_stock(req: StockAdjustmentRequest, db: Session = Depends(get_db), adm
     }
 
 
+# RESERVED STOCK ADJUSTMENT ENDPOINT
+class ReservedStockAdjustmentRequest(BaseModel):
+    variant_size_id: int
+    new_reserved: int
+
+@router.post("/adjust-reserved-stock")
+def adjust_reserved_stock(req: ReservedStockAdjustmentRequest, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    size = db.query(VariantSize).filter(VariantSize.id == req.variant_size_id).first()
+    if not size:
+        raise HTTPException(status_code=404, detail="Variant size specification not found")
+        
+    old_reserved = size.stock_reserved or 0
+    size.stock_reserved = req.new_reserved
+    db.commit()
+    return {
+        "variant_size_id": req.variant_size_id,
+        "old_reserved": old_reserved,
+        "new_reserved": size.stock_reserved
+    }
+
+
 class VariantStatusRequest(BaseModel):
     status: str
 
@@ -604,3 +627,103 @@ def fix_categories(db: Session = Depends(get_db), admin_user: dict = Depends(get
         "fixed": fixes_applied,
         "could_not_fix": could_not_fix,
     }
+
+
+# =====================================================================
+# WORKER ORDERS MANAGEMENT
+# =====================================================================
+
+@router.get("/worker-orders", response_model=List[schemas.WorkerOrderResponse])
+def get_worker_orders(db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    orders = db.query(models.WorkerOrder).order_by(models.WorkerOrder.created_at.desc()).all()
+    return orders
+
+@router.post("/worker-orders", response_model=schemas.WorkerOrderResponse)
+def create_worker_order(req: schemas.WorkerOrderCreate, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    size = db.query(models.VariantSize).filter(models.VariantSize.id == req.variant_size_id).first()
+    if not size:
+        raise HTTPException(status_code=404, detail="Variant size not found")
+    
+    # Create the order
+    order = models.WorkerOrder(
+        customer_name=req.customer_name,
+        mobile_number=req.mobile_number,
+        variant_size_id=req.variant_size_id,
+        quantity=req.quantity,
+        status="Pending"
+    )
+    db.add(order)
+    
+    # Increment the reserved stock in database
+    size.stock_reserved = (size.stock_reserved or 0) + req.quantity
+    
+    db.commit()
+    db.refresh(order)
+    return order
+
+class UpdateWorkerOrderRequest(BaseModel):
+    new_quantity: int
+
+@router.put("/worker-orders/{order_id}", response_model=schemas.WorkerOrderResponse)
+def update_worker_order(order_id: int, req: UpdateWorkerOrderRequest, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    order = db.query(models.WorkerOrder).filter(models.WorkerOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Worker order not found")
+        
+    size = db.query(models.VariantSize).filter(models.VariantSize.id == order.variant_size_id).first()
+    if not size:
+        raise HTTPException(status_code=404, detail="Variant size not found")
+        
+    if order.status == "Completed":
+        raise HTTPException(status_code=400, detail="Cannot edit a completed order")
+        
+    diff = req.new_quantity - order.quantity
+    order.quantity = req.new_quantity
+    
+    # Adjust database reserved stock by the difference
+    size.stock_reserved = (size.stock_reserved or 0) + diff
+    
+    db.commit()
+    db.refresh(order)
+    return order
+
+@router.post("/worker-orders/{order_id}/complete", response_model=schemas.WorkerOrderResponse)
+def complete_worker_order(order_id: int, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    order = db.query(models.WorkerOrder).filter(models.WorkerOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Worker order not found")
+        
+    size = db.query(models.VariantSize).filter(models.VariantSize.id == order.variant_size_id).first()
+    if not size:
+        raise HTTPException(status_code=404, detail="Variant size not found")
+        
+    if order.status == "Completed":
+        return order
+        
+    # Deduct quantity from both stock_available (physical) and stock_reserved
+    size.stock_reserved = max(0, (size.stock_reserved or 0) - order.quantity)
+    size.stock_available = max(0, (size.stock_available or 0) - order.quantity)
+    
+    order.status = "Completed"
+    
+    db.commit()
+    db.refresh(order)
+    return order
+
+@router.delete("/worker-orders/{order_id}")
+def delete_worker_order(order_id: int, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
+    order = db.query(models.WorkerOrder).filter(models.WorkerOrder.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Worker order not found")
+        
+    size = db.query(models.VariantSize).filter(models.VariantSize.id == order.variant_size_id).first()
+    if not size:
+        raise HTTPException(status_code=404, detail="Variant size not found")
+        
+    if order.status == "Pending":
+        # Release the reserved stock
+        size.stock_reserved = max(0, (size.stock_reserved or 0) - order.quantity)
+        
+    db.delete(order)
+    db.commit()
+    return {"message": "Worker order deleted successfully", "order_id": order_id}

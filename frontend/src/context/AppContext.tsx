@@ -15,6 +15,7 @@ export interface VariantSize {
   size: number;
   weight: number;
   stock_available: number;
+  stock_reserved: number;
   moq: number;
   status: string;
 }
@@ -84,6 +85,12 @@ export interface CartItem {
   size: VariantSize;
   quantity: number;
   orderType: 'ready_stock' | 'make_order';
+  lockedPrice?: number;
+  lockedSilverRate?: number;
+  lockedEffectiveWeight?: number;
+  lockedBasePrice?: number;
+  lockedMakingCharges?: number;
+  lockedGst?: number;
 }
 
 export interface LivePriceHistory {
@@ -378,6 +385,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Cart Management
   const addToCart = (newItem: CartItem) => {
+    // If locked price fields are not already provided, calculate and populate them
+    if (newItem.lockedPrice === undefined) {
+      const breakdown = calculatePriceBreakdown(
+        newItem.size.weight,
+        newItem.design.purity,
+        newItem.design.wastage_percent,
+        newItem.design.making_charge_per_gram
+      );
+      newItem.lockedPrice = breakdown.total;
+      newItem.lockedSilverRate = livePrice?.silver_gram_rate || 222.00;
+      newItem.lockedEffectiveWeight = breakdown.effectiveWeight;
+      newItem.lockedBasePrice = breakdown.basePrice;
+      newItem.lockedMakingCharges = breakdown.makingCharges;
+      newItem.lockedGst = breakdown.gst;
+    }
+
     setCart(prev => {
       // Check if duplicate item (same variant, same size, same order type)
       const existingIdx = prev.findIndex(item => 

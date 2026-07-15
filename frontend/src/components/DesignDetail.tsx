@@ -300,14 +300,14 @@ export const DesignDetail: React.FC<DesignDetailProps> = ({ designCode, onEdit }
                         <span className={isBaby ? 'badge-info' : 'badge-neutral'}>{isBaby ? 'Baby' : 'Adult'}</span>
                       </td>
                       <td className="text-center">
-                        {s.stock_available > 0 ? (
+                        {s.stock_available - (s.stock_reserved || 0) > 0 ? (
                           <Check className="h-4.5 w-4.5 text-green-700 mx-auto" />
                         ) : (
                           <X className="h-4.5 w-4.5 text-red-700 mx-auto" />
                         )}
                       </td>
-                      <td className={`text-center font-bold font-mono ${s.stock_available > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
-                        {s.stock_available}
+                      <td className={`text-center font-bold font-mono ${s.stock_available - (s.stock_reserved || 0) > 0 ? 'text-gray-900' : 'text-gray-400'}`}>
+                        {s.stock_available - (s.stock_reserved || 0)}
                       </td>
                       <td className="text-center"><Check className="h-4.5 w-4.5 text-green-700 mx-auto" /></td>
                       <td className="text-center text-gray-500 font-medium font-mono">
@@ -380,7 +380,7 @@ export const DesignDetail: React.FC<DesignDetailProps> = ({ designCode, onEdit }
             <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Dynamic Pricing Summary</h4>
             <p className="text-xs text-gray-500">Calculated dynamically using the Live silver rate:</p>
             <div className="bg-gray-50 rounded-xl border border-gray-200 space-y-2 text-sm p-4">
-              <div className="flex justify-between"><span className="text-gray-500">Live Silver Spot</span><span className="font-semibold font-mono">₹{livePrice?.silver_gram_rate.toFixed(2)}/g</span></div>
+              <div className="flex justify-between"><span className="text-gray-500">Live Silver Price</span><span className="font-semibold font-mono">₹{livePrice?.silver_gram_rate.toFixed(2)}/g</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Purity</span><span className="font-semibold">{design.purity}% (Silver 925)</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Making Charge</span><span className="font-semibold">₹{design.making_charge_per_gram}/g</span></div>
               <div className="flex justify-between"><span className="text-gray-500">Wastage</span><span className="font-semibold">{design.wastage_percent}%</span></div>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
@@ -15,11 +15,13 @@ import { Customers } from './components/Customers';
 import { Variants } from './components/Variants';
 import { Collections } from './components/Collections';
 import { AboutUsModal } from './components/AboutUsModal';
+import { WorkerOrders } from './components/WorkerOrders';
 import { InvoiceModal } from './components/InvoiceModal';
 import { 
   ShoppingBag, 
   Trash2, 
   ChevronRight, 
+  ArrowLeft,
   X, 
   Store, 
   TrendingUp, 
@@ -127,6 +129,7 @@ const MainLayout: React.FC = () => {
     setSelectedDesignCode,
     livePrice,
     designs,
+    categories,
     cart,
     removeFromCart,
     clearCart,
@@ -164,7 +167,53 @@ const MainLayout: React.FC = () => {
   const [catalogDropdownOpen, setCatalogDropdownOpen] = useState(false);
   const [storefrontResetKey, setStorefrontResetKey] = useState(0);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
+  const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const catalogDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Automatically reset selected group when changing admin tabs
+  useEffect(() => {
+    setSelectedGroup(null);
+  }, [adminTab]);
+
+  // Group designs by category (group name is category name)
+  const designGroups = useMemo(() => {
+    const groups: Record<number, {
+      category_id: number;
+      category_name: string;
+      collection: string;
+      designsCount: number;
+      variantsCount: number;
+      image: string;
+    }> = {};
+
+    designs.forEach(d => {
+      const catId = d.category_id || 0;
+      const catName = categories.find(c => c.id === catId)?.name || 'Uncategorized';
+      if (!groups[catId]) {
+        groups[catId] = {
+          category_id: catId,
+          category_name: catName,
+          collection: d.collection || 'General',
+          designsCount: 0,
+          variantsCount: 0,
+          image: ''
+        };
+      }
+      
+      const grp = groups[catId];
+      grp.designsCount += 1;
+      grp.variantsCount += d.variants ? d.variants.length : 0;
+      
+      if (!grp.image) {
+        grp.image = d.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                    d.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
+                      ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                    'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+      }
+    });
+
+    return Object.values(groups).sort((a, b) => a.category_name.localeCompare(b.category_name));
+  }, [designs, categories]);
   const profileMenuRef = useRef<HTMLDivElement>(null);
 
 
@@ -290,12 +339,14 @@ const MainLayout: React.FC = () => {
       setOrderSubmitting(true);
       
       const itemsPayload = cart.map(item => {
-        const breakdown = calculatePriceBreakdown(
-          item.size.weight,
-          item.design.purity,
-          item.design.wastage_percent,
-          item.design.making_charge_per_gram
-        );
+        const itemPrice = item.lockedPrice !== undefined
+          ? item.lockedPrice
+          : calculatePriceBreakdown(
+              item.size.weight,
+              item.design.purity,
+              item.design.wastage_percent,
+              item.design.making_charge_per_gram
+            ).total;
         return {
           design_code: item.design.design_code,
           variant_code: item.variant.variant_code,
@@ -303,7 +354,7 @@ const MainLayout: React.FC = () => {
           weight: item.size.weight,
           quantity: item.quantity,
           order_type: item.orderType,
-          price: breakdown.total
+          price: itemPrice
         };
       });
 
@@ -322,13 +373,15 @@ const MainLayout: React.FC = () => {
       message += `*Items Details:*\n`;
       
       cart.forEach((item, idx) => {
-        const breakdown = calculatePriceBreakdown(
-          item.size.weight,
-          item.design.purity,
-          item.design.wastage_percent,
-          item.design.making_charge_per_gram
-        );
-        const itemPrice = breakdown.total * item.quantity;
+        const itemPricePerPiece = item.lockedPrice !== undefined
+          ? item.lockedPrice
+          : calculatePriceBreakdown(
+              item.size.weight,
+              item.design.purity,
+              item.design.wastage_percent,
+              item.design.making_charge_per_gram
+            ).total;
+        const itemPrice = itemPricePerPiece * item.quantity;
         const typeStr = item.orderType === 'ready_stock' ? 'Ready Stock' : 'Make Order (MTO)';
         
         message += `${idx + 1}. *${item.design.name}* (${item.design.design_code})\n`;
@@ -416,15 +469,17 @@ const MainLayout: React.FC = () => {
   }, [mode, adminTab]);
 
   const cartTotals = cart.reduce((acc, item) => {
-    const breakdown = calculatePriceBreakdown(
-      item.size.weight,
-      item.design.purity,
-      item.design.wastage_percent,
-      item.design.making_charge_per_gram
-    );
+    const itemPrice = item.lockedPrice !== undefined 
+      ? item.lockedPrice 
+      : calculatePriceBreakdown(
+          item.size.weight,
+          item.design.purity,
+          item.design.wastage_percent,
+          item.design.making_charge_per_gram
+        ).total;
     return {
       weight: acc.weight + (item.size.weight * item.quantity),
-      price: acc.price + (breakdown.total * item.quantity)
+      price: acc.price + (itemPrice * item.quantity)
     };
   }, { weight: 0, price: 0 });
 
@@ -616,7 +671,7 @@ const MainLayout: React.FC = () => {
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
             <div className="hidden lg:flex items-center space-x-2 text-sm bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 shadow-2xs">
               <TrendingUp className="h-4 w-4 text-gray-600" />
-              <span className="font-medium text-gray-600">Silver Spot:</span>
+              <span className="font-medium text-gray-600">Silver Price:</span>
               <span className="text-gray-900 font-bold font-mono">₹{livePrice?.silver_gram_rate.toFixed(2)}/g • ₹{livePrice ? livePrice.silver_kg_rate.toLocaleString('en-IN') : '2,26,539'}/kg</span>
               <span className="inline-flex items-center gap-1 bg-green-50 border border-green-200 text-green-700 text-[10px] font-bold px-2 py-0.5 rounded-full ml-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
@@ -726,6 +781,7 @@ const MainLayout: React.FC = () => {
                 designCode={selectedDesignCode} 
                 initialVariantId={initialVariantId}
                 initialSizeId={initialSizeId}
+                onRequireLogin={() => setBuyerLoginOpen(true)}
                 onBack={() => {
                   setSelectedDesignCode(null);
                   setInitialVariantId(undefined);
@@ -746,80 +802,147 @@ const MainLayout: React.FC = () => {
 
               {adminTab === 'all-designs' && (
                 selectedDesignCode === null ? (
-                  <div className="space-y-6">
-                    <div className="section-header">
-                      <div>
-                        <h2 className="page-title">Product Catalog</h2>
-                        <p className="muted-text text-sm mt-2">Browse and modify design matrix records for wholesale silver anklets.</p>
-                      </div>
-                      <button 
-                        onClick={() => {
-                          setEditingDesignCode(null);
-                          setAdminTab('add-design');
-                        }}
-                        className="btn-primary"
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Add Design</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-                      {designs.map(d => (
-                        <div 
-                          key={d.id}
-                          className="catalog-card flex flex-col justify-between group"
+                  selectedGroup === null ? (
+                    // 1. Group View
+                    <div className="space-y-6">
+                      <div className="section-header">
+                        <div>
+                          <h2 className="page-title">Product Catalog</h2>
+                          <p className="muted-text text-sm mt-2">Select a design collection group to manage its variants and specifications.</p>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setEditingDesignCode(null);
+                            setAdminTab('add-design');
+                          }}
+                          className="btn-primary"
                         >
-                          <div className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200">
-                            <img 
-                              src={
-                                d.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                                d.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
-                                  ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                                'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
-                              } 
-                              alt={d.name} 
-                              className="w-full h-full object-cover" 
-                            />
-                            <span className="absolute top-2 right-2 bg-white border border-gray-200 px-2 py-1 rounded-md text-[10px] font-bold text-gray-700 uppercase tracking-wider">
-                              {d.collection || 'Active'}
-                            </span>
-                          </div>
-                          <div className="p-5 space-y-4">
-                            <div>
-                              <span className="text-xs text-gray-500 font-mono font-semibold">{d.design_code}</span>
-                              <h3 className="text-base font-bold text-gray-900 tracking-tight truncate mt-1">{d.name}</h3>
-                              <p className="text-xs text-gray-500 mt-1">{d.variants.length} Variants • {d.metal}</p>
+                          <Plus className="h-4 w-4" />
+                          <span>Add Design</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {designGroups.map(group => (
+                          <div 
+                            key={group.category_id}
+                            className="catalog-card flex flex-col justify-between group cursor-pointer hover:shadow-lg transition-all"
+                            onClick={() => setSelectedGroup(group.category_name)}
+                          >
+                            <div className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200">
+                              <img 
+                                src={group.image} 
+                                alt={group.category_name} 
+                                className="w-full h-full object-cover" 
+                              />
+                              <span className="absolute top-2 right-2 bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-md text-[10px] font-bold text-indigo-700 uppercase tracking-wider">
+                                {group.collection}
+                              </span>
                             </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div className="p-5 space-y-4">
+                              <div>
+                                <h3 className="text-lg font-bold text-gray-900 tracking-tight truncate">{group.category_name}</h3>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {group.designsCount} Design Codes • {group.variantsCount} Total Variants
+                                </p>
+                              </div>
                               <button
-                                onClick={() => setSelectedDesignCode(d.name)}
-                                className="btn-secondary w-full text-xs sm:col-span-3"
+                                className="btn-primary w-full text-xs"
                               >
-                                <span>Manage Specification</span>
+                                <span>View Variants</span>
                                 <ArrowRight className="h-3.5 w-3.5" />
                               </button>
-                              <button
-                                onClick={() => {
-                                  setEditingDesignCode(d.name);
-                                  setAdminTab('add-design');
-                                }}
-                                className="btn-secondary w-full text-xs sm:col-span-2"
-                              >
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => handleDeleteDesign(d.design_code)}
-                                className="btn-secondary w-full text-xs border-red-200 text-red-700 hover:bg-red-50"
-                              >
-                                <span>Delete</span>
-                              </button>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    // 2. Inside Group View
+                    <div className="space-y-6">
+                      <div className="section-header">
+                        <div className="flex items-center gap-3">
+                          <button 
+                            onClick={() => setSelectedGroup(null)}
+                            className="btn-secondary text-xs py-1.5 px-3 flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <ArrowLeft className="h-3.5 w-3.5" />
+                            <span>Back</span>
+                          </button>
+                          <div>
+                            <h2 className="page-title">{selectedGroup} Collection</h2>
+                            <p className="muted-text text-sm mt-0.5">Manage designs under the {selectedGroup} catalog group.</p>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => {
+                            setEditingDesignCode(null);
+                            setAdminTab('add-design');
+                          }}
+                          className="btn-primary"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span>Add Design</span>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {designs.filter(d => (categories.find(c => c.id === d.category_id)?.name || 'Uncategorized') === selectedGroup).map(d => (
+                          <div 
+                            key={d.id}
+                            className="catalog-card flex flex-col justify-between group"
+                          >
+                            <div className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200">
+                              <img 
+                                src={
+                                  d.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                                  d.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
+                                    ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                                  'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
+                                } 
+                                alt={d.name} 
+                                className="w-full h-full object-cover" 
+                              />
+                              <span className="absolute top-2 right-2 bg-white border border-gray-200 px-2 py-1 rounded-md text-[10px] font-bold text-gray-700 uppercase tracking-wider">
+                                {d.collection || 'Active'}
+                              </span>
+                            </div>
+                            <div className="p-5 space-y-4">
+                              <div>
+                                <span className="text-xs text-gray-500 font-mono font-semibold">{d.design_code}</span>
+                                <h3 className="text-base font-bold text-gray-900 tracking-tight truncate mt-1">{d.name}</h3>
+                                <p className="text-xs text-gray-500 mt-1">{d.variants.length} Variants • {d.metal}</p>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                <button
+                                  onClick={() => setSelectedDesignCode(d.name)}
+                                  className="btn-secondary w-full text-xs sm:col-span-3"
+                                >
+                                  <span>Manage Specification</span>
+                                  <ArrowRight className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingDesignCode(d.name);
+                                    setAdminTab('add-design');
+                                  }}
+                                  className="btn-secondary w-full text-xs sm:col-span-2"
+                                >
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteDesign(d.design_code)}
+                                  className="btn-secondary w-full text-xs border-red-200 text-red-700 hover:bg-red-50"
+                                >
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
                 ) : (
                   <DesignDetail
                     designCode={selectedDesignCode}
@@ -1024,6 +1147,10 @@ const MainLayout: React.FC = () => {
                 </div>
               )}
 
+              {adminTab === 'worker-orders' && (
+                <WorkerOrders />
+              )}
+
               {['settings'].includes(adminTab) && (
                 <div className="module-placeholder">
                   <div className="mx-auto h-12 w-12 rounded-xl bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-500 mb-4">
@@ -1061,7 +1188,7 @@ const MainLayout: React.FC = () => {
         <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex justify-end">
           <div className="absolute inset-0" onClick={() => setCartOpen(false)}></div>
           
-          <div className="drawer-light relative w-full max-w-md h-full flex flex-col justify-between z-50">
+          <div className="drawer-light relative w-full max-w-xl h-full flex flex-col justify-between z-50">
             <div className="drawer-header p-6 flex justify-between items-center">
               <div className="flex items-center space-x-2.5">
                 <div className="h-9 w-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700">
@@ -1085,103 +1212,199 @@ const MainLayout: React.FC = () => {
                 </div>
               )}
 
-              {cart.length > 0 ? (
-                cart.map((item, idx) => {
-                  const breakdown = calculatePriceBreakdown(
-                    item.size.weight,
-                    item.design.purity,
-                    item.design.wastage_percent,
-                    item.design.making_charge_per_gram
-                  );
-                  return (
-                    <div 
-                      key={idx} 
-                      onClick={() => {
-                        setSelectedDesignCode(item.design.name);
-                        setInitialVariantId(item.variant.id);
-                        setInitialSizeId(item.size.id);
-                        setCartOpen(false);
-                      }}
-                      className="cart-item space-y-3 relative group cursor-pointer hover:bg-gray-50/50 p-2.5 rounded-xl transition-all"
-                    >
-                      <div className="flex items-start space-x-3 text-sm">
-                        <div className="h-14 w-14 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden shrink-0">
-                          <img 
-                            src={
-                              item.design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                              item.design.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
-                                ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                              'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
-                            } 
-                            alt="cart item" 
-                            className="w-full h-full object-cover" 
-                          />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="font-mono text-xs text-gray-500 block">{item.design.design_code}</span>
-                          <h4 className="font-bold text-gray-900 truncate">{item.design.name}</h4>
-                          <div className="flex flex-wrap gap-x-2 mt-1 text-xs text-gray-500">
-                            <span>Variant: <span className="font-semibold text-gray-700">{item.variant.variant_name}</span></span>
-                            <span>•</span>
-                            <span>Size: <span className="font-bold text-gray-700 font-mono">{item.size.size.toFixed(2)}&quot;</span></span>
-                            <span>•</span>
-                            <span>Weight: <span className="font-bold text-gray-700 font-mono">{item.size.weight.toFixed(2)}g</span></span>
-                          </div>
-                        </div>
-                      </div>
+              {(() => {
+                const groupedCart: {
+                  design: any;
+                  variant: any;
+                  items: {
+                    cartIdx: number;
+                    size: any;
+                    quantity: number;
+                    orderType: 'ready_stock' | 'make_order';
+                  }[];
+                }[] = [];
 
-                      <div className="flex justify-between items-center border-t border-gray-200 pt-2.5 text-xs">
-                        <div className="flex items-center space-x-2">
-                          <span className={`badge ${item.orderType === 'ready_stock' ? 'badge-success' : 'badge-warning'}`}>
-                            {item.orderType === 'ready_stock' ? 'Stock' : 'MTO'}
-                          </span>
-                          
-                          <div className="qty-control" onClick={(e) => e.stopPropagation()}>
-                            <button onClick={() => updateCartQuantity(idx, Math.max(item.design.moq, item.quantity - 1))}>-</button>
-                            <span>{item.quantity}</span>
-                            <button onClick={() => updateCartQuantity(idx, item.quantity + 1)}>+</button>
-                          </div>
-                        </div>
+                cart.forEach((item, idx) => {
+                  const existingGroup = groupedCart.find(g => g.variant.id === item.variant.id);
+                  if (existingGroup) {
+                    existingGroup.items.push({
+                      cartIdx: idx,
+                      size: item.size,
+                      quantity: item.quantity,
+                      orderType: item.orderType
+                    });
+                  } else {
+                    groupedCart.push({
+                      design: item.design,
+                      variant: item.variant,
+                      items: [{
+                        cartIdx: idx,
+                        size: item.size,
+                        quantity: item.quantity,
+                        orderType: item.orderType
+                      }]
+                    });
+                  }
+                });
 
-                        <div className="text-right">
-                          <span className="text-xs text-gray-500 font-medium">Subtotal</span>
-                          <p className="font-bold text-gray-900 font-mono">₹{(breakdown.total * item.quantity).toLocaleString('en-IN')}</p>
-                        </div>
-                      </div>
+                return groupedCart.length > 0 ? (
+                  groupedCart.map((group, groupIdx) => {
+                    let groupSilverBase = 0;
+                    let groupMaking = 0;
+                    let groupGst = 0;
+                    let groupTotal = 0;
+                    let groupWeight = 0;
 
-                      <div className="bg-gray-50 rounded-lg p-2.5 mt-3 border border-gray-200 text-[11px] text-gray-500 space-y-1.5">
-                        <div className="flex justify-between">
-                          <span>Silver Base ({breakdown.effectiveWeight.toFixed(2)}g × ₹{livePrice?.silver_gram_rate || 222})</span>
-                          <span className="font-mono text-gray-700">₹{(breakdown.basePrice * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Making Charge</span>
-                          <span className="font-mono text-gray-700">₹{(breakdown.makingCharges * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
-                        </div>
-                        <div className="flex justify-between font-medium text-gray-600 border-t border-gray-200 pt-1 mt-1">
-                          <span>GST (3%)</span>
-                          <span className="font-mono">₹{(breakdown.gst * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
-                        </div>
-                      </div>
+                    group.items.forEach(it => {
+                      const cartItem = cart[it.cartIdx];
+                      const hasLock = cartItem.lockedPrice !== undefined;
+                      const baseP = hasLock ? cartItem.lockedBasePrice! : 0;
+                      const makingC = hasLock ? cartItem.lockedMakingCharges! : 0;
+                      const gstV = hasLock ? cartItem.lockedGst! : 0;
+                      const totalP = hasLock ? cartItem.lockedPrice! : 0;
 
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); removeFromCart(idx); }}
-                        className="absolute top-2 right-2 text-gray-400 hover:text-red-700 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      if (hasLock) {
+                        groupSilverBase += baseP * it.quantity;
+                        groupMaking += makingC * it.quantity;
+                        groupGst += gstV * it.quantity;
+                        groupTotal += totalP * it.quantity;
+                      } else {
+                        const br = calculatePriceBreakdown(
+                          it.size.weight,
+                          group.design.purity,
+                          group.design.wastage_percent,
+                          group.design.making_charge_per_gram
+                        );
+                        groupSilverBase += br.basePrice * it.quantity;
+                        groupMaking += br.makingCharges * it.quantity;
+                        groupGst += br.gst * it.quantity;
+                        groupTotal += br.total * it.quantity;
+                      }
+                      groupWeight += it.size.weight * it.quantity;
+                    });
+
+                    const firstImage = group.variant.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                      group.design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                      group.design.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
+                        ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                      'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+
+                    return (
+                      <div 
+                        key={groupIdx} 
+                        onClick={() => {
+                          setSelectedDesignCode(group.design.name);
+                          setInitialVariantId(group.variant.id);
+                          if (group.items[0]) {
+                            setInitialSizeId(group.items[0].size.id);
+                          }
+                          setCartOpen(false);
+                        }}
+                        className="cart-item space-y-3 p-4 rounded-xl border border-gray-200 hover:border-gray-300 bg-white transition-all cursor-pointer relative group"
                       >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                        {/* Product Header */}
+                        <div className="flex items-start space-x-3 text-sm">
+                          <div className="h-14 w-14 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden shrink-0">
+                            <img 
+                              src={firstImage} 
+                              alt="cart item" 
+                              className="w-full h-full object-cover" 
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="font-mono text-xs text-gray-500 block">{group.design.design_code}</span>
+                            <h4 className="font-bold text-gray-900 truncate">{group.design.name}</h4>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Variant: <span className="font-semibold text-gray-700">{group.variant.variant_name}</span>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Sizes List */}
+                        <div className="space-y-2 border-t border-gray-100 pt-3">
+                          {group.items.map((it) => {
+                            const cartItem = cart[it.cartIdx];
+                            const itemPrice = cartItem.lockedPrice !== undefined
+                              ? cartItem.lockedPrice
+                              : calculatePriceBreakdown(
+                                  it.size.weight,
+                                  group.design.purity,
+                                  group.design.wastage_percent,
+                                  group.design.making_charge_per_gram
+                                ).total;
+                            const itemSubtotal = itemPrice * it.quantity;
+
+                            return (
+                              <div 
+                                key={it.cartIdx} 
+                                className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-b-0 text-xs"
+                                onClick={(e) => e.stopPropagation()} // Prevent nav to details when interacting with controls
+                              >
+                                {/* Size, Weight and Tag */}
+                                <div className="flex items-center gap-2 min-w-[120px]">
+                                  <span className="font-bold text-gray-900 font-mono">{it.size.size.toFixed(2)}&quot;</span>
+                                  <span className="text-gray-400 font-mono">({it.size.weight.toFixed(2)}g)</span>
+                                  <span className={`badge ${it.orderType === 'ready_stock' ? 'badge-success' : 'badge-warning'} scale-90 shrink-0`}>
+                                    {it.orderType === 'ready_stock' ? 'Stock' : 'MTO'}
+                                  </span>
+                                </div>
+
+                                {/* Qty pickers */}
+                                <div className="qty-control h-[26px] scale-95">
+                                  <button type="button" onClick={() => updateCartQuantity(it.cartIdx, Math.max(1, it.quantity - 1))}>-</button>
+                                  <span>{it.quantity}</span>
+                                  <button type="button" onClick={() => updateCartQuantity(it.cartIdx, it.quantity + 1)}>+</button>
+                                </div>
+
+                                {/* Price and Delete */}
+                                <div className="flex items-center gap-2.5 ml-auto text-right">
+                                  <span className="font-bold text-gray-900 font-mono">₹{itemSubtotal.toLocaleString('en-IN')}</span>
+                                  <button 
+                                    type="button"
+                                    onClick={() => removeFromCart(it.cartIdx)}
+                                    className="text-gray-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
+                                    title="Remove from cart"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Pricing Breakdown summary for this variant */}
+                        <div className="bg-gray-50 rounded-lg p-2.5 mt-3 border border-gray-200 text-[11px] text-gray-500 space-y-1.5" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex justify-between">
+                            <span>Silver Base ({groupWeight.toFixed(2)}g total)</span>
+                            <span className="font-mono text-gray-700">₹{groupSilverBase.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Making Charge</span>
+                            <span className="font-mono text-gray-700">₹{groupMaking.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between font-medium text-gray-600 border-t border-gray-200 pt-1 mt-1">
+                            <span>GST (3%)</span>
+                            <span className="font-mono">₹{groupGst.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1">
+                            <span>Variant Total (Approx. Price)</span>
+                            <span className="font-mono">₹{groupTotal.toLocaleString('en-IN')}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  !orderSuccess && (
+                    <div className="text-center py-12 text-gray-500 flex flex-col items-center space-y-2 select-none">
+                      <ShoppingBag className="h-10 w-10 text-gray-300" />
+                      <span className="text-sm font-bold text-gray-700">Wholesale cart is empty</span>
+                      <p className="text-xs text-gray-500 max-w-[200px]">Add designs from the catalog page to compile invoice pricing.</p>
                     </div>
-                  );
-                })
-              ) : (
-                !orderSuccess && (
-                  <div className="text-center py-12 text-gray-500 flex flex-col items-center space-y-2 select-none">
-                    <ShoppingBag className="h-10 w-10 text-gray-300" />
-                    <span className="text-sm font-bold text-gray-700">Wholesale cart is empty</span>
-                    <p className="text-xs text-gray-500 max-w-[200px]">Add designs from the catalog page to compile invoice pricing.</p>
-                  </div>
-                )
-              )}
+                  )
+                );
+              })()}
             </div>
 
             {cart.length > 0 && (
@@ -1192,7 +1415,7 @@ const MainLayout: React.FC = () => {
                     <span className="text-gray-900 font-mono font-semibold">{cartTotals.weight.toFixed(2)}g</span>
                   </div>
                   <div className="flex justify-between font-extrabold border-t border-gray-200 pt-2.5 text-base text-gray-900">
-                    <span>Estimated Total Invoice</span>
+                    <span>Estimated Total Invoice (Approx. Price)</span>
                     <span className="font-mono">₹{cartTotals.price.toLocaleString('en-IN')}</span>
                   </div>
                   <p className="text-xs text-gray-500 leading-relaxed pt-1.5">

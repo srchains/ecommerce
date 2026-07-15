@@ -524,19 +524,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               className="h-4 w-4 accent-gray-900"
             />
             <span>Baby Sizes (&lt;8.0&quot; Only)</span>
-          </label>
-
-          <div className="flex items-center space-x-2.5 w-full sm:w-auto">
-            <span className="text-gray-500 font-bold uppercase tracking-wider text-xs">Purity</span>
-            <select
-              value={purityFilter}
-              onChange={(e) => setPurityFilter(e.target.value)}
-              className="select sm:w-48"
-            >
-              <option value="All">All Purities</option>
-              <option value="92.5">92.5 Fine Silver</option>
-            </select>
-          </div>
+          </label>          
         </div>
 
         {/* Results count */}

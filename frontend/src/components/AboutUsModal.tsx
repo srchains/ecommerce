@@ -1,4 +1,4 @@
-import React from 'react';
+  import React from 'react';
 import { X, Truck, Camera, Store, ShieldCheck, Phone, MapPin, Clock } from 'lucide-react';
 
 interface AboutUsModalProps {

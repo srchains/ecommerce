@@ -25,7 +25,7 @@ class ProductDesign(Base):
     collection = Column(String, nullable=True)
     tags = Column(String, nullable=True) # Comma separated
     purity = Column(Float, default=92.5) # e.g. 92.5
-    making_charge_per_gram = Column(Float, default=15.0)
+    making_charge_per_gram = Column(Float, default=0.4)
     wastage_percent = Column(Float, default=10.0) # e.g. 10%
     gst_percent = Column(Float, default=3.0) # default GST for silver/gold jewelry in India is 3%
     moq = Column(Integer, default=10)
@@ -71,6 +71,7 @@ class VariantSize(Base):
     size = Column(Float, nullable=False) # e.g. 8.25
     weight = Column(Float, nullable=False) # weight in grams e.g. 26.50
     stock_available = Column(Integer, default=0) # ready stock inventory
+    stock_reserved = Column(Integer, default=0) # reserved stock (manual/worker orders)
     moq = Column(Integer, default=10)
     status = Column(String, default="Active") # Active, Inactive
 
@@ -146,3 +147,17 @@ class Customer(Base):
     password_hash = Column(String, nullable=True)
     order_number = Column(String, nullable=True)  # null for sign-up only customers
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class WorkerOrder(Base):
+    __tablename__ = "worker_orders"
+
+    id = Column(Integer, primary_key=True, index=True)
+    customer_name = Column(String, nullable=False)
+    mobile_number = Column(String, nullable=True)
+    variant_size_id = Column(Integer, ForeignKey("variant_sizes.id", ondelete="CASCADE"), nullable=False)
+    quantity = Column(Integer, default=1, nullable=False)
+    status = Column(String, default="Pending", nullable=False) # Pending, Completed
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    variant_size = relationship("VariantSize")
