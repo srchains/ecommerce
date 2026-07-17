@@ -1029,7 +1029,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               );
             })}
           </div>
-        ) : (
+        )) : (
           <div className="empty-state max-w-md mx-auto mt-12">
             <AlertCircle className="h-10 w-10 text-gray-400 mx-auto" />
             <h4 className="text-lg font-bold text-gray-900 mt-3">
