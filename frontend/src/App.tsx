@@ -1159,25 +1159,27 @@ const MainLayout: React.FC = () => {
               )}
             </>
           )}
-          <AppFooter
-            onHomeClick={() => {
-              setSelectedDesignCode(null);
-              setSelectedCollectionFilter(null);
-              setAboutModalOpen(false);
-              setCatalogDropdownOpen(false);
-              setStorefrontResetKey(prev => prev + 1);
-            }}
-            onCatalogClick={() => {
-              setSelectedDesignCode(null);
-              setSelectedCollectionFilter(null);
-              setAboutModalOpen(false);
-              setCatalogDropdownOpen(false);
-              setStorefrontResetKey(prev => prev + 1);
-            }}
-            onAboutClick={() => {
-              setAboutModalOpen(true);
-            }}
-          />
+          {mode === 'buyer' && (
+            <AppFooter
+              onHomeClick={() => {
+                setSelectedDesignCode(null);
+                setSelectedCollectionFilter(null);
+                setAboutModalOpen(false);
+                setCatalogDropdownOpen(false);
+                setStorefrontResetKey(prev => prev + 1);
+              }}
+              onCatalogClick={() => {
+                setSelectedDesignCode(null);
+                setSelectedCollectionFilter(null);
+                setAboutModalOpen(false);
+                setCatalogDropdownOpen(false);
+                setStorefrontResetKey(prev => prev + 1);
+              }}
+              onAboutClick={() => {
+                setAboutModalOpen(true);
+              }}
+            />
+          )}
         </main>
       </div>
 
