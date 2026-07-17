@@ -36,12 +36,12 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   // Track which root categories are expanded in the sidebar
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     };
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -1027,6 +1027,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                   </div>
                 </div>
               );
+            })}
           </div>
         ) : (
           <div className="empty-state max-w-md mx-auto mt-12">
@@ -1069,7 +1070,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             <button
               onClick={() => {
                 setCurrentPage(prev => Math.max(prev - 1, 1));
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (typeof window !== 'undefined') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
               }}
               disabled={currentPage === 1}
               className={`btn-secondary text-xs px-4 py-2 cursor-pointer ${
@@ -1086,7 +1089,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             <button
               onClick={() => {
                 setCurrentPage(prev => Math.min(prev + 1, totalPages));
-                window.scrollTo({ top: 0, behavior: 'smooth' });
+                if (typeof window !== 'undefined') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
               }}
               disabled={currentPage === totalPages}
               className={`btn-secondary text-xs px-4 py-2 cursor-pointer ${
