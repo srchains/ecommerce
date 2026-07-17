@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Folder,
@@ -35,6 +35,21 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   // Track which root categories are expanded in the sidebar
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
+
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCatId, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter]);
 
   const rootCategories = categories.filter(c => c.parent_id === null).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   const getChildren = (parentId: number) => categories.filter(c => c.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
@@ -262,6 +277,42 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     const ids = getAllowedCatIds(catId);
     return designs.filter(d => d.status === 'Active' && ids.includes(d.category_id || -1)).length;
   };
+
+  // Paginate list
+  const ITEMS_PER_PAGE = 10;
+  
+  // Detect if this is a child-variant-only search (no mother fields matched)
+  const isChildOnlySearch = searchQuery.trim() !== '' && filteredDesigns.length > 0 &&
+    filteredDesigns.every(design => {
+      const sm = getDesignSearchMatch(design, searchQuery);
+      return !sm.matchedMother && sm.matchedVariants.length > 0;
+    });
+
+  // Calculate child matches if child-only search, otherwise use filtered designs
+  const childMatches = useMemo(() => {
+    if (!isChildOnlySearch) return [];
+    return filteredDesigns.flatMap(design => {
+      const searchMatch = getDesignSearchMatch(design, searchQuery);
+      return searchMatch.matchedVariants.map(matchedV => ({
+        design,
+        matchedV
+      }));
+    });
+  }, [filteredDesigns, isChildOnlySearch, searchQuery]);
+
+  const totalItemsCount = isChildOnlySearch ? childMatches.length : filteredDesigns.length;
+  const totalPages = Math.ceil(totalItemsCount / ITEMS_PER_PAGE);
+
+  const startIdx = (currentPage - 1) * ITEMS_PER_PAGE;
+  const endIdx = startIdx + ITEMS_PER_PAGE;
+
+  const paginatedChildMatches = isMobile && totalPages > 1
+    ? childMatches.slice(startIdx, endIdx)
+    : childMatches;
+
+  const paginatedDesigns = isMobile && totalPages > 1
+    ? filteredDesigns.slice(startIdx, endIdx)
+    : filteredDesigns;
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 items-start">
@@ -557,27 +608,16 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         })()}
 
         {/* Product Grid */}
-        {filteredDesigns.length > 0 ? (() => {
-          // Detect if this is a child-variant-only search (no mother fields matched)
-          const isChildOnlySearch = searchQuery.trim() !== '' &&
-            filteredDesigns.every(design => {
-              const sm = getDesignSearchMatch(design, searchQuery);
-              return !sm.matchedMother && sm.matchedVariants.length > 0;
-            });
-
-          if (isChildOnlySearch) {
+        {filteredDesigns.length > 0 ? (
+          isChildOnlySearch ? (
             // Render detailed child variant cards in a single-column layout
-            return (
-              <div className="space-y-4">
-                {filteredDesigns.map((design) => {
-                  const searchMatch = getDesignSearchMatch(design, searchQuery);
-                  const catName = categories.find(c => c.id === design.category_id)?.name;
-                  const purityStr = design.purity === 92.5 || design.purity === 925 ? 'Silver 925' : `${design.purity}% Silver`;
-
-                  return searchMatch.matchedVariants.map((matchedV: any) => {
-                    const allSizes: any[] = matchedV.sizes || [];
-                    const firstSize = allSizes[0];
-                    const lastSize = allSizes[allSizes.length - 1];
+            <div className="space-y-4">
+              {paginatedChildMatches.map(({ design, matchedV }) => {
+                const catName = categories.find(c => c.id === design.category_id)?.name;
+                const purityStr = design.purity === 92.5 || design.purity === 925 ? 'Silver 925' : `${design.purity}% Silver`;
+                const allSizes: any[] = matchedV.sizes || [];
+                const firstSize = allSizes[0];
+                const lastSize = allSizes[allSizes.length - 1];
                     // Price range across all sizes
                     const priceObjs = allSizes.map((s: any) =>
                       calculatePriceBreakdown(s.weight, design.purity, design.wastage_percent, design.making_charge_per_gram)
@@ -745,26 +785,22 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                           </div>
                         </div>
                       </div>
-                    );
-                  });
-                })}
+                );
+              })}
 
-                {/* Search Tip */}
-                <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-3 text-sm text-gray-600">
-                  <Info className="h-4 w-4 shrink-0 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="font-bold text-gray-700 mb-0.5">Search Tip</p>
-                    <p>You searched for child variant <strong className="text-gray-900">"{searchQuery.trim()}"</strong>. Showing exact matching child variant{filteredDesigns.reduce((a, d) => a + getDesignSearchMatch(d, searchQuery).matchedVariants.length, 0) !== 1 ? 's' : ''}.</p>
-                  </div>
+              {/* Search Tip */}
+              <div className="mt-4 p-4 bg-gray-50 border border-gray-200 rounded-xl flex items-start gap-3 text-sm text-gray-600">
+                <Info className="h-4 w-4 shrink-0 text-gray-400 mt-0.5" />
+                <div>
+                  <p className="font-bold text-gray-700 mb-0.5">Search Tip</p>
+                  <p>You searched for child variant <strong className="text-gray-900">"{searchQuery.trim()}"</strong>. Showing exact matching child variant{totalItemsCount !== 1 ? 's' : ''}.</p>
                 </div>
               </div>
-            );
-          }
-
-          // Default grid layout for mother/mixed searches
-          return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredDesigns.map((design) => {
+            </div>
+          ) : (
+            // Default grid layout for mother/mixed searches
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
+              {paginatedDesigns.map((design) => {
               const searchMatch = getDesignSearchMatch(design, searchQuery);
               const babyDetails = getBabySizesDetails(design);
               const priceDetails = getPriceRangeDetails(design, minPrice, maxPrice);
@@ -991,10 +1027,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                   </div>
                 </div>
               );
-            })}
           </div>
-          );
-        })() : (
+        ) : (
           <div className="empty-state max-w-md mx-auto mt-12">
             <AlertCircle className="h-10 w-10 text-gray-400 mx-auto" />
             <h4 className="text-lg font-bold text-gray-900 mt-3">
@@ -1026,6 +1060,41 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                 Clear Filters
               </button>
             )}
+          </div>
+        )}
+
+        {/* Pagination Controls */}
+        {isMobile && totalPages > 1 && (
+          <div className="flex items-center justify-between border-t border-gray-200 pt-4 mt-6">
+            <button
+              onClick={() => {
+                setCurrentPage(prev => Math.max(prev - 1, 1));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              disabled={currentPage === 1}
+              className={`btn-secondary text-xs px-4 py-2 cursor-pointer ${
+                currentPage === 1 ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              Prev
+            </button>
+            
+            <span className="text-xs text-gray-500 font-semibold">
+              Page {currentPage} of {totalPages}
+            </span>
+            
+            <button
+              onClick={() => {
+                setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              disabled={currentPage === totalPages}
+              className={`btn-secondary text-xs px-4 py-2 cursor-pointer ${
+                currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
