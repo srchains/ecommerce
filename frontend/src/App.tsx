@@ -109,11 +109,8 @@ const AppFooter: React.FC<AppFooterProps> = ({ onHomeClick, onCatalogClick, onAb
         </div>
       </div>
 
-      <div className="border-t border-gray-200 px-8 py-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-gray-500">
+      <div className="border-t border-gray-200 px-8 py-4 flex items-center justify-center text-xs text-gray-500">
         <p>© 2026 SR Chains. All rights reserved.</p>
-        <p className="flex items-center gap-1.5 flex-wrap">
-          <span>Silver Jewelry Manufacture</span>
-        </p>
       </div>
     </footer>
   );
