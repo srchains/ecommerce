@@ -48,6 +48,8 @@ This file contains crucial specifications, instructions, and records of modifica
 - **2026-07-14 (Update 8)**: Added a database column `stock_reserved` to the `variant_sizes` table, exposing `/api/products/adjust-reserved-stock`. Allowed admins/workers to manually adjust both physical and reserved stock from the admin inventory sheet, dynamically calculating and listing available stock (physical - reserved) for both admin inventory views and buyer storefront ready-stock validations.
 - **2026-07-15 (Update 9)**: Removed manual weight input columns for sizes in `ProductForm.tsx`. Replaced it with a single "Weight per Inch" input box in the variant header row, which automatically computes weights for all size rows (`weight = size * weight_per_inch`) in real-time, displaying them in a read-only column. Prefills dynamically derived values for existing records.
 - **2026-07-15 (Update 10)**: Grouped designs in the Product Catalog (All Designs) view by `Category` (e.g. `Battani`, `Titanic-New`, `Flower`). Displays parent category cards summarizing nested design codes and total variants count. Clicking a parent card drilldowns "inside" to view only the designs belonging to that category with edit/delete controls and a back navigation button.
+- **2026-07-15 (Update 11)**: Sorted categories on the left sidebar and products on the main catalog grid alphabetically (A, B, C, D...) in `BuyerStorefront.tsx` instead of rendering them in database insertion order.
+
 
 
 

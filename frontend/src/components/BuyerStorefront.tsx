@@ -36,8 +36,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   // Track which root categories are expanded in the sidebar
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
 
-  const rootCategories = categories.filter(c => c.parent_id === null);
-  const getChildren = (parentId: number) => categories.filter(c => c.parent_id === parentId);
+  const rootCategories = categories.filter(c => c.parent_id === null).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  const getChildren = (parentId: number) => categories.filter(c => c.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
   const toggleRoot = (catId: number) => {
     setExpandedRoots(prev => {
@@ -255,7 +255,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     const priceDetails = getPriceRangeDetails(design, minPrice, maxPrice);
 
     return matchesCategory && matchesCollection && matchesPurity && matchesBaby && priceDetails.matchesPrice;
-  });
+  }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
 
   // Count designs per category (including children)
   const countForCat = (catId: number) => {
