@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import type { MediaItem } from '../context/AppContext';
 
@@ -9,7 +9,9 @@ import {
   Play,
   Heart,
   Share2,
-  X
+  X,
+  Sparkles,
+  ChevronRight
 } from 'lucide-react';
 
 interface BuyerProductDetailProps {
@@ -18,6 +20,7 @@ interface BuyerProductDetailProps {
   initialSizeId?: number;
   onBack: () => void;
   onRequireLogin?: () => void;
+  onSelectProduct?: (code: string, variantId?: number, sizeId?: number) => void;
 }
 
 export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({ 
@@ -25,30 +28,45 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   initialVariantId,
   initialSizeId,
   onBack,
-  onRequireLogin
+  onRequireLogin,
+  onSelectProduct
 }) => {
   const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist, wishlist, isCustomerAuthenticated } = useApp();
 
   const design = designs.find(d => d.name === designCode || d.design_code === designCode);
 
-  if (!design) {
-    return (
-      <div className="p-8 text-center text-gray-500">
-        Product not found. <button onClick={onBack} className="text-gray-900 font-medium hover:underline">Go Back</button>
-      </div>
-    );
-  }
+  const [selectedVariantId, setSelectedVariantId] = useState<number>(0);
+  const [selectedSizeId, setSelectedSizeId] = useState<number>(0);
 
-  const [selectedVariantId, setSelectedVariantId] = useState<number>(initialVariantId || design.variants[0]?.id || 0);
-  const activeVariant = design.variants.find(v => v.id === selectedVariantId) || design.variants[0];
+  // Sync variant selection when design data arrives or initialVariantId changes
+  useEffect(() => {
+    if (design?.variants?.length) {
+      if (initialVariantId && design.variants.some(v => v.id === initialVariantId)) {
+        setSelectedVariantId(initialVariantId);
+      } else if (!selectedVariantId || !design.variants.some(v => v.id === selectedVariantId)) {
+        setSelectedVariantId(design.variants[0].id);
+      }
+    }
+  }, [design?.id, initialVariantId]);
 
-  const availableSizes = activeVariant?.sizes.filter(s => s.size >= 5.0 && s.size <= 11.0) || activeVariant?.sizes || [];
-  const [selectedSizeId, setSelectedSizeId] = useState<number>(
-    (initialSizeId && availableSizes.some(s => s.id === initialSizeId))
-      ? initialSizeId
-      : availableSizes[0]?.id || activeVariant?.sizes[0]?.id || 0
-  );
-  const activeSize = availableSizes.find(s => s.id === selectedSizeId) || availableSizes[0] || activeVariant?.sizes[0];
+  const activeVariant = design?.variants?.find(v => v.id === selectedVariantId) || design?.variants?.[0];
+
+  const availableSizes = useMemo(() => {
+    return activeVariant?.sizes?.filter(s => s.size >= 5.0 && s.size <= 11.0) || activeVariant?.sizes || [];
+  }, [activeVariant]);
+
+  // Sync size selection when activeVariant or initialSizeId changes
+  useEffect(() => {
+    if (availableSizes.length > 0) {
+      if (initialSizeId && availableSizes.some(s => s.id === initialSizeId)) {
+        setSelectedSizeId(initialSizeId);
+      } else if (!selectedSizeId || !availableSizes.some(s => s.id === selectedSizeId)) {
+        setSelectedSizeId(availableSizes[0].id);
+      }
+    }
+  }, [activeVariant?.id, initialSizeId]);
+
+  const activeSize = availableSizes.find(s => s.id === selectedSizeId) || availableSizes[0] || activeVariant?.sizes?.[0];
 
   const [addedToCartMsg, setAddedToCartMsg] = useState(false);
   const [selectedSizesConfig, setSelectedSizesConfig] = useState<Record<number, { readyStockQty: number; makeOrderQty: number }>>({});
@@ -93,20 +111,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       console.log('Share failed', error);
     }
   };
-
-  // Sync selected variant/size from cart details
-  useEffect(() => {
-    if (initialVariantId) {
-      setSelectedVariantId(initialVariantId);
-      setActiveMediaIdx(0);
-    }
-  }, [initialVariantId]);
-
-  useEffect(() => {
-    if (initialSizeId) {
-      setSelectedSizeId(initialSizeId);
-    }
-  }, [initialSizeId]);
 
   // Keep URL search parameters in sync with selected variant and size
   useEffect(() => {
@@ -291,12 +295,12 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   // Countdown to next live rate refresh (5s)
   const [refreshCountdown, setRefreshCountdown] = useState(5);
 
-  const weight = activeSize ? activeSize.weight : 20.0;
+  const weight = design ? (activeSize ? activeSize.weight : 20.0) : 20.0;
   const priceBreakdown = calculatePriceBreakdown(
     weight,
-    design.purity,
-    design.wastage_percent,
-    design.making_charge_per_gram
+    design?.purity || 70,
+    design?.wastage_percent || 0,
+    design?.making_charge_per_gram || 0
   );
 
   // Calculate selection summary (total weight and price of currently selected configurations)
@@ -309,9 +313,9 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     const itemWeight = totalQty * sObj.weight;
     const sBreakdown = calculatePriceBreakdown(
       sObj.weight,
-      design.purity,
-      design.wastage_percent,
-      design.making_charge_per_gram
+      design?.purity || 70,
+      design?.wastage_percent || 0,
+      design?.making_charge_per_gram || 0
     );
     const itemPrice = totalQty * sBreakdown.total;
 
@@ -343,34 +347,114 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     return () => clearInterval(tick);
   }, [livePrice?.last_updated]);
 
+  // Load active variant media
+  let mediaList: MediaItem[] = (activeVariant?.media && activeVariant.media.length > 0) ? activeVariant.media : [];
+  if (mediaList.length === 0) {
+    mediaList = (design?.media && design.media.length > 0) ? design.media : [];
+  }
+  if (mediaList.length === 0) {
+    const firstVarWithMedia = design?.variants?.find(v => v.media && v.media.length > 0);
+    if (firstVarWithMedia) {
+      mediaList = firstVarWithMedia.media || [];
+    }
+  }
+
+  // Helper to extract thumbnail URL for a related design
+  const getRelatedDesignImage = (item: any) => {
+    if (item.media && item.media.length > 0 && item.media[0]?.url) {
+      return item.media[0].url;
+    }
+    if (item.variants && item.variants.length > 0) {
+      for (const v of item.variants) {
+        if (v.media && v.media.length > 0 && v.media[0]?.url) {
+          return v.media[0].url;
+        }
+      }
+    }
+    return null;
+  };
+
+  // Helper to calculate approximate total price for a related design
+  const getRelatedDesignPrice = (item: any) => {
+    const w = item.variants?.[0]?.sizes?.[0]?.weight || 20.0;
+    const breakdown = calculatePriceBreakdown(
+      w,
+      item.purity || 70,
+      item.wastage_percent || 0,
+      item.making_charge_per_gram || 0
+    );
+    return breakdown.total;
+  };
+
+  // Compute related items based on category, collection, prefix, and specs
+  const relatedItems = useMemo(() => {
+    if (!design || !designs || designs.length === 0) return [];
+
+    const candidates = designs.filter(d =>
+      d.id !== design.id &&
+      d.design_code !== design.design_code &&
+      d.status !== 'Archived' &&
+      d.status !== 'Inactive'
+    );
+
+    if (candidates.length === 0) return [];
+
+    const scored = candidates.map(cand => {
+      let score = 0;
+      if (design.category_id && cand.category_id === design.category_id) score += 10;
+      if (design.collection && cand.collection && cand.collection.toLowerCase() === design.collection.toLowerCase()) score += 8;
+      const currPrefix = design.design_code ? design.design_code.replace(/[\d\-_]/g, '').toLowerCase() : '';
+      const candPrefix = cand.design_code ? cand.design_code.replace(/[\d\-_]/g, '').toLowerCase() : '';
+      if (currPrefix && candPrefix && (currPrefix.includes(candPrefix) || candPrefix.includes(currPrefix))) score += 5;
+      if (cand.metal === design.metal) score += 2;
+      if (cand.purity === design.purity) score += 2;
+      if (cand.finishing === design.finishing) score += 1;
+      return { candidate: cand, score };
+    });
+
+    scored.sort((a, b) => b.score - a.score);
+    return scored.map(s => s.candidate).slice(0, 8);
+  }, [design, designs, calculatePriceBreakdown]);
+
+  // ── Guard: show spinner while API is loading, show not-found if loaded but missing ──
+  if (!design) {
+    if (designs.length === 0) {
+      return (
+        <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4 text-center">
+          <div className="w-10 h-10 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+          <p className="text-sm font-semibold text-gray-600">Loading product details...</p>
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-3 text-center">
+        <p className="text-gray-500 text-sm">Product not found.</p>
+        <button onClick={onBack} className="text-gray-900 font-medium hover:underline text-sm">← Go Back to Catalog</button>
+      </div>
+    );
+  }
+
   const handleAddToCart = () => {
     if (!isCustomerAuthenticated) {
       alert("Please login or sign up to add items to your wholesale cart.");
-      if (onRequireLogin) {
-        onRequireLogin();
-      }
+      if (onRequireLogin) onRequireLogin();
       return;
     }
 
     const configEntries = Object.entries(selectedSizesConfig).filter(([_, conf]) => (conf.readyStockQty + conf.makeOrderQty) > 0);
-    
     if (configEntries.length === 0) {
       alert("Please configure and add at least one size to your selection first.");
       return;
     }
 
-    // Calculate total quantity across all sizes to validate MOQ
     let totalQty = 0;
-    for (const [_, conf] of configEntries) {
-      totalQty += conf.readyStockQty + conf.makeOrderQty;
-    }
+    for (const [_, conf] of configEntries) totalQty += conf.readyStockQty + conf.makeOrderQty;
 
     if (totalQty < design.moq) {
       alert(`Minimum order quantity for this design is ${design.moq} pieces. You have currently selected ${totalQty} pieces.`);
       return;
     }
 
-    // Add each configured item to the cart
     let addedCount = 0;
     for (const [sizeIdStr, conf] of configEntries) {
       const sizeId = parseInt(sizeIdStr);
@@ -386,34 +470,21 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
       if (conf.readyStockQty > 0) {
         addToCart({
-          design,
-          variant: activeVariant,
-          size: sizeObj,
-          quantity: conf.readyStockQty,
-          orderType: 'ready_stock',
-          lockedPrice: itemBreakdown.total,
-          lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
-          lockedEffectiveWeight: itemBreakdown.effectiveWeight,
-          lockedBasePrice: itemBreakdown.basePrice,
-          lockedMakingCharges: itemBreakdown.makingCharges,
-          lockedGst: itemBreakdown.gst
+          design, variant: activeVariant!, size: sizeObj,
+          quantity: conf.readyStockQty, orderType: 'ready_stock',
+          lockedPrice: itemBreakdown.total, lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+          lockedEffectiveWeight: itemBreakdown.effectiveWeight, lockedBasePrice: itemBreakdown.basePrice,
+          lockedMakingCharges: itemBreakdown.makingCharges, lockedGst: itemBreakdown.gst
         });
         addedCount++;
       }
-
       if (conf.makeOrderQty > 0) {
         addToCart({
-          design,
-          variant: activeVariant,
-          size: sizeObj,
-          quantity: conf.makeOrderQty,
-          orderType: 'make_order',
-          lockedPrice: itemBreakdown.total,
-          lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
-          lockedEffectiveWeight: itemBreakdown.effectiveWeight,
-          lockedBasePrice: itemBreakdown.basePrice,
-          lockedMakingCharges: itemBreakdown.makingCharges,
-          lockedGst: itemBreakdown.gst
+          design, variant: activeVariant!, size: sizeObj,
+          quantity: conf.makeOrderQty, orderType: 'make_order',
+          lockedPrice: itemBreakdown.total, lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+          lockedEffectiveWeight: itemBreakdown.effectiveWeight, lockedBasePrice: itemBreakdown.basePrice,
+          lockedMakingCharges: itemBreakdown.makingCharges, lockedGst: itemBreakdown.gst
         });
         addedCount++;
       }
@@ -421,27 +492,10 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
     if (addedCount > 0) {
       setAddedToCartMsg(true);
-      // Clear the selections after adding to cart
       setSelectedSizesConfig({});
       setTimeout(() => setAddedToCartMsg(false), 3000);
     }
   };
-
-  // Load active variant media
-  let mediaList: MediaItem[] = (activeVariant?.media && activeVariant.media.length > 0) ? activeVariant.media : [];
-  
-  // If active variant has no media, fall back to design (mother) media
-  if (mediaList.length === 0) {
-    mediaList = (design.media && design.media.length > 0) ? design.media : [];
-  }
-  
-  // If design media is also empty, find any variant that has media
-  if (mediaList.length === 0) {
-    const firstVarWithMedia = design.variants.find(v => v.media && v.media.length > 0);
-    if (firstVarWithMedia) {
-      mediaList = firstVarWithMedia.media || [];
-    }
-  }
 
   const currentMedia = mediaList[activeMediaIdx] || mediaList[0] || null;
 
@@ -1036,9 +1090,121 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               </table>
             </div>
           </div>
-
         </div>
       </div>
+
+      {/* ── Related Items Section ── */}
+      {relatedItems.length > 0 && (
+        <div className="max-w-[1500px] mx-auto w-full mt-10 pt-8 border-t border-gray-200/80 space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="p-2 bg-amber-50 text-amber-600 rounded-xl border border-amber-200/60 shadow-xs">
+                  <Sparkles className="h-5 w-5" />
+                </span>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-gray-900 tracking-tight">Related Items</h2>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200 font-mono">
+                  {relatedItems.length} Items
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                Explore similar silver anklet designs from our wholesale collection
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 sm:gap-6">
+            {relatedItems.map((relDesign) => {
+              const thumbUrl = getRelatedDesignImage(relDesign);
+              const approxPrice = getRelatedDesignPrice(relDesign);
+              const defaultVariantId = relDesign.variants?.[0]?.id;
+              const isWished = isInWishlist(relDesign.id, defaultVariantId);
+
+              return (
+                <div
+                  key={relDesign.id}
+                  onClick={() => {
+                    if (onSelectProduct) {
+                      onSelectProduct(relDesign.design_code || relDesign.name);
+                    }
+                  }}
+                  className="group relative bg-white border border-gray-200 hover:border-gray-900 rounded-2xl overflow-hidden shadow-xs hover:shadow-xl transition-all duration-300 cursor-pointer flex flex-col justify-between"
+                >
+                  {/* Image Container */}
+                  <div className="relative aspect-4/3 sm:aspect-square bg-gray-50 overflow-hidden">
+                    {thumbUrl ? (
+                      <img
+                        src={thumbUrl}
+                        alt={relDesign.name}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs font-medium bg-gray-100">
+                        No Image
+                      </div>
+                    )}
+
+                    {/* Purity Badge */}
+                    <div className="absolute top-2.5 left-2.5 z-10">
+                      <span className="bg-white/95 backdrop-blur-md text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded-full border border-gray-200 shadow-xs">
+                        {relDesign.purity}% Fine
+                      </span>
+                    </div>
+
+                    {/* Wishlist Button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isWished) {
+                          removeFromWishlist(relDesign.id, defaultVariantId);
+                        } else {
+                          addToWishlist(relDesign, defaultVariantId);
+                        }
+                      }}
+                      className={`absolute top-2.5 right-2.5 z-10 p-2 rounded-full backdrop-blur-md transition-all shadow-xs ${
+                        isWished
+                          ? 'bg-red-50 text-red-600 border border-red-200'
+                          : 'bg-white/80 text-gray-500 hover:text-red-500 hover:bg-white border border-gray-200/80'
+                      }`}
+                    >
+                      <Heart className={`h-3.5 w-3.5 ${isWished ? 'fill-red-500 text-red-500' : ''}`} />
+                    </button>
+                  </div>
+
+                  {/* Details Container */}
+                  <div className="p-3.5 sm:p-4 flex-1 flex flex-col justify-between space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-1">
+                        <h3 className="font-extrabold text-gray-900 text-sm sm:text-base group-hover:text-amber-700 transition-colors line-clamp-1">
+                          {relDesign.design_code}
+                        </h3>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                          {relDesign.metal}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">
+                        {relDesign.name !== relDesign.design_code ? relDesign.name : (relDesign.finishing || 'High Polish')}
+                      </p>
+                    </div>
+
+                    <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] text-gray-400 font-semibold block uppercase">Approx. / Pc</span>
+                        <span className="text-xs sm:text-sm font-extrabold text-gray-900 font-mono">
+                          ₹{approxPrice.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="h-7 w-7 rounded-full bg-gray-100 group-hover:bg-gray-900 group-hover:text-white transition-all flex items-center justify-center text-gray-600">
+                        <ChevronRight className="h-4 w-4 transform group-hover:translate-x-0.5 transition-transform" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* ── Fullscreen Lightbox Modal ── */}
       {isLightboxOpen && (() => {

@@ -156,12 +156,19 @@ const MainLayout: React.FC = () => {
   const [orderSubmitting, setOrderSubmitting] = useState(false);
   const [orderSuccess, setOrderSuccess] = useState<string | null>(null);
   const [editingDesignCode, setEditingDesignCode] = useState<string | null>(null);
-  const [initialVariantId, setInitialVariantId] = useState<number | undefined>(undefined);
-  const [initialSizeId, setInitialSizeId] = useState<number | undefined>(undefined);
+  const [initialVariantId, setInitialVariantId] = useState<number | undefined>(() => {
+    const v = new URLSearchParams(window.location.search).get('variant');
+    return v ? Number(v) : undefined;
+  });
+  const [initialSizeId, setInitialSizeId] = useState<number | undefined>(() => {
+    const s = new URLSearchParams(window.location.search).get('size');
+    return s ? Number(s) : undefined;
+  });
 
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [catalogDropdownOpen, setCatalogDropdownOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [storefrontResetKey, setStorefrontResetKey] = useState(0);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
@@ -237,7 +244,7 @@ const MainLayout: React.FC = () => {
     };
   }, [catalogDropdownOpen, profileMenuOpen]);
 
-  // Synchronize design and parameters state with URL query parameters on mount & popstate
+  // Synchronize design and parameters state with URL query parameters (popstate only — initial load handled by state initializers)
   useEffect(() => {
     const handleUrlSync = () => {
       if (mode === 'buyer') {
@@ -248,8 +255,8 @@ const MainLayout: React.FC = () => {
 
         if (designCode) {
           setSelectedDesignCode(designCode);
-          if (variantId) setInitialVariantId(Number(variantId));
-          if (sizeId) setInitialSizeId(Number(sizeId));
+          setInitialVariantId(variantId ? Number(variantId) : undefined);
+          setInitialSizeId(sizeId ? Number(sizeId) : undefined);
         } else {
           setSelectedDesignCode(null);
           setInitialVariantId(undefined);
@@ -257,8 +264,6 @@ const MainLayout: React.FC = () => {
         }
       }
     };
-
-    handleUrlSync();
 
     window.addEventListener('popstate', handleUrlSync);
     return () => {
@@ -506,9 +511,20 @@ const MainLayout: React.FC = () => {
       )}
 
       <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        <header className="topbar px-8 py-4 flex items-center justify-between shrink-0 z-30">
+        <header className="topbar px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between shrink-0 z-30">
           {/* Left Side: Brand Logo */}
-          <div className="flex items-center space-x-3 shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
+            {/* Hamburger for Buyer Mobile */}
+            {mode === 'buyer' && (
+              <button
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                className="p-1.5 text-gray-700 hover:text-gray-900 md:hidden cursor-pointer shrink-0 rounded-lg hover:bg-gray-100 transition-colors"
+                aria-label="Toggle navigation menu"
+              >
+                {mobileMenuOpen ? <X className="h-5.5 w-5.5" /> : <Menu className="h-5.5 w-5.5" />}
+              </button>
+            )}
+
             {/* Hamburger for Admin Mobile */}
             {mode === 'admin' && (
               <button
@@ -752,8 +768,104 @@ const MainLayout: React.FC = () => {
           </div>
         </header>
 
+        {/* Mobile Navigation Menu Drawer for Buyer */}
+        {mode === 'buyer' && mobileMenuOpen && (
+          <div className="md:hidden bg-white border-b border-gray-200 shadow-xl px-4 py-4 space-y-3 z-30 animate-in slide-in-from-top duration-200">
+            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-1">
+              Navigation Menu
+            </div>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setSelectedCollectionFilter(null);
+                  setAboutModalOpen(false);
+                  setMobileMenuOpen(false);
+                  setStorefrontResetKey(prev => prev + 1);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Home className="h-4 w-4" />
+                <span>Home</span>
+              </button>
 
-        <main className="app-main flex-1 overflow-y-auto px-8 py-8 scrollbar-thin">
+              {/* Mobile Catalog Collections Section */}
+              <div className="border border-gray-100 bg-gray-50/80 rounded-xl p-2.5 space-y-1.5">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-800 px-1 py-1">
+                  <Grid className="h-4 w-4 text-gray-600" />
+                  <span>Collections Catalog</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setSelectedDesignCode(null);
+                    setSelectedCollectionFilter(null);
+                    setMobileMenuOpen(false);
+                    setStorefrontResetKey(prev => prev + 1);
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
+                    !selectedCollectionFilter ? 'bg-gray-900 text-white' : 'text-gray-700 bg-white hover:bg-gray-100 border border-gray-100'
+                  }`}
+                >
+                  <span>All Collections</span>
+                  <span className="text-[10px] font-mono opacity-80">All →</span>
+                </button>
+                {Array.from(
+                  new Set(
+                    designs
+                      .filter(d => d.status === 'Active')
+                      .map(d => {
+                        if (d.collection && d.collection.trim()) return d.collection.trim();
+                        if (d.name && d.name.trim()) {
+                          const parts = d.name.split('-');
+                          return parts[0].trim();
+                        }
+                        return null;
+                      })
+                      .filter(Boolean) as string[]
+                  )
+                ).map((collName) => (
+                  <button
+                    key={collName}
+                    onClick={() => {
+                      setSelectedDesignCode(null);
+                      setSelectedCollectionFilter(collName);
+                      setMobileMenuOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
+                      selectedCollectionFilter?.toLowerCase() === collName.toLowerCase()
+                        ? 'bg-gray-900 text-white font-semibold'
+                        : 'text-gray-700 bg-white hover:bg-gray-100 border border-gray-100'
+                    }`}
+                  >
+                    <span>{collName} Collection</span>
+                    <span className="text-[10px] font-mono opacity-60">View →</span>
+                  </button>
+                ))}
+              </div>
+
+              <button
+                onClick={() => {
+                  setAboutModalOpen(true);
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                  aboutModalOpen 
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-700 hover:bg-gray-100'
+                }`}
+              >
+                <Info className="h-4 w-4" />
+                <span>About Us</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        <main className="app-main flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-8 pb-20 md:pb-8 scrollbar-thin">
           {mode === 'buyer' && (
             selectedDesignCode === null ? (
               <BuyerStorefront 
@@ -775,10 +887,29 @@ const MainLayout: React.FC = () => {
               />
             ) : (
               <BuyerProductDetail 
+                key={selectedDesignCode}
                 designCode={selectedDesignCode} 
                 initialVariantId={initialVariantId}
                 initialSizeId={initialSizeId}
                 onRequireLogin={() => setBuyerLoginOpen(true)}
+                onSelectProduct={(code, variantId, sizeId) => {
+                  setSelectedDesignCode(code);
+                  setInitialVariantId(variantId);
+                  setInitialSizeId(sizeId);
+
+                  const params = new URLSearchParams();
+                  params.set('design', code);
+                  if (variantId) params.set('variant', String(variantId));
+                  if (sizeId) params.set('size', String(sizeId));
+                  window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+
+                  const scrollContainer = document.querySelector('.app-main');
+                  if (scrollContainer) {
+                    scrollContainer.scrollTop = 0;
+                  } else {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }
+                }}
                 onBack={() => {
                   setSelectedDesignCode(null);
                   setInitialVariantId(undefined);
@@ -1564,6 +1695,88 @@ const MainLayout: React.FC = () => {
           order={selectedInvoiceOrder} 
           onClose={() => setSelectedInvoiceOrder(null)} 
         />
+      )}
+
+      {/* Mobile Bottom Navigation Bar for Buyer Mode */}
+      {mode === 'buyer' && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-gray-200 px-2 py-2 flex items-center justify-around shadow-lg">
+          {/* Home */}
+          <button
+            onClick={() => {
+              setSelectedDesignCode(null);
+              setSelectedCollectionFilter(null);
+              setAboutModalOpen(false);
+              setStorefrontResetKey(prev => prev + 1);
+            }}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen
+                ? 'text-gray-900 font-extrabold'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <Home className="h-5 w-5" />
+            <span>Home</span>
+          </button>
+
+          {/* Catalog */}
+          <button
+            onClick={() => {
+              setSelectedDesignCode(null);
+              setMobileMenuOpen(!mobileMenuOpen);
+            }}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              selectedCollectionFilter || mobileMenuOpen
+                ? 'text-gray-900 font-extrabold'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <Grid className="h-5 w-5" />
+            <span>Catalog</span>
+          </button>
+
+          {/* Wishlist */}
+          <button
+            onClick={() => setWishlistOpen(true)}
+            className="relative flex flex-col items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            <div className="relative">
+              <Heart className={`h-5 w-5 ${wishlist.length > 0 ? 'fill-red-500 text-red-500' : ''}`} />
+              {wishlist.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-red-500 text-white text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-white">
+                  {wishlist.length}
+                </span>
+              )}
+            </div>
+            <span>Wishlist</span>
+          </button>
+
+          {/* Cart */}
+          <button
+            onClick={() => setCartOpen(true)}
+            className="relative flex flex-col items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-gray-900 transition-colors"
+          >
+            <div className="relative">
+              <ShoppingBag className="h-5 w-5" />
+              {cart.length > 0 && (
+                <span className="absolute -top-1.5 -right-2 bg-gray-900 text-white text-[9px] font-bold h-4 w-4 rounded-full flex items-center justify-center border border-white">
+                  {cart.reduce((s, i) => s + i.quantity, 0)}
+                </span>
+              )}
+            </div>
+            <span>Cart</span>
+          </button>
+
+          {/* About Us */}
+          <button
+            onClick={() => setAboutModalOpen(true)}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              aboutModalOpen ? 'text-gray-900 font-extrabold' : 'text-gray-500 hover:text-gray-900'
+            }`}
+          >
+            <Info className="h-5 w-5" />
+            <span>About Us</span>
+          </button>
+        </div>
       )}
     </div>
   );

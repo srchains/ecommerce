@@ -171,7 +171,11 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [mode, setMode] = useState<'buyer' | 'admin'>(window.location.pathname.startsWith('/admin') ? 'admin' : 'buyer');
   const [adminTab, setAdminTab] = useState<string>('dashboard');
-  const [selectedDesignCode, setSelectedDesignCode] = useState<string | null>(null);
+  const [selectedDesignCode, setSelectedDesignCode] = useState<string | null>(() => {
+    // Read ?design= param synchronously so product detail shows immediately on refresh
+    const params = new URLSearchParams(window.location.search);
+    return params.get('design') || null;
+  });
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   
