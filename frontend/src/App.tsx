@@ -989,6 +989,7 @@ const MainLayout: React.FC = () => {
                 }} 
                 selectedCollectionFilter={selectedCollectionFilter}
                 onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
+                onOpenCart={() => setCartOpen(true)}
               />
             ) : (
               <BuyerProductDetail 
@@ -1419,363 +1420,365 @@ const MainLayout: React.FC = () => {
         </main>
       </div>
 
+      {/* ─── Horizontal Excel-Style Spreadsheet Cart Modal ──────────────── */}
       {cartOpen && (
-        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex justify-end">
+        <div className="fixed inset-0 bg-slate-900/65 backdrop-blur-md z-50 flex items-center justify-center p-2 sm:p-6 animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setCartOpen(false)}></div>
           
-          <div className="relative w-full max-w-lg h-full bg-white flex flex-col justify-between z-50 shadow-2xl">
-            {/* ── Amazon-Style Header ── */}
-            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-20 flex justify-between items-center">
-              <div className="flex items-center space-x-2">
-                <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
-                  <ShoppingBag className="h-4.5 w-4.5" />
+          <div className="relative w-full max-w-7xl h-[94vh] sm:h-[92vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col z-50 border border-slate-300 overflow-hidden">
+            {/* ── Excel-Style Cart Modal Header ── */}
+            <div className="px-4 py-3 sm:px-6 sm:py-4 border-b border-slate-200 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 shrink-0">
+              <div className="flex items-center justify-between w-full sm:w-auto">
+                <div className="flex items-center space-x-2.5">
+                  <div className="h-9 w-9 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-extrabold shadow-sm shrink-0">
+                    <ShoppingBag className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-extrabold text-base sm:text-lg tracking-tight text-white">Shopping Cart</h3>
+                      <span className="bg-amber-400 text-slate-950 font-extrabold text-xs px-2.5 py-0.5 rounded-full font-mono">
+                        {cart.reduce((s, i) => s + i.quantity, 0)} Pcs
+                      </span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-slate-400">Excel Worksheet View • B2B Wholesale Order Summary</p>
+                  </div>
                 </div>
-                <span className="font-extrabold text-base text-gray-900 tracking-tight">Shopping Cart</span>
-                <span className="bg-amber-100 text-amber-900 font-extrabold text-xs px-2 py-0.5 rounded-full">
-                  {cart.reduce((s, i) => s + i.quantity, 0)} items
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                {cart.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleDownloadCartInvoice}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-extrabold shadow-2xs transition-all cursor-pointer"
-                    title="Download Cart Estimate Invoice"
-                  >
-                    <Download className="h-3.5 w-3.5 text-amber-700" />
-                    <span>Download</span>
-                  </button>
-                )}
+
+                {/* Close Button on Mobile */}
                 <button 
                   onClick={() => setCartOpen(false)} 
-                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                  className="sm:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-6 w-6" />
+                </button>
+              </div>
+
+              {/* Action Buttons Header Bar */}
+              <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                {cart.length > 0 && (
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={handleDownloadCartInvoice}
+                      className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3 py-2 sm:px-3.5 sm:py-2 bg-amber-400 hover:bg-amber-300 active:bg-amber-500 text-slate-950 rounded-xl text-xs font-extrabold shadow-sm transition-all cursor-pointer"
+                      title="Download Excel / Invoice PDF"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      <span>Download Excel</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCart([])}
+                      className="flex items-center justify-center gap-1 px-3 py-2 sm:py-2 bg-slate-800 hover:bg-red-950 hover:text-red-300 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span>Clear</span>
+                    </button>
+                  </div>
+                )}
+                {/* Close Button on Desktop */}
+                <button 
+                  onClick={() => setCartOpen(false)} 
+                  className="hidden sm:block p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="h-6 w-6" />
                 </button>
               </div>
             </div>
 
-            {/* ── Cart Items Scrollable List ── */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin bg-gray-50/70">
+            {/* ── Scrollable Excel Spreadsheet Table ── */}
+            <div className="flex-1 overflow-auto p-2.5 sm:p-4 bg-slate-100/60">
               {orderSuccess && (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm space-y-1 shadow-2xs">
+                <div className="mb-3 p-3.5 bg-emerald-50 border border-emerald-300 text-emerald-900 rounded-2xl text-sm space-y-1 shadow-sm">
                   <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-4.5 w-4.5 text-emerald-600" />
-                    <span className="font-bold">Order Placed Successfully!</span>
+                    <CheckCircle className="h-5 w-5 text-emerald-600" />
+                    <span className="font-extrabold text-base">Order Placed Successfully!</span>
                   </div>
-                  <p className="text-xs text-gray-600">Order Reference: <span className="font-mono text-gray-900 font-bold">{orderSuccess}</span> has been logged.</p>
+                  <p className="text-xs text-emerald-800">Order Reference: <span className="font-mono text-emerald-950 font-extrabold">{orderSuccess}</span> has been saved into the database.</p>
                 </div>
               )}
 
-              {(() => {
-                const groupedCart: {
-                  design: any;
-                  variant: any;
-                  items: {
-                    cartIdx: number;
-                    size: any;
-                    quantity: number;
-                    orderType: 'ready_stock' | 'make_order';
-                  }[];
-                }[] = [];
+              {cart.length > 0 ? (
+                <div className="space-y-2">
+                  {/* Mobile Horizontal Scroll Hint Badge */}
+                  <div className="sm:hidden text-[10px] text-slate-500 font-bold flex items-center justify-between px-1">
+                    <span>← Swipe horizontally to view spreadsheet grid →</span>
+                    <span className="font-mono text-amber-800">{cart.length} lines</span>
+                  </div>
 
-                cart.forEach((item, idx) => {
-                  const existingGroup = groupedCart.find(g => g.variant.id === item.variant.id);
-                  if (existingGroup) {
-                    existingGroup.items.push({
-                      cartIdx: idx,
-                      size: item.size,
-                      quantity: item.quantity,
-                      orderType: item.orderType
-                    });
-                  } else {
-                    groupedCart.push({
-                      design: item.design,
-                      variant: item.variant,
-                      items: [{
-                        cartIdx: idx,
-                        size: item.size,
-                        quantity: item.quantity,
-                        orderType: item.orderType
-                      }]
-                    });
-                  }
-                });
+                  {/* Horizontal Scroll Wrapper for Table */}
+                  <div className="bg-white rounded-2xl border border-slate-300 shadow-sm overflow-x-auto scrollbar-thin">
+                    <table className="w-full text-left border-collapse text-xs min-w-[860px]">
+                      {/* Excel Table Header */}
+                      <thead>
+                        <tr className="bg-slate-800 text-white font-extrabold text-[11px] uppercase tracking-wider border-b border-slate-900 select-none">
+                          <th className="py-3 px-3 border-r border-slate-700 text-center w-12">#</th>
+                          <th className="py-3 px-4 border-r border-slate-700">Design & Variant</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-center">Size</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-center">Type</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-right">Unit Wt</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-right">Total Wt</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-center w-32">Quantity (Pcs)</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-right">Pure Wt (70%)</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-right">Silver Base Cost</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-right">Making Charges (Rate/Kg)</th>
+                          <th className="py-3 px-3 border-r border-slate-700 text-right">GST (3%)</th>
+                          <th className="py-3 px-4 border-r border-slate-700 text-right bg-slate-900 text-amber-400">Total Price (Approx)</th>
+                          <th className="py-3 px-2 text-center w-10">Remove</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-200 font-sans">
+                        {cart.map((item, idx) => {
+                          const hasLock = item.lockedPrice !== undefined;
+                          const breakdown = hasLock
+                            ? {
+                                basePrice: item.lockedBasePrice!,
+                                makingCharges: item.lockedMakingCharges!,
+                                gst: item.lockedGst!,
+                                total: item.lockedPrice!,
+                                effectiveWeight: item.lockedEffectiveWeight!
+                              }
+                            : calculatePriceBreakdown(
+                                item.size.weight,
+                                item.design.purity,
+                                item.design.wastage_percent,
+                                item.design.making_charge_per_gram
+                              );
 
-                return groupedCart.length > 0 ? (
-                  groupedCart.map((group, groupIdx) => {
-                    let groupSilverBase = 0;
-                    let groupMaking = 0;
-                    let groupGst = 0;
-                    let groupTotal = 0;
-                    let groupWeight = 0;
-                    let groupPureWeight = 0;
+                          const unitWt = item.size.weight;
+                          const totalGrossWt = unitWt * item.quantity;
+                          const totalPureWt = totalGrossWt * (item.design.purity / 100);
+                          const rowSilverBase = breakdown.basePrice * item.quantity;
+                          const rowMaking = breakdown.makingCharges * item.quantity;
+                          const rowGst = breakdown.gst * item.quantity;
+                          const rowTotal = breakdown.total * item.quantity;
+                          const makingPerKg = Math.round((item.design.making_charge_per_gram || 0.40) * 1000);
 
-                    group.items.forEach(it => {
-                      const cartItem = cart[it.cartIdx];
-                      const hasLock = cartItem.lockedPrice !== undefined;
-                      const baseP = hasLock ? cartItem.lockedBasePrice! : 0;
-                      const makingC = hasLock ? cartItem.lockedMakingCharges! : 0;
-                      const gstV = hasLock ? cartItem.lockedGst! : 0;
-                      const totalP = hasLock ? cartItem.lockedPrice! : 0;
+                          const imgUrl = item.variant?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                            item.design?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
+                            'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400';
 
-                      if (hasLock) {
-                        groupSilverBase += baseP * it.quantity;
-                        groupMaking += makingC * it.quantity;
-                        groupGst += gstV * it.quantity;
-                        groupTotal += totalP * it.quantity;
-                      } else {
-                        const br = calculatePriceBreakdown(
-                          it.size.weight,
-                          group.design.purity,
-                          group.design.wastage_percent,
-                          group.design.making_charge_per_gram
-                        );
-                        groupSilverBase += br.basePrice * it.quantity;
-                        groupMaking += br.makingCharges * it.quantity;
-                        groupGst += br.gst * it.quantity;
-                        groupTotal += br.total * it.quantity;
-                      }
-                      const grossW = it.size.weight * it.quantity;
-                      groupWeight += grossW;
-                      groupPureWeight += grossW * (group.design.purity / 100);
-                    });
+                          return (
+                            <tr key={idx} className="hover:bg-amber-50/60 transition-colors odd:bg-slate-50/50 even:bg-white text-slate-800">
+                              {/* Row Index */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-bold text-slate-500">
+                                {idx + 1}
+                              </td>
 
-                    const firstImage = group.variant.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                      group.design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                      'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
-
-                    return (
-                      <div
-                        key={groupIdx}
-                        className="bg-white border border-gray-200 rounded-2xl p-4 shadow-2xs space-y-3 hover:border-gray-300 transition-all"
-                      >
-                        {/* Variant Header */}
-                        <div className="flex items-start gap-3.5">
-                          <div
-                            onClick={() => {
-                              setSelectedDesignCode(group.design.name);
-                              setInitialVariantId(group.variant.id);
-                              if (group.items[0]) setInitialSizeId(group.items[0].size.id);
-                              setCartOpen(false);
-                            }}
-                            className="h-16 w-16 bg-gray-100 border border-gray-200 rounded-xl overflow-hidden shrink-0 cursor-pointer group"
-                          >
-                            <img src={firstImage} alt={group.design.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                          </div>
-
-                          <div className="flex-1 min-w-0 space-y-0.5">
-                            <div className="flex justify-between items-start gap-2">
-                              <h4
-                                onClick={() => {
-                                  setSelectedDesignCode(group.design.name);
-                                  setInitialVariantId(group.variant.id);
-                                  if (group.items[0]) setInitialSizeId(group.items[0].size.id);
-                                  setCartOpen(false);
-                                }}
-                                className="font-extrabold text-gray-900 text-sm truncate hover:text-amber-700 cursor-pointer"
-                              >
-                                {group.design.name}
-                              </h4>
-                              <span className="font-mono font-extrabold text-gray-900 text-base shrink-0">
-                                ₹{groupTotal.toLocaleString('en-IN')}
-                              </span>
-                            </div>
-
-                            <p className="text-xs text-gray-500">
-                              Code: <span className="font-mono text-gray-800 font-semibold">{group.design.design_code}</span> • Variant: <strong className="text-gray-800">{group.variant.variant_name}</strong>
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Configured Sizes List inside Variant */}
-                        <div className="space-y-2 border-t border-gray-100 pt-3">
-                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Configured Sizes:</span>
-                          {group.items.map((it) => {
-                            const cartItem = cart[it.cartIdx];
-                            const itemPrice = cartItem.lockedPrice !== undefined
-                              ? cartItem.lockedPrice
-                              : calculatePriceBreakdown(
-                                  it.size.weight,
-                                  group.design.purity,
-                                  group.design.wastage_percent,
-                                  group.design.making_charge_per_gram
-                                ).total;
-                            const itemSubtotal = itemPrice * it.quantity;
-
-                            return (
-                              <div
-                                key={it.cartIdx}
-                                className="flex items-center justify-between gap-2.5 py-2 px-3 bg-gray-50/70 border border-gray-100 rounded-xl text-xs"
-                              >
-                                {/* Size & Tag */}
-                                <div className="flex items-center gap-2 min-w-[120px]">
-                                  <span className="font-extrabold text-gray-900 font-mono text-sm">{it.size.size.toFixed(2)}"</span>
-                                  <span className="text-gray-400 font-mono text-[11px]">({it.size.weight.toFixed(2)}g)</span>
-                                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 ${
-                                    it.orderType === 'ready_stock'
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-amber-100 text-amber-800'
-                                  }`}>
-                                    {it.orderType === 'ready_stock' ? 'Stock' : 'MTO'}
-                                  </span>
+                              {/* Design & Variant */}
+                              <td className="py-2.5 px-4 border-r border-slate-200">
+                                <div className="flex items-center gap-3">
+                                  <img src={imgUrl} alt={item.design.name} className="h-10 w-10 object-cover rounded-lg border border-slate-200 shrink-0" />
+                                  <div className="min-w-0">
+                                    <p className="font-extrabold text-slate-900 text-xs leading-tight truncate">{item.design.name}</p>
+                                    <p className="text-[10px] text-slate-500 font-mono">
+                                      {item.design.design_code} • {item.variant.variant_name}
+                                    </p>
+                                  </div>
                                 </div>
+                              </td>
 
-                                {/* Amazon Stepper */}
-                                <div className="flex items-center border border-amber-300 rounded-lg bg-amber-50/70 overflow-hidden shadow-2xs">
+                              {/* Size */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-center font-mono font-extrabold text-slate-900 text-xs">
+                                {item.size.size.toFixed(2)}"
+                              </td>
+
+                              {/* Order Type Badge */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-center">
+                                <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full inline-block ${
+                                  item.orderType === 'ready_stock'
+                                    ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
+                                    : 'bg-amber-100 text-amber-950 border border-amber-300'
+                                }`}>
+                                  {item.orderType === 'ready_stock' ? 'In-Stock' : 'MTO'}
+                                </span>
+                              </td>
+
+                              {/* Unit Wt */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-700">
+                                {unitWt.toFixed(2)}g
+                              </td>
+
+                              {/* Total Gross Wt */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono font-bold text-slate-900">
+                                {totalGrossWt.toFixed(2)}g
+                              </td>
+
+                              {/* Quantity Stepper */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-center">
+                                <div className="inline-flex items-center border border-amber-300 rounded-lg bg-white overflow-hidden shadow-2xs">
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      if (it.quantity > 1) {
-                                        updateCartQuantity(it.cartIdx, it.quantity - 1);
+                                      if (item.quantity > 1) {
+                                        updateCartQuantity(idx, item.quantity - 1);
                                       } else {
-                                        removeFromCart(it.cartIdx);
+                                        removeFromCart(idx);
                                       }
                                     }}
-                                    className="h-6 w-6 flex items-center justify-center bg-white text-gray-800 font-bold hover:bg-amber-100 transition-colors cursor-pointer border-r border-amber-200"
+                                    className="h-6 w-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition-colors cursor-pointer"
                                   >
-                                    {it.quantity === 1 ? <Trash2 className="h-3 w-3 text-red-500" /> : '−'}
+                                    −
                                   </button>
-                                  <span className="font-mono font-extrabold text-gray-900 text-xs px-2 min-w-[20px] text-center">
-                                    {it.quantity}
-                                  </span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={item.quantity}
+                                    onChange={(e) => {
+                                      const val = parseInt(e.target.value, 10);
+                                      if (!isNaN(val) && val > 0) {
+                                        updateCartQuantity(idx, val);
+                                      }
+                                    }}
+                                    className="w-10 h-6 text-center font-mono font-extrabold text-slate-900 text-xs border-x border-slate-200 focus:outline-none"
+                                  />
                                   <button
                                     type="button"
-                                    onClick={() => updateCartQuantity(it.cartIdx, it.quantity + 1)}
-                                    className="h-6 w-6 flex items-center justify-center bg-white text-gray-800 font-bold hover:bg-amber-100 transition-colors cursor-pointer border-l border-amber-200"
+                                    onClick={() => updateCartQuantity(idx, item.quantity + 1)}
+                                    className="h-6 w-6 flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition-colors cursor-pointer"
                                   >
                                     +
                                   </button>
                                 </div>
+                              </td>
 
-                                {/* Subtotal & Remove */}
-                                <div className="flex items-center gap-2 ml-auto text-right">
-                                  <span className="font-bold text-gray-900 font-mono">₹{itemSubtotal.toLocaleString('en-IN')}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => removeFromCart(it.cartIdx)}
-                                    className="text-gray-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
-                                    title="Remove size"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
+                              {/* Pure Metal Wt */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-700">
+                                {totalPureWt.toFixed(3)}g
+                              </td>
 
-                        {/* Variant Math & Weight Breakdown Box */}
-                        <div className="bg-amber-50/40 border border-amber-200/70 rounded-xl p-3 text-[11px] space-y-1.5 text-gray-700">
-                          <div className="flex justify-between items-center font-bold text-gray-900 pb-1 border-b border-amber-200/50">
-                            <span>Variant Specification Summary</span>
-                            <span className="font-mono text-amber-900">{groupWeight.toFixed(2)}g Gross Wt</span>
-                          </div>
+                              {/* Silver Base Cost */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-800">
+                                <span className="font-bold">₹{rowSilverBase.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</span>
+                                <span className="block text-[9px] text-slate-400 font-sans font-medium">
+                                  (@ ₹{livePrice?.silver_gram_rate || 231.70}/g)
+                                </span>
+                              </td>
 
-                          <div className="flex justify-between text-gray-600">
-                            <span>Pure Metal Weight ({group.design.purity}% Purity):</span>
-                            <span className="font-mono font-bold text-gray-900">{groupPureWeight.toFixed(3)}g</span>
-                          </div>
-                          <div className="flex justify-between text-gray-600">
-                            <span>Silver Base Cost:</span>
-                            <span className="font-mono text-gray-800">₹{groupSilverBase.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
-                          </div>
-                          <div className="flex justify-between text-gray-600">
-                            <span>Making Charges:</span>
-                            <span className="font-mono text-gray-800">₹{groupMaking.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
-                          </div>
-                          <div className="flex justify-between text-gray-600 pt-0.5 border-t border-amber-200/40">
-                            <span>GST (3%):</span>
-                            <span className="font-mono text-gray-800">₹{groupGst.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
-                          </div>
-                          <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 font-extrabold text-xs text-gray-950">
-                            <span>Variant Total Price:</span>
-                            <span className="font-mono text-sm text-amber-950">₹{groupTotal.toLocaleString('en-IN')}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  !orderSuccess && (
-                    <div className="text-center py-16 text-gray-500 flex flex-col items-center space-y-3 select-none">
-                      <div className="h-14 w-14 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center text-amber-600">
-                        <ShoppingBag className="h-7 w-7" />
-                      </div>
-                      <span className="text-base font-extrabold text-gray-900">Your Cart is Empty</span>
-                      <p className="text-xs text-gray-500 max-w-[220px] leading-relaxed">Add jewelry designs from the catalog page to compile wholesale pricing.</p>
+                              {/* Making Charges */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-800">
+                                <span className="font-extrabold text-slate-900">₹{rowMaking.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span>
+                                <span className="block text-[9px] text-amber-800 font-sans font-extrabold">
+                                  (@ ₹{makingPerKg}/kg)
+                                </span>
+                              </td>
+
+                              {/* GST */}
+                              <td className="py-2.5 px-3 border-r border-slate-200 text-right font-mono text-slate-700">
+                                ₹{rowGst.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                              </td>
+
+                              {/* Row Total Price */}
+                              <td className="py-2.5 px-4 border-r border-slate-200 text-right font-mono font-extrabold text-slate-950 bg-amber-50/50">
+                                ₹{rowTotal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+
+                              {/* Remove Row Button */}
+                              <td className="py-2.5 px-2 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeFromCart(idx)}
+                                  className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                                  title="Remove line item"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+
+                      {/* ── Excel Summary Totals Footer Row ── */}
+                      <tfoot>
+                        <tr className="bg-slate-900 text-white font-extrabold text-xs border-t-2 border-slate-950">
+                          <td colSpan={5} className="py-3 px-4 border-r border-slate-800 text-right uppercase tracking-wider text-amber-400 font-mono">
+                            Spreadsheet Grand Totals ({cart.reduce((s, i) => s + i.quantity, 0)} Items):
+                          </td>
+                          <td className="py-3 px-3 border-r border-slate-800 text-right font-mono text-amber-300">
+                            {cartTotals.weight.toFixed(2)}g
+                          </td>
+                          <td className="py-3 px-3 border-r border-slate-800 text-center font-mono text-amber-300">
+                            {cart.reduce((s, i) => s + i.quantity, 0)} pcs
+                          </td>
+                          <td className="py-3 px-3 border-r border-slate-800 text-right font-mono text-slate-300">
+                            {(cartTotals.weight * 0.70).toFixed(3)}g
+                          </td>
+                          <td colSpan={3} className="py-3 px-3 border-r border-slate-800 text-right text-slate-400 text-[11px]">
+                            In-Stock: ₹{cartTotals.inStockPrice.toLocaleString('en-IN')} | MTO: ₹{cartTotals.mtoPrice.toLocaleString('en-IN')}
+                          </td>
+                          <td className="py-3 px-4 border-r border-slate-800 text-right font-mono text-amber-400 text-sm bg-slate-950 font-extrabold">
+                            ₹{cartTotals.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-[10px] text-amber-300 font-sans font-normal">(Approx)</span>
+                          </td>
+                          <td className="py-3 px-2"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                !orderSuccess && (
+                  <div className="text-center py-16 text-slate-500 flex flex-col items-center justify-center space-y-3 bg-white rounded-2xl border border-slate-200">
+                    <div className="h-16 w-16 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-center text-amber-600">
+                      <ShoppingBag className="h-8 w-8" />
                     </div>
-                  )
-                );
-              })()}
+                    <span className="text-lg font-extrabold text-slate-900">Your Shopping Cart is Empty</span>
+                    <p className="text-xs text-slate-500 max-w-sm">Select products from the catalog to build your horizontal Excel spreadsheet cart order.</p>
+                  </div>
+                )
+              )}
             </div>
 
-            {/* ── Amazon Cart Summary Footer ── */}
+            {/* ── Excel Cart Summary Footer ── */}
             {cart.length > 0 && (
-              <div className="p-4 border-t border-gray-200 bg-white space-y-3 shrink-0 shadow-lg">
-                {/* Weight & Total Items */}
-                <div className="flex justify-between items-center text-xs text-gray-600 font-medium">
-                  <span>Total Gross Weight: <strong className="font-mono text-gray-900">{cartTotals.weight.toFixed(2)}g</strong></span>
-                  <span>{cart.reduce((s, i) => s + i.quantity, 0)} items in cart</span>
+              <div className="px-4 py-3 sm:px-6 sm:py-4 border-t border-slate-200 bg-white flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4 shrink-0 shadow-lg">
+                {/* Left: Summary Badges Grid on Mobile */}
+                <div className="grid grid-cols-3 gap-1.5 sm:gap-3 w-full md:w-auto text-center sm:text-left text-xs">
+                  <div className="bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2">
+                    <span className="text-[9px] sm:text-[10px] text-slate-500 uppercase font-bold block truncate">Gross Weight</span>
+                    <span className="font-mono font-extrabold text-slate-900 text-xs sm:text-sm">{cartTotals.weight.toFixed(2)}g</span>
+                  </div>
+
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2">
+                    <span className="text-[9px] sm:text-[10px] text-emerald-700 uppercase font-bold block truncate">In-Stock ({cartTotals.inStockPcs}pcs)</span>
+                    <span className="font-mono font-extrabold text-emerald-950 text-xs sm:text-sm">₹{cartTotals.inStockPrice.toLocaleString('en-IN')}</span>
+                  </div>
+
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl px-2.5 py-1.5 sm:px-3 sm:py-2">
+                    <span className="text-[9px] sm:text-[10px] text-amber-800 uppercase font-bold block truncate">MTO ({cartTotals.mtoPcs}pcs)</span>
+                    <span className="font-mono font-extrabold text-amber-950 text-xs sm:text-sm">₹{cartTotals.mtoPrice.toLocaleString('en-IN')}</span>
+                  </div>
                 </div>
 
-                {/* Payable Breakdown Cards */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold text-emerald-900 block">In-Stock Payable ({cartTotals.inStockPcs} pcs)</span>
-                    <span className="font-mono font-extrabold text-emerald-950 text-sm block">₹{cartTotals.inStockPrice.toLocaleString('en-IN')}</span>
+                {/* Right: Checkout CTA & Customer Status */}
+                <div className="flex items-center gap-3 w-full md:w-auto">
+                  <div className="text-right hidden md:block">
+                    <span className="text-[10px] text-slate-500 uppercase font-bold block text-slate-500">Approx. Total Order Payable</span>
+                    <span className="font-mono font-extrabold text-slate-950 text-xl">₹{cartTotals.price.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                   </div>
-                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-0.5">
-                    <span className="text-[10px] font-bold text-amber-900 block">Make to Order ({cartTotals.mtoPcs} pcs)</span>
-                    <span className="font-mono font-extrabold text-amber-950 text-sm block">₹{cartTotals.mtoPrice.toLocaleString('en-IN')}</span>
-                  </div>
+
+                  {isCustomerAuthenticated && currentCustomer ? (
+                    <form onSubmit={handleCheckout} className="w-full md:w-auto">
+                      <button
+                        type="submit"
+                        disabled={orderSubmitting}
+                        className="w-full md:w-auto bg-amber-400 hover:bg-amber-300 active:bg-amber-500 disabled:opacity-50 text-slate-950 font-extrabold py-3 px-6 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer border border-amber-500 text-sm"
+                      >
+                        <span>{orderSubmitting ? 'Filing Order...' : `Proceed to Buy (${cart.reduce((s, i) => s + i.quantity, 0)} items)`}</span>
+                        <ChevronRight className="h-5 w-5" />
+                      </button>
+                    </form>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setBuyerLoginOpen(true)}
+                      className="w-full md:w-auto bg-slate-900 hover:bg-slate-800 text-white font-extrabold py-3 px-6 rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer text-sm"
+                    >
+                      <UserCircle className="h-5 w-5 text-amber-400" />
+                      <span>Login / Sign Up to Place Order</span>
+                    </button>
+                  )}
                 </div>
-
-                {/* Grand Total Order Amount */}
-                <div className="flex justify-between items-center pt-1 border-t border-gray-100">
-                  <div>
-                    <span className="font-extrabold text-gray-900 text-sm">Total Order Amount:</span>
-                    <p className="text-[10px] text-gray-500">In-Stock + Make to Order total</p>
-                  </div>
-                  <span className="font-mono font-extrabold text-gray-950 text-xl">
-                    ₹{cartTotals.price.toLocaleString('en-IN')}
-                  </span>
-                </div>
-
-                {/* Customer Account Info */}
-                {isCustomerAuthenticated && currentCustomer ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex items-center gap-2.5 text-xs">
-                    <div className="h-7 w-7 rounded-full bg-gray-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
-                      {currentCustomer.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-900 truncate">{currentCustomer.name}</p>
-                    </div>
-                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setBuyerLoginOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 p-2.5 border border-dashed border-amber-300 bg-amber-50/50 rounded-xl text-xs font-bold text-amber-900 hover:bg-amber-100 transition-all cursor-pointer"
-                  >
-                    <UserCircle className="h-4 w-4" />
-                    <span>Login / Sign Up to Place Order</span>
-                  </button>
-                )}
-
-                {/* Bottom Checkout Button */}
-                <form onSubmit={handleCheckout}>
-                  <button
-                    type="submit"
-                    disabled={orderSubmitting || !isCustomerAuthenticated}
-                    className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 disabled:opacity-50 text-gray-950 font-extrabold py-3 px-4 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-amber-500 text-base"
-                  >
-                    <span>{orderSubmitting ? 'Filing Order...' : `Proceed to Buy (${cart.reduce((s, i) => s + i.quantity, 0)} items)`}</span>
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
-                </form>
               </div>
             )}
           </div>

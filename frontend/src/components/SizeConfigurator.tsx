@@ -234,9 +234,17 @@ export const SizeConfigurator: React.FC<SizeConfiguratorProps> = ({
                     >
                       −
                     </button>
-                    <span className="w-8 text-center font-mono font-extrabold text-slate-900 text-sm">
-                      {qty}
-                    </span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={qty}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        onUpdateQuantity(sizeId, isNaN(val) ? 0 : Math.max(0, val));
+                      }}
+                      className="w-12 h-7 text-center font-mono font-extrabold text-slate-900 text-xs bg-white border border-slate-300 rounded-lg focus:border-slate-900 focus:ring-1 focus:ring-slate-900 focus:outline-none"
+                      title="Directly type or edit quantity"
+                    />
                     <button
                       type="button"
                       onClick={() => onUpdateQuantity(sizeId, qty + 1)}

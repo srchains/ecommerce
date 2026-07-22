@@ -21,16 +21,18 @@ interface BuyerStorefrontProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
   selectedCollectionFilter?: string | null;
   onClearCollectionFilter?: () => void;
+  onOpenCart?: () => void;
 }
 
 export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({ 
   onSelectProduct,
   selectedCollectionFilter,
-  onClearCollectionFilter
+  onClearCollectionFilter,
+  onOpenCart
 }) => {
   const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, wishlist, cart, addToCart, addMultipleToCart, updateCartQuantity, removeFromCart } = useApp();
 
-  const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
+  const [selectedCatIds, setSelectedCatIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [babySizesOnly, setBabySizesOnly] = useState(false);
   const [purityFilter, setPurityFilter] = useState('All');
@@ -39,11 +41,11 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [stockFilter, setStockFilter] = useState<'all' | 'stock' | 'mto'>('all');
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [addedSizeId, setAddedSizeId] = useState<number | null>(null);
-  // Quick Size Selector Modal state — multi-size selection
-  const [quickAddModalDesign, setQuickAddModalDesign] = useState<any | null>(null);
-  const [selectedQuickVariantId, setSelectedQuickVariantId] = useState<number | null>(null);
-  // Map of sizeId -> quantity (only sizes with qty > 0 are "selected")
-  const [quickSizeQuantities, setQuickSizeQuantities] = useState<Record<number, number>>({});
+  // Inline Size Dropdown Panel state (expands inside product card)
+  const [inlineAddDesignId, setInlineAddDesignId] = useState<number | null>(null);
+  const [inlineVariantId, setInlineVariantId] = useState<number | null>(null);
+  const [inlineSizeQuantities, setInlineSizeQuantities] = useState<Record<number, number>>({});
+
   // Mobile Filter Drawer state
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = useState(false);
 
@@ -61,9 +63,23 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Close floating size popover when clicking anywhere outside catalog card
+  useEffect(() => {
+    if (inlineAddDesignId === null) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.catalog-card')) {
+        setInlineAddDesignId(null);
+        setInlineSizeQuantities({});
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [inlineAddDesignId]);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCatId, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter, stockFilter]);
+  }, [selectedCatIds, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter, stockFilter]);
 
   const rootCategories = categories.filter(c => c.parent_id === null).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   const getChildren = (parentId: number) => categories.filter(c => c.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
@@ -80,15 +96,28 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     });
   };
 
-  // When user picks a category: select it and auto-expand its parent if it's a child
-  const handleSelectCat = (catId: number | null) => {
-    setSelectedCatId(catId);
-    if (catId !== null) {
-      const cat = categories.find(c => c.id === catId);
-      // If this is a child category, expand its parent
-      if (cat?.parent_id) {
-        setExpandedRoots(prev => new Set([...prev, cat.parent_id!]));
+  // Toggle category checkbox selection
+  const toggleCategorySelect = (catId: number) => {
+    setSelectedCatIds(prev => {
+      const next = new Set(prev);
+      if (next.has(catId)) {
+        next.delete(catId);
+      } else {
+        next.add(catId);
+        const cat = categories.find(c => c.id === catId);
+        if (cat?.parent_id) {
+          setExpandedRoots(e => new Set([...e, cat.parent_id!]));
+        }
       }
+      return next;
+    });
+  };
+
+  const handleSelectCat = (catId: number | null) => {
+    if (catId === null) {
+      setSelectedCatIds(new Set());
+    } else {
+      toggleCategorySelect(catId);
     }
   };
 
@@ -329,9 +358,12 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       if (!searchMatch.matches) return false;
 
       let matchesCategory = true;
-      if (selectedCatId !== null) {
-        const allowedIds = getAllowedCatIds(selectedCatId);
-        matchesCategory = allowedIds.includes(design.category_id || -1);
+      if (selectedCatIds.size > 0) {
+        const allowedIds = new Set<number>();
+        selectedCatIds.forEach(catId => {
+          getAllowedCatIds(catId).forEach(id => allowedIds.add(id));
+        });
+        matchesCategory = allowedIds.has(design.category_id || -1);
       }
 
       let matchesCollection = true;
@@ -355,7 +387,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
       return matchesCategory && matchesCollection && matchesPurity && matchesBaby && priceDetails.matchesPrice;
     });
-  }, [designs, searchQuery, selectedCatId, selectedCollectionFilter, purityFilter, babySizesOnly, minPrice, maxPrice]);
+  }, [designs, searchQuery, selectedCatIds, selectedCollectionFilter, purityFilter, babySizesOnly, minPrice, maxPrice]);
 
   // Helper: Calculate total ready stock pieces available for a design
   const getDesignReadyStockPcs = (design: any): number => {
@@ -392,7 +424,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   // Check if any filter is active
   const hasActiveFilters = Boolean(
     searchQuery.trim() ||
-    selectedCatId !== null ||
+    selectedCatIds.size > 0 ||
     selectedCollectionFilter ||
     purityFilter !== 'All' ||
     minPrice !== null ||
@@ -449,16 +481,15 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       {/* Catalog Groups Section */}
       <div>
         <h3 className="font-bold text-gray-900 text-sm mb-2.5 tracking-tight">Catalog Groups</h3>
-        <div className="space-y-0.5">
-          {/* All Collections */}
+        <div className="space-y-0.5">          {/* All Collections */}
           <button
             type="button"
             onClick={() => {
-              handleSelectCat(null);
+              setSelectedCatIds(new Set());
               setIsMobileFilterDrawerOpen(false);
             }}
             className={`w-full text-left flex items-center justify-between py-1.5 px-2 rounded-md text-xs transition-colors cursor-pointer ${
-              selectedCatId === null
+              selectedCatIds.size === 0
                 ? 'font-bold text-gray-900 bg-amber-50/80 text-amber-900 border-l-3 border-amber-600 pl-2'
                 : 'text-gray-800 hover:text-amber-700 font-medium'
             }`}
@@ -469,7 +500,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             </span>
           </button>
 
-          {/* Root categories */}
+          {/* Root categories with Checkboxes */}
           {(() => {
             const activeRootCats = rootCategories.filter(cat => countForCat(cat.id) > 0);
             const visibleRootCats = showAllCategories ? activeRootCats : activeRootCats.slice(0, 6);
@@ -477,7 +508,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             return (
               <>
                 {visibleRootCats.map((cat) => {
-                  const isSelected = selectedCatId === cat.id;
+                  const isChecked = selectedCatIds.has(cat.id);
                   const count = countForCat(cat.id);
                   const children = getChildren(cat.id);
                   const hasChildren = children.length > 0;
@@ -485,21 +516,18 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
                   return (
                     <div key={cat.id}>
-                      <div className={`flex items-center justify-between py-1 px-1.5 rounded-md transition-colors ${isSelected ? 'bg-amber-50/80 font-bold border-l-3 border-amber-600' : 'hover:bg-gray-50'}`}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleSelectCat(cat.id);
-                            setIsMobileFilterDrawerOpen(false);
-                          }}
-                          className={`flex-1 text-left text-xs truncate cursor-pointer ${
-                            isSelected
-                              ? 'font-bold text-amber-900'
-                              : 'text-gray-700 hover:text-amber-700 font-medium'
-                          }`}
-                        >
-                          {cat.name}
-                        </button>
+                      <div className={`flex items-center justify-between py-1 px-1.5 rounded-md transition-colors ${isChecked ? 'bg-amber-50/80 font-bold border-l-3 border-amber-600' : 'hover:bg-gray-50'}`}>
+                        <label className="flex items-center gap-2 flex-1 text-left text-xs truncate cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleCategorySelect(cat.id)}
+                            className="h-3.5 w-3.5 accent-amber-600 rounded shrink-0 cursor-pointer"
+                          />
+                          <span className={`truncate ${isChecked ? 'font-bold text-amber-900' : 'text-gray-700 hover:text-amber-700 font-medium'}`}>
+                            {cat.name}
+                          </span>
+                        </label>
                         <div className="flex items-center gap-1 shrink-0">
                           <span className="text-gray-400 font-mono text-[11px]">({count})</span>
                           {hasChildren && (
@@ -514,29 +542,32 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         </div>
                       </div>
 
-                      {/* Sub-categories */}
+                      {/* Sub-categories with Checkboxes */}
                       {hasChildren && isExpanded && (
-                        <div className="ml-3 border-l border-gray-200 pl-2 space-y-0.5 my-1">
+                        <div className="ml-5 border-l border-gray-200 pl-2 space-y-0.5 my-1">
                           {children.map((child) => {
-                            const childSelected = selectedCatId === child.id;
+                            const childChecked = selectedCatIds.has(child.id);
                             const childCount = countForCat(child.id);
                             return (
-                              <button
+                              <label
                                 key={child.id}
-                                type="button"
-                                onClick={() => {
-                                  handleSelectCat(child.id);
-                                  setIsMobileFilterDrawerOpen(false);
-                                }}
-                                className={`w-full text-left flex items-center justify-between py-1 px-1.5 text-[11px] rounded transition-colors cursor-pointer ${
-                                  childSelected
+                                className={`w-full flex items-center justify-between py-1 px-1.5 text-[11px] rounded transition-colors cursor-pointer select-none ${
+                                  childChecked
                                     ? 'font-bold text-amber-900 bg-amber-50'
                                     : 'text-gray-600 hover:text-amber-700'
                                 }`}
                               >
-                                <span className="truncate">{child.name}</span>
+                                <div className="flex items-center gap-2 truncate">
+                                  <input
+                                    type="checkbox"
+                                    checked={childChecked}
+                                    onChange={() => toggleCategorySelect(child.id)}
+                                    className="h-3 w-3 accent-amber-600 rounded shrink-0 cursor-pointer"
+                                  />
+                                  <span className="truncate">{child.name}</span>
+                                </div>
                                 <span className="text-gray-400 font-mono">({childCount})</span>
-                              </button>
+                              </label>
                             );
                           })}
                         </div>
@@ -568,35 +599,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               </>
             );
           })()}
-        </div>
-      </div>
-
-      {/* Purity Refinement */}
-      <div className="pt-4 border-t border-gray-200">
-        <h3 className="font-bold text-gray-900 text-sm mb-2 tracking-tight">Purity</h3>
-        <div className="space-y-1">
-          {['All', '92.5', '80', '70'].map((purityVal) => {
-            const label = purityVal === 'All' ? 'All Purities' : purityVal === '92.5' ? 'Silver 925 (92.5%)' : `${purityVal}% Silver`;
-            const isSelected = purityFilter === purityVal;
-            const count = purityVal === 'All' 
-              ? designs.filter(d => d.status === 'Active').length 
-              : designs.filter(d => d.status === 'Active' && d.purity.toString() === purityVal).length;
-            if (count === 0 && purityVal !== 'All') return null;
-
-            return (
-              <button
-                key={purityVal}
-                type="button"
-                onClick={() => setPurityFilter(purityVal)}
-                className={`w-full text-left py-1 px-1.5 text-xs transition-colors flex items-center justify-between rounded-md cursor-pointer ${
-                  isSelected ? 'font-bold text-amber-900 bg-amber-50' : 'text-gray-700 hover:text-amber-700'
-                }`}
-              >
-                <span className="truncate">{label}</span>
-                <span className="text-[11px] font-mono text-gray-400">({count})</span>
-              </button>
-            );
-          })}
         </div>
       </div>
 
@@ -634,15 +636,14 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       </div>
 
       {/* Active Filters Summary */}
-      {(selectedCatId !== null || purityFilter !== 'All' || minPrice !== null || maxPrice !== null) && (
+      {(selectedCatIds.size > 0 || minPrice !== null || maxPrice !== null) && (
         <div className="pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between mb-1.5">
             <span className="font-bold text-gray-900 text-xs">Active Filters</span>
             <button
               type="button"
               onClick={() => {
-                handleSelectCat(null);
-                setPurityFilter('All');
+                setSelectedCatIds(new Set());
                 setMinPrice(null);
                 setMaxPrice(null);
               }}
@@ -652,18 +653,16 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             </button>
           </div>
           <div className="flex flex-wrap gap-1">
-            {selectedCatId !== null && (
-              <span className="bg-gray-100 text-gray-800 border border-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                {categories.find(c => c.id === selectedCatId)?.name}
-                <button type="button" onClick={() => handleSelectCat(null)} className="hover:text-red-600 cursor-pointer">×</button>
-              </span>
-            )}
-            {purityFilter !== 'All' && (
-              <span className="bg-gray-100 text-gray-800 border border-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
-                {purityFilter}% Silver
-                <button type="button" onClick={() => setPurityFilter('All')} className="hover:text-red-600 cursor-pointer">×</button>
-              </span>
-            )}
+            {Array.from(selectedCatIds).map(catId => {
+              const catObj = categories.find(c => c.id === catId);
+              if (!catObj) return null;
+              return (
+                <span key={catId} className="bg-amber-50 text-amber-900 border border-amber-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                  {catObj.name}
+                  <button type="button" onClick={() => toggleCategorySelect(catId)} className="hover:text-red-600 cursor-pointer">×</button>
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
@@ -691,7 +690,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="bg-slate-800 text-amber-300 text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-              {selectedCatId ? (categories.find(c => c.id === selectedCatId)?.name || 'Filtered') : 'All Collections'}
+              {selectedCatIds.size > 0 ? `${selectedCatIds.size} Selected` : 'All Collections'}
             </span>
             <ChevronDown className="h-4 w-4 text-gray-300" />
           </div>
@@ -761,15 +760,15 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
         {/* Toolbar */}
         <div className="table-toolbar flex flex-wrap items-center justify-between gap-3">
-          {/* Left section: Search bar & Baby sizes */}
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="search-field !flex-none w-full sm:w-60 md:w-64 relative">
+          {/* Left section: Search bar (Expanded full width) */}
+          <div className="flex-1 min-w-[260px] max-w-xl">
+            <div className="search-field w-full relative">
               <input
                 type="text"
                 placeholder="Search design code, name, variant..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="input pr-8"
+                className="input pr-8 w-full py-2.5 text-sm"
               />
               <Search className="h-4 w-4 search-icon" />
               {searchQuery && (
@@ -781,16 +780,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                 </button>
               )}
             </div>
-
-            <label className="flex items-center space-x-2 cursor-pointer select-none text-sm text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors shrink-0">
-              <input
-                type="checkbox"
-                checked={babySizesOnly}
-                onChange={(e) => setBabySizesOnly(e.target.checked)}
-                className="h-4 w-4 accent-gray-900"
-              />
-              <span>Baby Sizes (&lt;8.0&quot; Only)</span>
-            </label>
           </div>
 
           {/* Right section: Stock Product & Make to Order Availability Filter */}
@@ -843,7 +832,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         </div>
 
         {/* Results count */}
-        {(selectedCatId !== null || searchQuery || minPrice !== null || maxPrice !== null || stockFilter !== 'all') && (() => {
+        {(selectedCatIds.size > 0 || searchQuery || minPrice !== null || maxPrice !== null || stockFilter !== 'all') && (() => {
           const isChildOnlySearch = searchQuery.trim() !== '' && filteredDesigns.length > 0 &&
             filteredDesigns.every(design => {
               const sm = getDesignSearchMatch(design, searchQuery);
@@ -862,9 +851,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               ) : (
                 <span>Showing <span className="font-bold text-gray-900">{filteredDesigns.length}</span> design{filteredDesigns.length !== 1 ? 's' : ''}</span>
               )}
-              {selectedCatId !== null && (
+              {selectedCatIds.size > 0 && (
                 <span>in <span className="font-semibold text-gray-700">
-                  {categories.find(c => c.id === selectedCatId)?.name}
+                  {Array.from(selectedCatIds).map(id => categories.find(c => c.id === id)?.name).filter(Boolean).join(', ')}
                 </span></span>
               )}
             </div>
@@ -1166,10 +1155,10 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               return (
                 <div
                   key={design.id}
-                  className="catalog-card group"
+                  className={`catalog-card group relative ${inlineAddDesignId === design.id ? 'z-50 !overflow-visible border-slate-900 shadow-2xl' : 'z-1'}`}
                 >
                   <div
-                    className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200 cursor-pointer"
+                    className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200 cursor-pointer rounded-t-[11px]"
                     onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
                   >
                     <img
@@ -1254,29 +1243,46 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         {design.name}
                       </h3>
 
-                      {/* Weight info + Add Cart button on same row */}
-                      <div className="flex items-center justify-between gap-2">
+                      {/* Weight info + Add Cart button + View button */}
+                      <div className="flex items-center justify-between gap-2 pt-1">
                         <div className="flex flex-wrap gap-2 text-xs text-gray-500">
                           <span>⚖ {design.weight_range || '18.5 - 24.3g'}</span>
                           <span>• {design.variants.length} variant{design.variants.length !== 1 ? 's' : ''}</span>
                           <span>• {design.metal}</span>
                         </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            setQuickAddModalDesign(design);
-                            const firstVar = design.variants[0];
-                            setSelectedQuickVariantId(firstVar?.id || null);
-                            setSelectedQuickSizeId(firstVar?.sizes[0]?.id || null);
-                            setQuickQuantity(1);
-                          }}
-                          className="shrink-0 bg-slate-900 hover:bg-slate-700 active:bg-slate-950 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg border border-slate-800 cursor-pointer transition-all flex items-center gap-1 shadow-sm"
-                        >
-                          <ShoppingBag className="h-3 w-3" />
-                          Add Cart
-                        </button>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (inlineAddDesignId === design.id) {
+                                setInlineAddDesignId(null);
+                                setInlineSizeQuantities({});
+                              } else {
+                                setInlineAddDesignId(design.id);
+                                setInlineVariantId(design.variants?.[0]?.id || null);
+                                setInlineSizeQuantities({});
+                              }
+                            }}
+                            className={`font-bold text-[11px] px-3 py-1.5 rounded-lg border cursor-pointer transition-all flex items-center gap-1 shadow-sm ${
+                              inlineAddDesignId === design.id
+                                ? 'bg-amber-600 border-amber-600 text-white'
+                                : 'bg-slate-900 hover:bg-slate-700 active:bg-slate-950 text-white border-slate-800'
+                            }`}
+                          >
+                            <ShoppingBag className="h-3 w-3" />
+                            {inlineAddDesignId === design.id ? 'Close' : 'Add Cart'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
+                            className="text-gray-600 hover:text-slate-900 font-bold text-xs flex items-center gap-1 cursor-pointer transition-colors px-2 py-1"
+                          >
+                            <span>View</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
 
                       {/* Filter Match Summary Badges */}
@@ -1288,123 +1294,259 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         </div>
                       )}
 
-                      {/* Matching Product Variants List inside ProductDesign Card (Price & Baby Sizes filters) */}
-                      {displayVariantItems.length > 0 && (
-                        <div className={`mt-3 pt-3 border-t -mx-5 px-5 py-3 space-y-2 ${filterBadgeBg}`}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-extrabold uppercase tracking-wider">
-                              {filterBadgeLabel} ({displayVariantItems.length})
+                      {/* ── Floating Dropdown Size Panel (Floats ON TOP of cards below) ── */}
+                      {inlineAddDesignId === design.id && (
+                        <div
+                          onClick={(e) => e.stopPropagation()}
+                          className="absolute left-0 right-0 sm:left-1/2 sm:-translate-x-1/2 sm:w-[460px] md:w-[500px] lg:w-[540px] top-full mt-1.5 z-50 bg-white border-2 border-slate-900 shadow-2xl rounded-2xl p-4 sm:p-5 md:p-6 space-y-3 sm:space-y-4 animate-in fade-in slide-in-from-top-2 duration-150 text-slate-900 max-h-[75vh] overflow-y-auto"
+                        >
+                          <div className="flex items-center justify-between pb-1 border-b border-gray-100">
+                            <span className="text-[11px] sm:text-xs font-extrabold uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                              <ShoppingBag className="h-4 w-4 text-amber-600" />
+                              Select Sizes & Edit Quantities
                             </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setInlineAddDesignId(null);
+                                setInlineSizeQuantities({});
+                              }}
+                              className="text-gray-400 hover:text-gray-700 p-1 rounded-full cursor-pointer hover:bg-gray-100 transition-colors"
+                            >
+                              <X className="h-4.5 w-4.5" />
+                            </button>
                           </div>
 
-                          <div className="max-h-44 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
-                            {displayVariantItems.map((item: any, idx: number) => (
-                              <div
-                                key={`${item.variantId}-${item.sizeId}-${idx}`}
-                                onClick={(e) => handleQuickAddToCart(e, design, item.variantId, item.sizeId)}
-                                className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-center justify-between text-xs hover:border-amber-500 hover:shadow-xs transition-all cursor-pointer group/item"
-                              >
-                                <div className="space-y-0.5 min-w-0 pr-2">
-                                  <div className="flex items-center gap-1.5 flex-wrap font-semibold text-gray-900">
-                                    <span className="text-amber-800 font-bold">Size: {item.size}&quot;</span>
-                                    <span className="text-gray-300">•</span>
-                                    <span>Weight: {item.weight}g</span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-[10px] text-gray-500 truncate">
-                                    {item.sku && <span>SKU: <strong className="font-mono text-gray-700">{item.sku}</strong></span>}
-                                    {item.sku && item.purity && <span>•</span>}
-                                    {item.purity && <span>{item.purity}</span>}
-                                  </div>
-                                </div>
-                                <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                                  <span className="font-mono font-extrabold text-gray-900 text-xs block">
-                                    ₹{item.price.toLocaleString('en-IN')}
-                                  </span>
-                                  {(() => {
-                                    const itemQty = getCartItemQuantity(item.variantId, item.sizeId);
-                                    return itemQty > 0 ? (
+                          {/* Variant finishes if multiple */}
+                          {design.variants?.length > 1 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {design.variants.map((v: any) => (
+                                <button
+                                  key={v.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setInlineVariantId(v.id);
+                                    setInlineSizeQuantities({});
+                                  }}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-all cursor-pointer ${
+                                    (inlineVariantId || design.variants[0]?.id) === v.id
+                                      ? 'bg-slate-900 text-white border-slate-900 shadow-xs'
+                                      : 'bg-white text-gray-700 border-gray-200 hover:border-slate-300'
+                                  }`}
+                                >
+                                  {v.variant_name || v.variant_code}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {(() => {
+                            const currentVar = design.variants?.find((v: any) => v.id === (inlineVariantId || design.variants[0]?.id)) || design.variants?.[0];
+                            const sizes: any[] = currentVar?.sizes || [];
+                            return (
+                              <div className="space-y-3">
+                                {/* Size Pills Grid (5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5...) */}
+                                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 gap-1.5 sm:gap-2">
+                                  {sizes.map((sz: any) => {
+                                    const qty = inlineSizeQuantities[sz.id] || 0;
+                                    const isSelected = qty > 0;
+                                    const readyPcs = Math.max(0, (sz.stock_available || 0) - (sz.stock_reserved || 0));
+
+                                    return (
                                       <div
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="flex items-center gap-1 bg-amber-50 border border-amber-300 rounded-lg p-0.5 shadow-2xs"
+                                        key={sz.id}
+                                        onClick={() => {
+                                          setInlineSizeQuantities(prev => ({
+                                            ...prev,
+                                            [sz.id]: (prev[sz.id] || 0) + 1
+                                          }));
+                                        }}
+                                        className={`relative p-2 sm:p-2.5 rounded-xl border flex flex-col items-center justify-center transition-all cursor-pointer select-none ${
+                                          isSelected
+                                            ? 'bg-slate-900 border-slate-900 text-white shadow-md scale-105'
+                                            : readyPcs > 0
+                                            ? 'bg-emerald-50 border-emerald-300 text-emerald-950 hover:bg-emerald-100 hover:border-emerald-400'
+                                            : 'bg-white border-gray-200 text-gray-800 hover:border-slate-400'
+                                        }`}
                                       >
-                                        <button
-                                          type="button"
-                                          onClick={(e) => handleDecrementQuantity(e, item.variantId, item.sizeId)}
-                                          className="h-6 w-6 flex items-center justify-center bg-white text-amber-900 border border-amber-200 rounded font-bold text-xs hover:bg-amber-100 cursor-pointer transition-colors"
-                                          title="Decrease quantity"
-                                        >
-                                          −
-                                        </button>
-                                        <span className="font-mono font-extrabold text-amber-950 text-xs px-1.5 min-w-[18px] text-center">
-                                          {itemQty}
+                                        {isSelected && (
+                                          <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 text-[10px] font-extrabold h-4.5 w-4.5 rounded-full flex items-center justify-center shadow-xs border border-white">
+                                            {qty}
+                                          </span>
+                                        )}
+                                        <span className="text-xs sm:text-sm font-mono font-extrabold">
+                                          {Number(sz.size).toFixed(1)}"
                                         </span>
-                                        <button
-                                          type="button"
-                                          onClick={(e) => handleQuickAddToCart(e, design, item.variantId, item.sizeId)}
-                                          className="h-6 w-6 flex items-center justify-center bg-amber-600 text-white rounded font-bold text-xs hover:bg-amber-700 cursor-pointer transition-colors"
-                                          title="Increase quantity"
-                                        >
-                                          +
-                                        </button>
+                                        <span className={`text-[9px] font-bold ${isSelected ? 'text-slate-300' : readyPcs > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                                          {readyPcs > 0 ? `${readyPcs} stock` : 'MTO'}
+                                        </span>
                                       </div>
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        onClick={(e) => handleQuickAddToCart(e, design, item.variantId, item.sizeId)}
-                                        className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs transition-colors cursor-pointer"
-                                      >
-                                        + Add
-                                      </button>
                                     );
-                                  })()}
+                                  })}
                                 </div>
+
+                                {/* Active Configured Sizes Breakdown with Editable Quantity Input */}
+                                {Object.keys(inlineSizeQuantities).length > 0 && (
+                                  <div className="space-y-2 pt-2.5 border-t border-slate-200">
+                                    <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                                      Edit Quantities:
+                                    </span>
+                                    <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                                      {Object.entries(inlineSizeQuantities).map(([szIdStr, qty]) => {
+                                        const szId = Number(szIdStr);
+                                        const sz = sizes.find(s => s.id === szId);
+                                        if (!sz || qty <= 0) return null;
+
+                                        return (
+                                          <div key={szId} className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex items-center justify-between text-xs sm:text-sm shadow-2xs">
+                                            <span className="font-mono font-bold text-slate-900">
+                                              Size {Number(sz.size).toFixed(2)}"
+                                            </span>
+                                            <div className="flex items-center gap-1.5">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setInlineSizeQuantities(prev => {
+                                                    const copy = { ...prev };
+                                                    if (qty <= 1) delete copy[szId];
+                                                    else copy[szId] = qty - 1;
+                                                    return copy;
+                                                  });
+                                                }}
+                                                className="h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-lg text-sm cursor-pointer transition-colors"
+                                              >
+                                                −
+                                              </button>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                value={qty}
+                                                onChange={(e) => {
+                                                  const val = parseInt(e.target.value, 10);
+                                                  setInlineSizeQuantities(prev => {
+                                                    const copy = { ...prev };
+                                                    if (isNaN(val) || val <= 0) delete copy[szId];
+                                                    else copy[szId] = val;
+                                                    return copy;
+                                                  });
+                                                }}
+                                                className="w-12 h-6 sm:h-7 text-center font-mono font-extrabold text-slate-900 text-xs sm:text-sm bg-white border border-slate-300 rounded-lg focus:border-slate-900 focus:outline-none"
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setInlineSizeQuantities(prev => ({ ...prev, [szId]: qty + 1 }));
+                                                }}
+                                                className="h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-lg text-sm cursor-pointer transition-colors"
+                                              >
+                                                +
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setInlineSizeQuantities(prev => {
+                                                    const copy = { ...prev };
+                                                    delete copy[szId];
+                                                    return copy;
+                                                  });
+                                                }}
+                                                className="text-gray-400 hover:text-red-600 ml-1 text-sm cursor-pointer font-bold px-1"
+                                              >
+                                                ×
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Confirm & Add to Cart Button */}
+                                <button
+                                  type="button"
+                                  disabled={Object.keys(inlineSizeQuantities).length === 0}
+                                  onClick={() => {
+                                    const currentVarObj = currentVar;
+                                    const itemsToAdd: any[] = [];
+
+                                    Object.entries(inlineSizeQuantities).forEach(([szIdStr, qty]) => {
+                                      const szId = Number(szIdStr);
+                                      const szObj = currentVarObj?.sizes?.find((s: any) => s.id === szId);
+                                      if (!szObj || qty <= 0) return;
+
+                                      const totalAvailableReady = Math.max(0, (szObj.stock_available || 0) - (szObj.stock_reserved || 0));
+                                      const currentReadyInCart = cart
+                                        .filter(item => item.variant?.id === currentVarObj?.id && item.size?.id === szObj.id && item.orderType === 'ready_stock')
+                                        .reduce((sum, item) => sum + item.quantity, 0);
+
+                                      const remainingReadyAvailable = Math.max(0, totalAvailableReady - currentReadyInCart);
+                                      const readyQty = Math.min(qty, remainingReadyAvailable);
+                                      const mtoQty = qty - readyQty;
+
+                                      const breakdown = calculatePriceBreakdown(
+                                        szObj.weight,
+                                        design.purity,
+                                        design.wastage_percent,
+                                        design.making_charge_per_gram
+                                      );
+
+                                      if (readyQty > 0) {
+                                        itemsToAdd.push({
+                                          design,
+                                          variant: currentVarObj,
+                                          size: szObj,
+                                          quantity: readyQty,
+                                          orderType: 'ready_stock',
+                                          lockedPrice: breakdown.total,
+                                          lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                                          lockedEffectiveWeight: breakdown.effectiveWeight,
+                                          lockedBasePrice: breakdown.basePrice,
+                                          lockedMakingCharges: breakdown.makingCharges,
+                                          lockedGst: breakdown.gst
+                                        });
+                                      }
+
+                                      if (mtoQty > 0) {
+                                        itemsToAdd.push({
+                                          design,
+                                          variant: currentVarObj,
+                                          size: szObj,
+                                          quantity: mtoQty,
+                                          orderType: 'make_order',
+                                          lockedPrice: breakdown.total,
+                                          lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                                          lockedEffectiveWeight: breakdown.effectiveWeight,
+                                          lockedBasePrice: breakdown.basePrice,
+                                          lockedMakingCharges: breakdown.makingCharges,
+                                          lockedGst: breakdown.gst
+                                        });
+                                      }
+                                    });
+
+                                    if (itemsToAdd.length > 0) {
+                                      addMultipleToCart(itemsToAdd);
+                                    }
+
+                                    setInlineAddDesignId(null);
+                                    setInlineSizeQuantities({});
+                                  }}
+                                  className={`w-full py-3 sm:py-3.5 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md ${
+                                    Object.keys(inlineSizeQuantities).length > 0
+                                      ? 'bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white cursor-pointer'
+                                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                  }`}
+                                >
+                                  <ShoppingBag className="h-4 w-4" />
+                                  {Object.keys(inlineSizeQuantities).length > 0
+                                    ? `Confirm (${Object.values(inlineSizeQuantities).reduce((a, b) => a + b, 0)} pcs)`
+                                    : 'Select at Least One Size'}
+                                </button>
                               </div>
-                            ))}
-                          </div>
+                            );
+                          })()}
                         </div>
                       )}
-                    </div>
-
-                    <div
-                      className="border-t border-gray-200 pt-4 flex justify-between items-end text-sm cursor-pointer"
-                      onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
-                    >
-                      <div>
-                        <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
-                          {priceDetails.hasPriceFilter
-                            ? `Price Range (${minPrice ? '₹' + minPrice : 'Min'} - ${maxPrice ? '₹' + maxPrice : 'Max'} Filter)`
-                            : priceDetails.globalMinPrice < priceDetails.globalMaxPrice 
-                            ? 'Price Range Across Sizes' 
-                            : 'Est. Wholesale Price'}
-                        </span>
-                        <p className="text-gray-900 font-extrabold font-mono text-lg mt-0.5">
-                          {priceDetails.hasPriceFilter ? (
-                            priceDetails.matchingMinPrice < priceDetails.matchingMaxPrice ? (
-                              <>
-                                ₹{priceDetails.matchingMinPrice.toLocaleString('en-IN')} - ₹{priceDetails.matchingMaxPrice.toLocaleString('en-IN')}
-                              </>
-                            ) : (
-                              <>
-                                ₹{priceDetails.matchingMinPrice.toLocaleString('en-IN')}{' '}
-                                <span className="text-xs font-medium text-gray-500">/ pc*</span>
-                              </>
-                            )
-                          ) : priceDetails.globalMinPrice < priceDetails.globalMaxPrice ? (
-                            <>
-                              ₹{priceDetails.globalMinPrice.toLocaleString('en-IN')} - ₹{priceDetails.globalMaxPrice.toLocaleString('en-IN')}
-                            </>
-                          ) : (
-                            <>
-                              ₹{price.total.toLocaleString('en-IN')}{' '}
-                              <span className="text-xs font-medium text-gray-500">/ pc*</span>
-                            </>
-                          )}
-                        </p>
-                      </div>
-                      <div className="flex items-center space-x-1 text-gray-500 font-bold group-hover:text-gray-900 transition-colors text-xs">
-                        <span>View</span>
-                        <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1504,169 +1646,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
           </div>
         )}
       </div>
-
-      {/* ── Quick Size Selection Modal (matches Product Detail style) ── */}
-      {quickAddModalDesign && (
-        <div
-          onClick={() => {
-            setQuickAddModalDesign(null);
-            setQuickSizeQuantities({});
-          }}
-          className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 cursor-pointer"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl border border-gray-200 flex flex-col cursor-default"
-          >
-
-            {/* ── Modal Header ── */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/80 shrink-0">
-              <div className="flex items-center gap-3">
-                <div className="h-11 w-11 rounded-xl border border-gray-200 overflow-hidden bg-white shrink-0">
-                  <img
-                    src={
-                      quickAddModalDesign.variants?.find((v: any) => v.id === selectedQuickVariantId)?.media?.find((m: any) => m.file_type?.startsWith('image'))?.url ||
-                      quickAddModalDesign.media?.find((m: any) => m.file_type?.startsWith('image'))?.url ||
-                      'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'
-                    }
-                    alt={quickAddModalDesign.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div>
-                  <p className="font-extrabold text-gray-900 text-sm leading-tight">{quickAddModalDesign.name}</p>
-                  <p className="text-[11px] text-gray-500 font-mono">{quickAddModalDesign.design_code}</p>
-                </div>
-              </div>
-              <button type="button" onClick={() => { setQuickAddModalDesign(null); setQuickSizeQuantities({}); }} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* ── Scrollable Content ── */}
-            <div className="overflow-y-auto flex-1 p-5">
-              <SizeConfigurator
-                design={quickAddModalDesign}
-                selectedVariantId={selectedQuickVariantId}
-                onSelectVariant={(varId) => {
-                  setSelectedQuickVariantId(varId);
-                  setQuickSizeQuantities({});
-                }}
-                sizeQuantities={quickSizeQuantities}
-                onUpdateQuantity={(sizeId, qty) => {
-                  setQuickSizeQuantities(prev => {
-                    if (qty <= 0) {
-                      const copy = { ...prev };
-                      delete copy[sizeId];
-                      return copy;
-                    }
-                    return { ...prev, [sizeId]: qty };
-                  });
-                }}
-                onRemoveSize={(sizeId) => {
-                  setQuickSizeQuantities(prev => {
-                    const copy = { ...prev };
-                    delete copy[sizeId];
-                    return copy;
-                  });
-                }}
-                onToggleSizePill={(sizeId) => {
-                  setQuickSizeQuantities(prev => ({
-                    ...prev,
-                    [sizeId]: (prev[sizeId] || 0) + 1
-                  }));
-                }}
-              />
-            </div>
-
-            {/* ── Footer: Add to Cart CTA ── */}
-            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/80 shrink-0">
-              <button
-                type="button"
-                disabled={Object.keys(quickSizeQuantities).length === 0}
-                onClick={() => {
-                  if (!quickAddModalDesign) return;
-                  const currentVar = quickAddModalDesign.variants?.find((v: any) => v.id === selectedQuickVariantId) || quickAddModalDesign.variants?.[0];
-                  const itemsToAdd: any[] = [];
-
-                  Object.entries(quickSizeQuantities).forEach(([sizeIdStr, qty]) => {
-                    const sizeId = Number(sizeIdStr);
-                    const sizeObj = currentVar?.sizes?.find((s: any) => s.id === sizeId);
-                    if (!sizeObj || qty <= 0) return;
-
-                    const totalAvailableReady = Math.max(0, (sizeObj.stock_available || 0) - (sizeObj.stock_reserved || 0));
-                    
-                    // Count how many ready_stock are already in cart for this size
-                    const currentReadyInCart = cart
-                      .filter(item => item.variant?.id === currentVar?.id && item.size?.id === sizeObj.id && item.orderType === 'ready_stock')
-                      .reduce((sum, item) => sum + item.quantity, 0);
-
-                    const remainingReadyAvailable = Math.max(0, totalAvailableReady - currentReadyInCart);
-                    const readyQty = Math.min(qty, remainingReadyAvailable);
-                    const mtoQty = qty - readyQty;
-
-                    const breakdown = calculatePriceBreakdown(
-                      sizeObj.weight,
-                      quickAddModalDesign.purity,
-                      quickAddModalDesign.wastage_percent,
-                      quickAddModalDesign.making_charge_per_gram
-                    );
-
-                    if (readyQty > 0) {
-                      itemsToAdd.push({
-                        design: quickAddModalDesign,
-                        variant: currentVar,
-                        size: sizeObj,
-                        quantity: readyQty,
-                        orderType: 'ready_stock',
-                        lockedPrice: breakdown.total,
-                        lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
-                        lockedEffectiveWeight: breakdown.effectiveWeight,
-                        lockedBasePrice: breakdown.basePrice,
-                        lockedMakingCharges: breakdown.makingCharges,
-                        lockedGst: breakdown.gst
-                      });
-                    }
-
-                    if (mtoQty > 0) {
-                      itemsToAdd.push({
-                        design: quickAddModalDesign,
-                        variant: currentVar,
-                        size: sizeObj,
-                        quantity: mtoQty,
-                        orderType: 'make_order',
-                        lockedPrice: breakdown.total,
-                        lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
-                        lockedEffectiveWeight: breakdown.effectiveWeight,
-                        lockedBasePrice: breakdown.basePrice,
-                        lockedMakingCharges: breakdown.makingCharges,
-                        lockedGst: breakdown.gst
-                      });
-                    }
-                  });
-
-                  if (itemsToAdd.length > 0) {
-                    addMultipleToCart(itemsToAdd);
-                  }
-
-                  setQuickAddModalDesign(null);
-                  setQuickSizeQuantities({});
-                }}
-                className={`w-full py-4 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2.5 transition-all ${
-                  Object.keys(quickSizeQuantities).length > 0
-                    ? 'bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white shadow-lg cursor-pointer'
-                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                }`}
-              >
-                <ShoppingBag className="h-4 w-4" />
-                {Object.keys(quickSizeQuantities).length > 0
-                  ? 'Add Selected Sizes to Cart (' + Object.values(quickSizeQuantities).reduce((a, b) => a + b, 0) + ' pcs)'
-                  : 'Select at Least One Size'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
