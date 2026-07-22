@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { ProductForm } from './components/ProductForm';
 
 
@@ -2025,6 +2026,7 @@ function App() {
       <AppProvider>
         <MainLayout />
       </AppProvider>
+      <SpeedInsights />
     </ErrorBoundary>
   );
 }
