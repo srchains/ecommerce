@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, API_BASE_URL } from '../context/AppContext';
 import { 
   Package, 
   Search, 
@@ -180,7 +180,7 @@ export const InventoryManagement: React.FC = () => {
     try {
       // 1. Save Physical Stock if changed
       if (newStockVal !== originalStock) {
-        await axios.post('http://localhost:8000/api/products/adjust-stock', {
+        await axios.post(`${API_BASE_URL}/api/products/adjust-stock`, {
           variant_size_id: sizeId,
           new_stock: newStockVal
         });
@@ -188,7 +188,7 @@ export const InventoryManagement: React.FC = () => {
       
       // 2. Save Reserved Stock if changed
       if (newReservedVal !== originalReserved) {
-        await axios.post('http://localhost:8000/api/products/adjust-reserved-stock', {
+        await axios.post(`${API_BASE_URL}/api/products/adjust-reserved-stock`, {
           variant_size_id: sizeId,
           new_reserved: newReservedVal
         });

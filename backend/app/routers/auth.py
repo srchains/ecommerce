@@ -22,14 +22,17 @@ cipher = Fernet(FERNET_KEY)
 # Secure fixed salt for PBKDF2
 PBKDF2_SALT = b"sr_chains_secure_salt_1957"
 
-# Precalculated PBKDF2 hashes for:
+# Precalculated PBKDF2 hashes for legacy fallback:
 # 1. test123 -> d5190dba746ce47605fe3061239dab2fe4003c4689bb7c0dd4911ef0fa4b34f8
 # 2. srchains195757 -> 7c1f1da6fb6d4eee1b92d6962f74e21463a3501645cf0a29ff70cc3f5370139d
-ADMIN_EMAIL = "srchains19@gmail.com"
 VALID_PASSWORD_HASHES = {
     "d5190dba746ce47605fe3061239dab2fe4003c4689bb7c0dd4911ef0fa4b34f8",
     "7c1f1da6fb6d4eee1b92d6962f74e21463a3501645cf0a29ff70cc3f5370139d"
 }
+
+def get_admin_email() -> str:
+    """Fetch configured admin email from environment variables."""
+    return os.getenv("ADMIN_EMAIL", "srchains19@gmail.com").strip().lower()
 
 class LoginRequest(BaseModel):
     email: EmailStr
@@ -41,8 +44,20 @@ class LoginResponse(BaseModel):
     role: str
 
 def verify_password(plain_password: str) -> bool:
-    """Hash the plain password and verify if it matches any of the stored secure hashes."""
+    """Verify password against env ADMIN_PASSWORD_HASH, ADMIN_PASSWORD, or fallback PBKDF2 hashes."""
     pwd_hash = hashlib.pbkdf2_hmac('sha256', plain_password.encode('utf-8'), PBKDF2_SALT, 100000).hex()
+
+    # 1. Check if an encrypted PBKDF2 hash token is defined in .env
+    env_hash = os.getenv("ADMIN_PASSWORD_HASH")
+    if env_hash and pwd_hash == env_hash.strip().lower():
+        return True
+
+    # 2. Check direct env password
+    configured_password = os.getenv("ADMIN_PASSWORD", "srchains195757")
+    if plain_password == configured_password:
+        return True
+
+    # 3. Fallback to valid PBKDF2 hash set
     return pwd_hash in VALID_PASSWORD_HASHES
 
 def encrypt_token(payload: Dict) -> str:
@@ -89,8 +104,9 @@ def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(security_
 def login(request: LoginRequest):
     """Authenticate admin and return encrypted token."""
     email_lower = request.email.lower()
+    admin_email = get_admin_email()
     
-    if email_lower != ADMIN_EMAIL or not verify_password(request.password):
+    if email_lower != admin_email or not verify_password(request.password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password"
@@ -99,13 +115,13 @@ def login(request: LoginRequest):
     # Create session payload valid for 24 hours
     expires_at = datetime.utcnow() + timedelta(hours=24)
     payload = {
-        "email": ADMIN_EMAIL,
+        "email": admin_email,
         "role": "admin",
         "exp": expires_at.timestamp()
     }
     
     token = encrypt_token(payload)
-    return LoginResponse(token=token, email=ADMIN_EMAIL, role="admin")
+    return LoginResponse(token=token, email=admin_email, role="admin")
 
 @router.get("/verify")
 def verify(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)):

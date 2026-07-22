@@ -276,3 +276,46 @@ This application is fully prepared to migrate from SQLite to **Supabase** in pro
    ```
 3. Install PostgreSQL client: `pip install psycopg2-binary`.
 4. Run a simple migration script to copy local SQLite data tables to Supabase PostgreSQL.
+
+---
+
+## 📋 Project Report & Feature Changelog
+
+### 1. Catalog Card & Navigation Guard Refactoring
+* **Layout Structure**: 
+  - Top row: Design code (mono font, left) and Stock badge (`In Stock (X pcs)` / `Make to Order`, right).
+  - Middle: Product name (`cursor-pointer hover:text-amber-700`) and weight/metal specs.
+  - Action Row: Right-aligned compact dark navy `Add Cart` button with a `ShoppingBag` icon.
+  - Bottom row: Estimated wholesale price range and `View →` navigation link.
+* **Navigation Isolation (Empty Page Fix)**: 
+  - Removed parent card container `onClick` handler to eliminate event propagation race conditions.
+  - Product detail navigation is strictly bound to the product image, title heading, and `View →` link.
+  - Action buttons (`+ Add Cart`, wishlist heart) execute isolated handlers without triggering route transitions.
+
+### 2. Multi-Size Quick Selection Modal
+* **Configuration Grid & Stock Pill Styling**:
+  - **In-Stock Size Pills**: Styled with soft mint green backgrounds (`bg-emerald-50/80 border-emerald-300`) displaying exact available inventory (e.g. `2 in stock`).
+  - **Make-to-Order Pills**: Displayed with standard white backgrounds and `MTO` labels.
+  - **Incremental Selection**: Clicking a size pill increments its configured quantity by `+1` per click. An indigo badge (`bg-indigo-600`) renders on the top-right corner indicating quantity configured.
+* **Selected Configurations Breakdown**:
+  - Itemized size list showing gross weight, pure metal weight (at design purity %), subtotal price, and `- / +` stepper controls.
+  - Running total weight and total price header badges.
+* **Backdrop Click-to-Close**:
+  - Backdrop overlay handles click-to-close events (`setQuickAddModalDesign(null)`) while inner dialog calls `e.stopPropagation()` to keep interaction smooth.
+
+### 3. Mobile Responsiveness & Live Price Ticker
+* **Mobile Live Silver Spot Rate Bar**:
+  - Dedicated topbar rate ticker for mobile view (`md:hidden`) styled in dark slate (`bg-slate-950 text-white`).
+  - Displays per gram rate (`₹230.30/g`), per kg rate (`₹2,30,300/kg`), and a pulsing green `LIVE` status badge.
+* **Collapsible Catalog Groups & Filter Drawer**:
+  - Refactored sidebar into a reusable `renderRefinementSidebar()` function.
+  - Desktop view (`lg:block`): Displays pinned sidebar on the left.
+  - Mobile view (`lg:hidden`): Hides inline sidebar and renders a top **`Catalog Groups & Filters ▾`** button displaying active category badges.
+  - Clicking the button opens a slide-over drawer containing Catalog Groups, subcategories, Purity, Price Range filters, and a **`View Results`** CTA button.
+
+### 4. High-Performance Batch Cart State & Order Pipeline
+* **Batch Cart Addition (`addMultipleToCart`)**:
+  - Implemented `addMultipleToCart` in `AppContext.tsx` to process multi-size configurations in a single state update, eliminating multi-render lag when adding multi-item configurations.
+* **Instant Order Placement**:
+  - Optimized `handleCheckout` in `App.tsx` to process invoice calculations, clear cart, update UI status in 0ms, and open the WhatsApp B2B estimate link asynchronously without blocking the UI thread.
+

@@ -13,6 +13,7 @@ import {
   Sparkles,
   ChevronRight
 } from 'lucide-react';
+import { SizeConfigurator } from './SizeConfigurator';
 
 interface BuyerProductDetailProps {
   designCode: string;
@@ -33,7 +34,34 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 }) => {
   const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist, wishlist, isCustomerAuthenticated } = useApp();
 
-  const design = designs.find(d => d.name === designCode || d.design_code === designCode);
+  const design = useMemo(() => {
+    if (!designCode) return undefined;
+    const cleanCode = designCode.trim().toLowerCase();
+    const cleanNorm = cleanCode.replace(/[\s\-_]/g, '');
+
+    // 1. Direct match by name or design_code
+    let match = designs.find(d => d.name === designCode || d.design_code === designCode);
+    if (match) return match;
+
+    // 2. Case-insensitive / normalized match by design_code or name
+    match = designs.find(d => 
+      d.design_code?.trim().toLowerCase() === cleanCode ||
+      d.name?.trim().toLowerCase() === cleanCode ||
+      d.design_code?.trim().toLowerCase().replace(/[\s\-_]/g, '') === cleanNorm ||
+      d.name?.trim().toLowerCase().replace(/[\s\-_]/g, '') === cleanNorm
+    );
+    if (match) return match;
+
+    // 3. Match by child variant code or variant name
+    match = designs.find(d => 
+      d.variants?.some((v: any) => 
+        v.variant_code?.trim().toLowerCase() === cleanCode ||
+        v.variant_name?.trim().toLowerCase() === cleanCode ||
+        v.variant_code?.trim().toLowerCase().replace(/[\s\-_]/g, '') === cleanNorm
+      )
+    );
+    return match;
+  }, [designs, designCode]);
 
   const [selectedVariantId, setSelectedVariantId] = useState<number>(0);
   const [selectedSizeId, setSelectedSizeId] = useState<number>(0);
@@ -85,10 +113,41 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     }
   }, [selectedSizeId, selectedSizesConfig]);
 
-  // Reset selection configurations when selected variant changes
+  // Sync local inputs when active size or size configurations change
   useEffect(() => {
-    setSelectedSizesConfig({});
-  }, [selectedVariantId]);
+    if (activeSize) {
+      const config = selectedSizesConfig[activeSize.id];
+      if (config) {
+        setReadyStockInput(config.readyStockQty);
+        setMakeOrderInput(config.makeOrderQty);
+      } else {
+        setReadyStockInput(0);
+        setMakeOrderInput(0);
+      }
+    }
+  }, [selectedSizeId]);
+
+  // Helper: Update size quantity directly from size card stepper
+  const handleUpdateSizeQty = (sizeId: number, newTotalQty: number) => {
+    const sObj = availableSizes.find(s => s.id === sizeId);
+    if (!sObj) return;
+    const availStock = Math.max(0, sObj.stock_available - (sObj.stock_reserved || 0));
+    const validQty = Math.max(0, newTotalQty);
+    const rQty = Math.min(validQty, availStock);
+    const mQty = Math.max(0, validQty - rQty);
+
+    setSelectedSizesConfig(prev => {
+      if (validQty === 0) {
+        const copy = { ...prev };
+        delete copy[sizeId];
+        return copy;
+      }
+      return {
+        ...prev,
+        [sizeId]: { readyStockQty: rQty, makeOrderQty: mQty }
+      };
+    });
+  };
 
   const [activeMediaIdx, setActiveMediaIdx] = useState(0);
 
@@ -386,9 +445,23 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     return breakdown.total;
   };
 
-  // Compute related items based on category, collection, prefix, and specs
+  // Helper to extract collection name (e.g. Bridal, Antique, Battani)
+  const getCollectionName = (item: any) => {
+    if (!item) return '';
+    if (item.collection && item.collection.trim()) return item.collection.trim().toLowerCase();
+    if (item.name && item.name.trim()) {
+      const parts = item.name.split('-');
+      return parts[0].trim().toLowerCase();
+    }
+    return '';
+  };
+
+  // Compute related items: 1st by Collection matching (Bridal, Antique, etc.), 2nd by Price Proximity (nearest price)
   const relatedItems = useMemo(() => {
     if (!design || !designs || designs.length === 0) return [];
+
+    const currentCollection = getCollectionName(design);
+    const currentPrice = priceBreakdown.total || getRelatedDesignPrice(design);
 
     const candidates = designs.filter(d =>
       d.id !== design.id &&
@@ -400,21 +473,45 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     if (candidates.length === 0) return [];
 
     const scored = candidates.map(cand => {
-      let score = 0;
-      if (design.category_id && cand.category_id === design.category_id) score += 10;
-      if (design.collection && cand.collection && cand.collection.toLowerCase() === design.collection.toLowerCase()) score += 8;
-      const currPrefix = design.design_code ? design.design_code.replace(/[\d\-_]/g, '').toLowerCase() : '';
-      const candPrefix = cand.design_code ? cand.design_code.replace(/[\d\-_]/g, '').toLowerCase() : '';
-      if (currPrefix && candPrefix && (currPrefix.includes(candPrefix) || candPrefix.includes(currPrefix))) score += 5;
-      if (cand.metal === design.metal) score += 2;
-      if (cand.purity === design.purity) score += 2;
-      if (cand.finishing === design.finishing) score += 1;
-      return { candidate: cand, score };
+      const candCollection = getCollectionName(cand);
+      const candPrice = getRelatedDesignPrice(cand);
+      
+      let collectionTier = 0; // 0: baseline, 1: category match, 2: prefix match, 3: exact collection match
+      if (currentCollection && candCollection && currentCollection === candCollection) {
+        collectionTier = 3;
+      } else {
+        const currPrefix = design.design_code ? design.design_code.replace(/[\d\-_]/g, '').toLowerCase() : '';
+        const candPrefix = cand.design_code ? cand.design_code.replace(/[\d\-_]/g, '').toLowerCase() : '';
+        if (currPrefix && candPrefix && (currPrefix.includes(candPrefix) || candPrefix.includes(currPrefix))) {
+          collectionTier = 2;
+        } else if (design.category_id && cand.category_id === design.category_id) {
+          collectionTier = 1;
+        }
+      }
+
+      // Price difference (absolute amount in Rupees)
+      const priceDifference = Math.abs(candPrice - currentPrice);
+
+      return {
+        candidate: cand,
+        collectionTier,
+        priceDifference,
+        candPrice
+      };
     });
 
-    scored.sort((a, b) => b.score - a.score);
+    // Sort: 
+    // 1st Priority: Higher collection tier first (Same Collection > Prefix > Category)
+    // 2nd Priority: Closer price difference first (Near price)
+    scored.sort((a, b) => {
+      if (b.collectionTier !== a.collectionTier) {
+        return b.collectionTier - a.collectionTier;
+      }
+      return a.priceDifference - b.priceDifference;
+    });
+
     return scored.map(s => s.candidate).slice(0, 8);
-  }, [design, designs, calculatePriceBreakdown]);
+  }, [design, designs, priceBreakdown.total, calculatePriceBreakdown]);
 
   // ── Guard: show spinner while API is loading, show not-found if loaded but missing ──
   if (!design) {
@@ -675,13 +772,21 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                 <span className="text-xs font-mono font-bold text-gray-500 tracking-wider uppercase">{design.design_code}</span>
                 <h2 className="text-3xl font-bold text-gray-900 tracking-tight mt-2">{design.name}</h2>
               </div>
-              <span className={`px-4 py-1.5 rounded-full text-sm font-bold border shadow-sm transition-all ${
-                activeSize && (activeSize.stock_available - (activeSize.stock_reserved || 0)) > 0
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                  : 'bg-amber-50 text-amber-800 border-amber-300'
-              }`}>
-                {activeSize && (activeSize.stock_available - (activeSize.stock_reserved || 0)) > 0 ? 'In Stock' : 'Make Order'}
-              </span>
+              {(() => {
+                const totalVariantReadyStock = (activeVariant?.sizes || []).reduce((acc: number, s: any) => {
+                  if (s.status !== 'Active') return acc;
+                  return acc + Math.max(0, (s.stock_available || 0) - (s.stock_reserved || 0));
+                }, 0);
+                return (
+                  <span className={`px-4 py-1.5 rounded-full text-sm font-bold border shadow-sm transition-all ${
+                    totalVariantReadyStock > 0
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'bg-amber-50 text-amber-800 border-amber-300'
+                  }`}>
+                    {totalVariantReadyStock > 0 ? `In Stock (${totalVariantReadyStock} pcs)` : 'Make Order'}
+                  </span>
+                );
+              })()}
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-sm">
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
@@ -735,17 +840,46 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-7 gap-2">
                 {availableSizes.map((s) => {
                   const isSelected = selectedSizeId === s.id;
+                  const availStock = Math.max(0, (s.stock_available || 0) - (s.stock_reserved || 0));
+                  const hasStock = availStock > 0;
                   const config = selectedSizesConfig[s.id];
                   const totalConfiguredQty = config ? (config.readyStockQty + config.makeOrderQty) : 0;
                   return (
                     <button
                       key={s.id}
-                      onClick={() => setSelectedSizeId(s.id)}
-                      className={`size-button flex flex-col items-center justify-center text-center relative cursor-pointer py-2 ${
-                        isSelected ? 'size-button-selected' : ''
+                      type="button"
+                      onClick={() => {
+                        setSelectedSizeId(s.id);
+                        const newQty = totalConfiguredQty + 1;
+                        const rQty = Math.min(newQty, availStock);
+                        const mQty = Math.max(0, newQty - rQty);
+                        setReadyStockInput(rQty);
+                        setMakeOrderInput(mQty);
+                        setSelectedSizesConfig(prev => ({
+                          ...prev,
+                          [s.id]: { readyStockQty: rQty, makeOrderQty: mQty }
+                        }));
+                      }}
+                      className={`size-button flex flex-col items-center justify-center text-center relative cursor-pointer py-2 transition-all ${
+                        isSelected
+                          ? hasStock
+                            ? 'bg-emerald-700 text-white border-emerald-800 font-extrabold shadow-md ring-2 ring-emerald-400'
+                            : 'size-button-selected'
+                          : hasStock
+                            ? 'bg-emerald-50 text-emerald-900 border-emerald-300 font-extrabold hover:bg-emerald-100/90 shadow-2xs'
+                            : ''
                       }`}
                     >
                       <span className="text-sm font-bold font-mono">{s.size.toFixed(2)}</span>
+                      {hasStock ? (
+                        <span className={`text-[9px] font-bold mt-0.5 ${isSelected ? 'text-emerald-100' : 'text-emerald-700'}`}>
+                          {availStock} in stock
+                        </span>
+                      ) : (
+                        <span className={`text-[9px] font-medium mt-0.5 ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>
+                          MTO
+                        </span>
+                      )}
                       {totalConfiguredQty > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 bg-indigo-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm">
                           {totalConfiguredQty}
@@ -757,113 +891,8 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               </div>
             </div>
           </div>
-          {/* Rectangular Configuration Box */}
-          {activeSize && (
-            <div className="border border-indigo-200 bg-indigo-50/20 rounded-xl p-4.5 space-y-4">
-              <div className="flex justify-between items-center border-b border-indigo-100 pb-2">
-                <span className="font-bold text-sm text-indigo-950">Size Configuration: {activeSize.size.toFixed(2)}"</span>
-                <span className="text-xs text-indigo-700 font-medium">Weight: {activeSize.weight.toFixed(2)}g</span>
-              </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Ready Stock Selector */}
-                <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-gray-700">Ready Stock</span>
-                    <span className="text-gray-500 font-medium bg-gray-100 px-2 py-0.5 rounded-full">Available: {Math.max(0, activeSize.stock_available - (activeSize.stock_reserved || 0))} pcs</span>
-                  </div>
-                  
-                  {activeSize.stock_available - (activeSize.stock_reserved || 0) > 0 ? (
-                    <div className="flex items-center justify-between gap-4">
-                       <div className="qty-control h-[36px] w-32">
-                        <button type="button" onClick={() => setReadyStockInput(prev => Math.max(0, prev - 1))}>-</button>
-                        <span>{readyStockInput}</span>
-                        <button type="button" onClick={() => setReadyStockInput(prev => Math.min(Math.max(0, activeSize.stock_available - (activeSize.stock_reserved || 0)), prev + 1))}>+</button>
-                      </div>
-                      
-                      <button 
-                        type="button" 
-                        onClick={() => setReadyStockInput(Math.max(0, activeSize.stock_available - (activeSize.stock_reserved || 0)))}
-                        className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider cursor-pointer"
-                      >
-                        Set Max
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="text-xs text-red-500 font-medium py-1.5 px-3 bg-red-50 rounded-lg border border-red-100">
-                      Out of Stock
-                    </div>
-                  )}
-                </div>
 
-                {/* Make Order Selector */}
-                <div className="bg-white border border-gray-200 rounded-xl p-3 space-y-2">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-bold text-gray-700">Make Order (MTO)</span>
-                    <span className="text-gray-500 font-medium">Lead-time: 7-10 days</span>
-                  </div>
-                  
-                  <div className="qty-control h-[36px] w-32">
-                    <button type="button" onClick={() => setMakeOrderInput(prev => Math.max(0, prev - 1))}>-</button>
-                    <span>{makeOrderInput}</span>
-                    <button type="button" onClick={() => setMakeOrderInput(prev => prev + 1)}>+</button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Dynamic Specifications & Calculations for Active Size (Only show when quantity selected) */}
-              {(readyStockInput > 0 || makeOrderInput > 0) && (
-                <div className="bg-indigo-950/5 border border-indigo-950/10 rounded-xl p-3 text-xs space-y-2.5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 font-medium">Selected Quantity:</span>
-                    <span className="font-bold text-indigo-950">
-                      {readyStockInput > 0 && `${readyStockInput} Ready`}
-                      {readyStockInput > 0 && makeOrderInput > 0 && ' + '}
-                      {makeOrderInput > 0 && `${makeOrderInput} MTO`}
-                      {` (${readyStockInput + makeOrderInput} pcs total)`}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 font-medium">Pure Weight (Fine Metal):</span>
-                    <span className="font-bold text-indigo-950 font-mono">
-                      {((readyStockInput + makeOrderInput) * activeSize.weight * (design.purity / 100)).toFixed(3)}g
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-500 font-medium">Total Weight:</span>
-                    <span className="font-bold text-indigo-950 font-mono">
-                      {((readyStockInput + makeOrderInput) * activeSize.weight).toFixed(2)}g
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-indigo-950/10 font-bold text-sm text-indigo-950">
-                    <span>Total Price for Size {activeSize.size.toFixed(2)}" (Approx. Price):</span>
-                    <span className="font-mono text-indigo-600">
-                      ₹{((readyStockInput + makeOrderInput) * priceBreakdown.total).toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                </div>
-              )}
-
-              {/* Add Size Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (readyStockInput === 0 && makeOrderInput === 0) {
-                    alert("Please select at least 1 piece from Ready Stock or Make Order.");
-                    return;
-                  }
-                  setSelectedSizesConfig(prev => ({
-                    ...prev,
-                    [activeSize.id]: { readyStockQty: readyStockInput, makeOrderQty: makeOrderInput }
-                  }));
-                }}
-                className="w-full cursor-pointer py-3 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 border-none"
-              >
-                <Check className="h-4 w-4" />
-                <span>{selectedSizesConfig[activeSize.id] ? 'Update Size Configuration' : 'Add Size Configuration'}</span>
-              </button>
-            </div>
-          )}
 
           {/* Selected Sizes & Quantities List */}
           {Object.keys(selectedSizesConfig).length > 0 && (

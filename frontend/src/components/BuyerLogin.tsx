@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Lock, User, Mail, Phone, Store, AlertCircle, X, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { API_BASE_URL } from '../context/AppContext';
 
 interface BuyerLoginProps {
   onClose: () => void;
@@ -24,8 +25,6 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
-
-  const API_BASE_URL = 'http://localhost:8000';
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

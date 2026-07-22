@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
-export const API_BASE_URL = 'http://localhost:8000';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
 export interface Category {
   id: number;
@@ -133,6 +133,7 @@ interface AppContextType {
   fetchCategories: () => Promise<void>;
   
   addToCart: (item: CartItem) => void;
+  addMultipleToCart: (items: CartItem[]) => void;
   removeFromCart: (index: number) => void;
   clearCart: () => void;
   updateCartQuantity: (index: number, qty: number) => void;
@@ -422,6 +423,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
   };
 
+  const addMultipleToCart = (newItems: CartItem[]) => {
+    setCart(prev => {
+      const updated = [...prev];
+      newItems.forEach(newItem => {
+        if (newItem.lockedPrice === undefined) {
+          const breakdown = calculatePriceBreakdown(
+            newItem.size.weight,
+            newItem.design.purity,
+            newItem.design.wastage_percent,
+            newItem.design.making_charge_per_gram
+          );
+          newItem.lockedPrice = breakdown.total;
+          newItem.lockedSilverRate = livePrice?.silver_gram_rate || 222.00;
+          newItem.lockedEffectiveWeight = breakdown.effectiveWeight;
+          newItem.lockedBasePrice = breakdown.basePrice;
+          newItem.lockedMakingCharges = breakdown.makingCharges;
+          newItem.lockedGst = breakdown.gst;
+        }
+
+        const existingIdx = updated.findIndex(item => 
+          item.variant.id === newItem.variant.id && 
+          item.size.id === newItem.size.id && 
+          item.orderType === newItem.orderType
+        );
+        
+        if (existingIdx > -1) {
+          updated[existingIdx] = {
+            ...updated[existingIdx],
+            quantity: updated[existingIdx].quantity + newItem.quantity
+          };
+        } else {
+          updated.push(newItem);
+        }
+      });
+      return updated;
+    });
+  };
+
   const removeFromCart = (index: number) => {
     setCart(prev => prev.filter((_, idx) => idx !== index));
   };
@@ -589,6 +628,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       fetchDesigns,
       fetchCategories,
       addToCart,
+      addMultipleToCart,
       removeFromCart,
       clearCart,
       updateCartQuantity,

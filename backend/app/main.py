@@ -5,6 +5,11 @@ from contextlib import asynccontextmanager
 import asyncio
 import logging
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from app.routers import products, orders, media, auth, customers, live_price
 from app.database import Base, engine
 

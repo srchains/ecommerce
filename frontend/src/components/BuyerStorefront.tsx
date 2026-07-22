@@ -7,12 +7,15 @@ import {
   ArrowRight,
   AlertCircle,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   X,
   CheckCircle,
   Info,
   Heart,
+  ShoppingBag,
 } from 'lucide-react';
-
+import { SizeConfigurator } from './SizeConfigurator';
 
 interface BuyerStorefrontProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
@@ -25,7 +28,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   selectedCollectionFilter,
   onClearCollectionFilter
 }) => {
-  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, wishlist } = useApp();
+  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, wishlist, cart, addToCart, addMultipleToCart, updateCartQuantity, removeFromCart } = useApp();
 
   const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -33,6 +36,17 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [purityFilter, setPurityFilter] = useState('All');
   const [minPrice, setMinPrice] = useState<number | null>(null);
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
+  const [stockFilter, setStockFilter] = useState<'all' | 'stock' | 'mto'>('all');
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [addedSizeId, setAddedSizeId] = useState<number | null>(null);
+  // Quick Size Selector Modal state — multi-size selection
+  const [quickAddModalDesign, setQuickAddModalDesign] = useState<any | null>(null);
+  const [selectedQuickVariantId, setSelectedQuickVariantId] = useState<number | null>(null);
+  // Map of sizeId -> quantity (only sizes with qty > 0 are "selected")
+  const [quickSizeQuantities, setQuickSizeQuantities] = useState<Record<number, number>>({});
+  // Mobile Filter Drawer state
+  const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = useState(false);
+
   // Track which root categories are expanded in the sidebar
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
 
@@ -49,7 +63,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedCatId, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter]);
+  }, [selectedCatId, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter, stockFilter]);
 
   const rootCategories = categories.filter(c => c.parent_id === null).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   const getChildren = (parentId: number) => categories.filter(c => c.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
@@ -74,6 +88,74 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       // If this is a child category, expand its parent
       if (cat?.parent_id) {
         setExpandedRoots(prev => new Set([...prev, cat.parent_id!]));
+      }
+    }
+  };
+
+  // Helper: Quick add to cart (single piece or custom quantity)
+  const handleQuickAddToCart = (e: React.MouseEvent | null, design: any, variantId?: number, sizeId?: number, quantityToPass: number = 1) => {
+    if (e) e.stopPropagation();
+    const variant = (variantId ? design.variants?.find((v: any) => v.id === variantId) : null) || design.variants?.[0];
+    if (!variant) return;
+    const sizeObj = (sizeId ? variant.sizes?.find((s: any) => s.id === sizeId) : null) || variant.sizes?.[0];
+    if (!sizeObj) return;
+
+    const itemBreakdown = calculatePriceBreakdown(
+      sizeObj.weight,
+      design.purity,
+      design.wastage_percent,
+      design.making_charge_per_gram
+    );
+
+    for (let i = 0; i < quantityToPass; i++) {
+      const totalAvailableReady = Math.max(0, (sizeObj.stock_available || 0) - (sizeObj.stock_reserved || 0));
+      
+      // Check how many ready_stock pieces are already in cart for this variant & size
+      const currentReadyInCart = cart
+        .filter(item => item.variant?.id === variant.id && item.size?.id === sizeObj.id && item.orderType === 'ready_stock')
+        .reduce((sum, item) => sum + item.quantity, 0);
+
+      // Smart Allocation Rule: 1st fill available ready stock, then fill Make to Order (MTO)
+      const orderType = currentReadyInCart < totalAvailableReady ? 'ready_stock' : 'make_order';
+
+      addToCart({
+        design,
+        variant,
+        size: sizeObj,
+        quantity: 1,
+        orderType,
+        lockedPrice: itemBreakdown.total,
+        lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+        lockedEffectiveWeight: itemBreakdown.effectiveWeight,
+        lockedBasePrice: itemBreakdown.basePrice,
+        lockedMakingCharges: itemBreakdown.makingCharges,
+        lockedGst: itemBreakdown.gst
+      });
+    }
+  };
+
+  // Helper: Get current total quantity of a specific variant & size in cart
+  const getCartItemQuantity = (variantId?: number, sizeId?: number): number => {
+    if (!variantId || !sizeId) return 0;
+    return cart
+      .filter(item => item.variant?.id === variantId && item.size?.id === sizeId)
+      .reduce((sum, item) => sum + item.quantity, 0);
+  };
+
+  // Helper: Decrement quantity or remove from cart (removes MTO first, then Ready Stock)
+  const handleDecrementQuantity = (e: React.MouseEvent, variantId?: number, sizeId?: number) => {
+    e.stopPropagation();
+    if (!variantId || !sizeId) return;
+    let cartIdx = cart.findIndex(item => item.variant?.id === variantId && item.size?.id === sizeId && item.orderType === 'make_order');
+    if (cartIdx === -1) {
+      cartIdx = cart.findIndex(item => item.variant?.id === variantId && item.size?.id === sizeId && item.orderType === 'ready_stock');
+    }
+    if (cartIdx > -1) {
+      const currentQty = cart[cartIdx].quantity;
+      if (currentQty > 1) {
+        updateCartQuantity(cartIdx, currentQty - 1);
+      } else {
+        removeFromCart(cartIdx);
       }
     }
   };
@@ -238,39 +320,86 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     };
   };
 
-  const filteredDesigns = designs.filter(design => {
-    if (design.status !== 'Active') return false;
+  // Base filtered designs without stock filter applied (to calculate stock filter pill counts)
+  const baseFilteredDesigns = useMemo(() => {
+    return designs.filter(design => {
+      if (design.status !== 'Active') return false;
 
-    const searchMatch = getDesignSearchMatch(design, searchQuery);
-    if (!searchMatch.matches) return false;
+      const searchMatch = getDesignSearchMatch(design, searchQuery);
+      if (!searchMatch.matches) return false;
 
-    let matchesCategory = true;
-    if (selectedCatId !== null) {
-      const allowedIds = getAllowedCatIds(selectedCatId);
-      matchesCategory = allowedIds.includes(design.category_id || -1);
-    }
+      let matchesCategory = true;
+      if (selectedCatId !== null) {
+        const allowedIds = getAllowedCatIds(selectedCatId);
+        matchesCategory = allowedIds.includes(design.category_id || -1);
+      }
 
-    let matchesCollection = true;
-    if (selectedCollectionFilter) {
-      const target = selectedCollectionFilter.toLowerCase();
-      matchesCollection = 
-        (design.collection && design.collection.toLowerCase().includes(target)) ||
-        (design.name && design.name.toLowerCase().includes(target)) ||
-        (design.design_code && design.design_code.toLowerCase().includes(target));
-    }
+      let matchesCollection = true;
+      if (selectedCollectionFilter) {
+        const target = selectedCollectionFilter.toLowerCase();
+        matchesCollection = 
+          (design.collection && design.collection.toLowerCase().includes(target)) ||
+          (design.name && design.name.toLowerCase().includes(target)) ||
+          (design.design_code && design.design_code.toLowerCase().includes(target));
+      }
 
-    const matchesPurity = purityFilter === 'All' || design.purity.toString() === purityFilter;
+      const matchesPurity = purityFilter === 'All' || design.purity.toString() === purityFilter;
 
-    const babyDetails = getBabySizesDetails(design);
-    let matchesBaby = true;
-    if (babySizesOnly) {
-      matchesBaby = babyDetails.hasBabySizes;
-    }
+      const babyDetails = getBabySizesDetails(design);
+      let matchesBaby = true;
+      if (babySizesOnly) {
+        matchesBaby = babyDetails.hasBabySizes;
+      }
 
-    const priceDetails = getPriceRangeDetails(design, minPrice, maxPrice);
+      const priceDetails = getPriceRangeDetails(design, minPrice, maxPrice);
 
-    return matchesCategory && matchesCollection && matchesPurity && matchesBaby && priceDetails.matchesPrice;
-  }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+      return matchesCategory && matchesCollection && matchesPurity && matchesBaby && priceDetails.matchesPrice;
+    });
+  }, [designs, searchQuery, selectedCatId, selectedCollectionFilter, purityFilter, babySizesOnly, minPrice, maxPrice]);
+
+  // Helper: Calculate total ready stock pieces available for a design
+  const getDesignReadyStockPcs = (design: any): number => {
+    return (design.variants || []).reduce((acc: number, v: any) => {
+      return acc + (v.sizes || []).reduce((sAcc: number, s: any) => {
+        if (s.status !== 'Active') return sAcc;
+        return sAcc + Math.max(0, (s.stock_available || 0) - (s.stock_reserved || 0));
+      }, 0);
+    }, 0);
+  };
+
+  const allCount = baseFilteredDesigns.length;
+
+  const stockCount = useMemo(() => {
+    return baseFilteredDesigns.filter(design => getDesignReadyStockPcs(design) > 0).length;
+  }, [baseFilteredDesigns]);
+
+  const mtoCount = useMemo(() => {
+    return baseFilteredDesigns.filter(design => getDesignReadyStockPcs(design) === 0).length;
+  }, [baseFilteredDesigns]);
+
+  const filteredDesigns = useMemo(() => {
+    return baseFilteredDesigns.filter(design => {
+      const readyStock = getDesignReadyStockPcs(design);
+      if (stockFilter === 'stock') {
+        return readyStock > 0;
+      } else if (stockFilter === 'mto') {
+        return readyStock === 0;
+      }
+      return true;
+    }).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+  }, [baseFilteredDesigns, stockFilter]);
+
+  // Check if any filter is active
+  const hasActiveFilters = Boolean(
+    searchQuery.trim() ||
+    selectedCatId !== null ||
+    selectedCollectionFilter ||
+    purityFilter !== 'All' ||
+    minPrice !== null ||
+    maxPrice !== null ||
+    babySizesOnly ||
+    stockFilter !== 'all'
+  );
 
   // Count designs per category (including children)
   const countForCat = (catId: number) => {
@@ -314,214 +443,298 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     ? filteredDesigns.slice(startIdx, endIdx)
     : filteredDesigns;
 
-  return (
-    <div className="flex flex-col lg:flex-row gap-6 items-start">
-
-      {/* ── Sidebar: Catalog Groups ── */}
-      <aside className="enterprise-card w-full lg:w-60 shrink-0 p-4 lg:sticky lg:top-0 self-start z-10">
-        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">
-          Catalog Groups
-        </h4>
-
+  // Helper: Render sidebar refinement content (shared between desktop aside & mobile drawer)
+  const renderRefinementSidebar = () => (
+    <>
+      {/* Catalog Groups Section */}
+      <div>
+        <h3 className="font-bold text-gray-900 text-sm mb-2.5 tracking-tight">Catalog Groups</h3>
         <div className="space-y-0.5">
           {/* All Collections */}
           <button
-            onClick={() => handleSelectCat(null)}
-            className={`w-full text-left flex items-center justify-between py-2 px-3 rounded-lg transition-colors text-sm font-semibold cursor-pointer ${
+            type="button"
+            onClick={() => {
+              handleSelectCat(null);
+              setIsMobileFilterDrawerOpen(false);
+            }}
+            className={`w-full text-left flex items-center justify-between py-1.5 px-2 rounded-md text-xs transition-colors cursor-pointer ${
               selectedCatId === null
-                ? 'bg-gray-900 text-white'
-                : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                ? 'font-bold text-gray-900 bg-amber-50/80 text-amber-900 border-l-3 border-amber-600 pl-2'
+                : 'text-gray-800 hover:text-amber-700 font-medium'
             }`}
           >
             <span>All Collections</span>
-            <span className={`text-xs font-mono ${selectedCatId === null ? 'text-gray-300' : 'text-gray-400'}`}>
-              {designs.filter(d => d.status === 'Active').length}
+            <span className="text-gray-400 font-mono text-[11px]">
+              ({designs.filter(d => d.status === 'Active').length})
             </span>
           </button>
 
-          {/* Root categories (only show categories that have active designs) */}
-          {rootCategories.filter(cat => countForCat(cat.id) > 0).map(cat => {
-            const children = getChildren(cat.id);
-            const hasChildren = children.length > 0;
-            const isExpanded = expandedRoots.has(cat.id);
-            const isSelected = selectedCatId === cat.id;
-            const count = countForCat(cat.id);
+          {/* Root categories */}
+          {(() => {
+            const activeRootCats = rootCategories.filter(cat => countForCat(cat.id) > 0);
+            const visibleRootCats = showAllCategories ? activeRootCats : activeRootCats.slice(0, 6);
 
             return (
-              <div key={cat.id}>
-                {/* Root Category Row */}
-                <div className="flex items-center gap-1">
-                  {hasChildren && (
-                    <button
-                      onClick={() => toggleRoot(cat.id)}
-                      className="p-1 text-gray-400 hover:text-gray-700 transition-colors rounded cursor-pointer shrink-0"
-                    >
-                      <ChevronRight className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      handleSelectCat(cat.id);
-                      if (hasChildren && !isExpanded) toggleRoot(cat.id);
-                    }}
-                    className={`flex-1 text-left flex items-center justify-between py-2 px-2 rounded-lg transition-colors text-sm cursor-pointer ${
-                      !hasChildren ? 'ml-6' : ''
-                    } ${
-                      isSelected
-                        ? 'bg-gray-900 text-white font-semibold'
-                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900 font-medium'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      {hasChildren
-                        ? isExpanded
-                          ? <FolderOpen className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-gray-300' : 'text-gray-400'}`} />
-                          : <Folder className={`h-3.5 w-3.5 shrink-0 ${isSelected ? 'text-gray-300' : 'text-gray-400'}`} />
-                        : <span className="h-3.5 w-3.5 shrink-0" />
-                      }
-                      <span className="truncate">{cat.name}</span>
-                    </div>
-                    {count > 0 && (
-                      <span className={`text-xs font-mono shrink-0 ${isSelected ? 'text-gray-300' : 'text-gray-400'}`}>
-                        {count}
-                      </span>
-                    )}
-                  </button>
-                </div>
+              <>
+                {visibleRootCats.map((cat) => {
+                  const isSelected = selectedCatId === cat.id;
+                  const count = countForCat(cat.id);
+                  const children = getChildren(cat.id);
+                  const hasChildren = children.length > 0;
+                  const isExpanded = expandedRoots.has(cat.id);
 
-                {/* Children (shown when expanded) */}
-                {hasChildren && isExpanded && (
-                  <div className="ml-6 mt-0.5 space-y-0.5 border-l-2 border-gray-100 pl-2">
-                    {children.map(child => {
-                      const grandChildren = getChildren(child.id);
-                      const hasGrand = grandChildren.length > 0;
-                      const childSelected = selectedCatId === child.id;
-                      const childCount = countForCat(child.id);
-                      const childExpanded = expandedRoots.has(child.id);
-
-                      return (
-                        <div key={child.id}>
-                          <div className="flex items-center gap-1">
-                            {hasGrand && (
-                              <button
-                                onClick={() => toggleRoot(child.id)}
-                                className="p-1 text-gray-400 hover:text-gray-700 transition-colors rounded cursor-pointer shrink-0"
-                              >
-                                <ChevronRight className={`h-3 w-3 transition-transform ${childExpanded ? 'rotate-90' : ''}`} />
-                              </button>
-                            )}
+                  return (
+                    <div key={cat.id}>
+                      <div className={`flex items-center justify-between py-1 px-1.5 rounded-md transition-colors ${isSelected ? 'bg-amber-50/80 font-bold border-l-3 border-amber-600' : 'hover:bg-gray-50'}`}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSelectCat(cat.id);
+                            setIsMobileFilterDrawerOpen(false);
+                          }}
+                          className={`flex-1 text-left text-xs truncate cursor-pointer ${
+                            isSelected
+                              ? 'font-bold text-amber-900'
+                              : 'text-gray-700 hover:text-amber-700 font-medium'
+                          }`}
+                        >
+                          {cat.name}
+                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-gray-400 font-mono text-[11px]">({count})</span>
+                          {hasChildren && (
                             <button
-                              onClick={() => handleSelectCat(child.id)}
-                              className={`flex-1 text-left flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors text-xs cursor-pointer ${
-                                !hasGrand ? 'ml-5' : ''
-                              } ${
-                                childSelected
-                                  ? 'bg-gray-800 text-white font-semibold'
-                                  : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 font-medium'
-                              }`}
+                              type="button"
+                              onClick={() => toggleRoot(cat.id)}
+                              className="p-0.5 text-gray-400 hover:text-gray-700 cursor-pointer"
                             >
-                              <span className="truncate">{child.name}</span>
-                              {childCount > 0 && (
-                                <span className={`text-xs font-mono shrink-0 ${childSelected ? 'text-gray-300' : 'text-gray-400'}`}>
-                                  {childCount}
-                                </span>
-                              )}
+                              {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                             </button>
-                          </div>
-
-                          {/* Grandchildren */}
-                          {hasGrand && childExpanded && (
-                            <div className="ml-5 mt-0.5 space-y-0.5 border-l-2 border-gray-100 pl-2">
-                              {grandChildren.map(grand => {
-                                const grandSelected = selectedCatId === grand.id;
-                                const grandCount = countForCat(grand.id);
-                                return (
-                                  <button
-                                    key={grand.id}
-                                    onClick={() => handleSelectCat(grand.id)}
-                                    className={`w-full text-left flex items-center justify-between py-1.5 px-2 rounded-lg transition-colors text-xs cursor-pointer ${
-                                      grandSelected
-                                        ? 'bg-gray-800 text-white font-semibold'
-                                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                                    }`}
-                                  >
-                                    <span className="truncate">{grand.name}</span>
-                                    {grandCount > 0 && (
-                                      <span className={`text-xs font-mono ${grandSelected ? 'text-gray-300' : 'text-gray-400'}`}>
-                                        {grandCount}
-                                      </span>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
                           )}
                         </div>
-                      );
-                    })}
-                  </div>
+                      </div>
+
+                      {/* Sub-categories */}
+                      {hasChildren && isExpanded && (
+                        <div className="ml-3 border-l border-gray-200 pl-2 space-y-0.5 my-1">
+                          {children.map((child) => {
+                            const childSelected = selectedCatId === child.id;
+                            const childCount = countForCat(child.id);
+                            return (
+                              <button
+                                key={child.id}
+                                type="button"
+                                onClick={() => {
+                                  handleSelectCat(child.id);
+                                  setIsMobileFilterDrawerOpen(false);
+                                }}
+                                className={`w-full text-left flex items-center justify-between py-1 px-1.5 text-[11px] rounded transition-colors cursor-pointer ${
+                                  childSelected
+                                    ? 'font-bold text-amber-900 bg-amber-50'
+                                    : 'text-gray-600 hover:text-amber-700'
+                                }`}
+                              >
+                                <span className="truncate">{child.name}</span>
+                                <span className="text-gray-400 font-mono">({childCount})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Amazon-style See More / See Less Button */}
+                {activeRootCats.length > 6 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCategories(prev => !prev)}
+                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 pt-2 px-1 cursor-pointer transition-colors"
+                  >
+                    {showAllCategories ? (
+                      <>
+                        <ChevronUp className="h-3.5 w-3.5" />
+                        <span>See less</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5" />
+                        <span>See more</span>
+                      </>
+                    )}
+                  </button>
                 )}
-              </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Purity Refinement */}
+      <div className="pt-4 border-t border-gray-200">
+        <h3 className="font-bold text-gray-900 text-sm mb-2 tracking-tight">Purity</h3>
+        <div className="space-y-1">
+          {['All', '92.5', '80', '70'].map((purityVal) => {
+            const label = purityVal === 'All' ? 'All Purities' : purityVal === '92.5' ? 'Silver 925 (92.5%)' : `${purityVal}% Silver`;
+            const isSelected = purityFilter === purityVal;
+            const count = purityVal === 'All' 
+              ? designs.filter(d => d.status === 'Active').length 
+              : designs.filter(d => d.status === 'Active' && d.purity.toString() === purityVal).length;
+            if (count === 0 && purityVal !== 'All') return null;
+
+            return (
+              <button
+                key={purityVal}
+                type="button"
+                onClick={() => setPurityFilter(purityVal)}
+                className={`w-full text-left py-1 px-1.5 text-xs transition-colors flex items-center justify-between rounded-md cursor-pointer ${
+                  isSelected ? 'font-bold text-amber-900 bg-amber-50' : 'text-gray-700 hover:text-amber-700'
+                }`}
+              >
+                <span className="truncate">{label}</span>
+                <span className="text-[11px] font-mono text-gray-400">({count})</span>
+              </button>
             );
           })}
         </div>
+      </div>
 
-        {/* Active filter indicator */}
-        {selectedCatId !== null && (
-          <div className="mt-4 pt-3 border-t border-gray-200">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-gray-500">Filtering by:</span>
-              <button
-                onClick={() => handleSelectCat(null)}
-                className="text-xs text-blue-600 hover:text-blue-800 font-semibold cursor-pointer"
-              >
-                Clear ×
-              </button>
-            </div>
-            <p className="text-xs font-semibold text-gray-800 mt-1 truncate">
-              {categories.find(c => c.id === selectedCatId)?.name}
-            </p>
+      {/* Price Range Filter */}
+      <div className="pt-4 border-t border-gray-200">
+        <h3 className="font-bold text-gray-900 text-sm mb-2 tracking-tight">Price Range (₹)</h3>
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              placeholder="₹ Min"
+              value={minPrice || ''}
+              onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : null)}
+              className="w-full text-xs px-2 py-1.5 border border-gray-300 rounded-md focus:border-amber-500 focus:outline-none"
+            />
+            <span className="text-gray-400 text-xs">–</span>
+            <input
+              type="number"
+              placeholder="₹ Max"
+              value={maxPrice || ''}
+              onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : null)}
+              className="w-full text-xs px-2 py-1.5 border border-gray-300 rounded-md focus:border-amber-500 focus:outline-none"
+            />
           </div>
-        )}
-        {/* Price Range Filter */}
-        <div className="mt-5 pt-4 border-t border-gray-200">
-          <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 px-1">
-            Price Range (₹)
-          </h4>
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1 pl-1">Min Price</label>
-                <input
-                  type="number"
-                  placeholder="Min"
-                  value={minPrice || ''}
-                  onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : null)}
-                  className="input px-2.5 text-xs h-9"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wider block mb-1 pl-1">Max Price</label>
-                <input
-                  type="number"
-                  placeholder="Max"
-                  value={maxPrice || ''}
-                  onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : null)}
-                  className="input px-2.5 text-xs h-9"
-                />
-              </div>
-            </div>
-            {(minPrice !== null || maxPrice !== null) && (
-              <button
-                onClick={() => { setMinPrice(null); setMaxPrice(null); }}
-                className="w-full btn-secondary text-xs py-1.5 cursor-pointer font-bold"
-              >
-                Clear Price Filter
-              </button>
+          {(minPrice !== null || maxPrice !== null) && (
+            <button
+              type="button"
+              onClick={() => { setMinPrice(null); setMaxPrice(null); }}
+              className="w-full text-xs font-semibold text-blue-600 hover:text-blue-800 text-left cursor-pointer"
+            >
+              Clear Price Filter
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active Filters Summary */}
+      {(selectedCatId !== null || purityFilter !== 'All' || minPrice !== null || maxPrice !== null) && (
+        <div className="pt-4 border-t border-gray-200">
+          <div className="flex items-center justify-between mb-1.5">
+            <span className="font-bold text-gray-900 text-xs">Active Filters</span>
+            <button
+              type="button"
+              onClick={() => {
+                handleSelectCat(null);
+                setPurityFilter('All');
+                setMinPrice(null);
+                setMaxPrice(null);
+              }}
+              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer"
+            >
+              Clear all
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {selectedCatId !== null && (
+              <span className="bg-gray-100 text-gray-800 border border-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                {categories.find(c => c.id === selectedCatId)?.name}
+                <button type="button" onClick={() => handleSelectCat(null)} className="hover:text-red-600 cursor-pointer">×</button>
+              </span>
+            )}
+            {purityFilter !== 'All' && (
+              <span className="bg-gray-100 text-gray-800 border border-gray-300 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1">
+                {purityFilter}% Silver
+                <button type="button" onClick={() => setPurityFilter('All')} className="hover:text-red-600 cursor-pointer">×</button>
+              </span>
             )}
           </div>
         </div>
+      )}
+    </>
+  );
+
+  return (
+    <div className="flex flex-col lg:flex-row gap-6 items-start">
+
+      {/* ── Desktop Sidebar: Amazon-Style Refinement Panel ── */}
+      <aside className="hidden lg:block w-56 shrink-0 bg-white border border-gray-200 rounded-xl p-4 sticky top-0 self-start z-10 space-y-5 shadow-2xs">
+        {renderRefinementSidebar()}
       </aside>
+
+      {/* ── Mobile Filter Drawer Toggle Button ── */}
+      <div className="lg:hidden w-full mb-1">
+        <button
+          type="button"
+          onClick={() => setIsMobileFilterDrawerOpen(true)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-900 text-white rounded-xl font-extrabold text-xs shadow-sm cursor-pointer hover:bg-slate-800 transition-all"
+        >
+          <div className="flex items-center gap-2">
+            <Folder className="h-4 w-4 text-amber-400" />
+            <span>Catalog Groups & Filters</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="bg-slate-800 text-amber-300 text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold">
+              {selectedCatId ? (categories.find(c => c.id === selectedCatId)?.name || 'Filtered') : 'All Collections'}
+            </span>
+            <ChevronDown className="h-4 w-4 text-gray-300" />
+          </div>
+        </button>
+      </div>
+
+      {/* ── Mobile Filter Drawer Modal ── */}
+      {isMobileFilterDrawerOpen && (
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs z-50 flex justify-start lg:hidden">
+          <div
+            className="fixed inset-0"
+            onClick={() => setIsMobileFilterDrawerOpen(false)}
+          />
+          <div className="relative w-4/5 max-w-xs bg-white h-full overflow-y-auto p-4 shadow-2xl space-y-5 z-10 animate-in slide-in-from-left duration-200 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between border-b pb-3">
+                <div className="flex items-center gap-2 font-extrabold text-gray-900 text-sm">
+                  <Folder className="h-4.5 w-4.5 text-amber-600" />
+                  <span>Catalog Groups & Filters</span>
+                </div>
+                <button
+                  onClick={() => setIsMobileFilterDrawerOpen(false)}
+                  className="p-1 text-gray-400 hover:text-gray-700 rounded-full cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {renderRefinementSidebar()}
+            </div>
+
+            <div className="pt-3 border-t border-gray-100 sticky bottom-0 bg-white">
+              <button
+                type="button"
+                onClick={() => setIsMobileFilterDrawerOpen(false)}
+                className="w-full py-3 bg-slate-900 text-white font-extrabold text-xs rounded-xl shadow-md cursor-pointer"
+              >
+                View Results ({totalItemsCount} Products)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Main Content ── */}
       <div className="flex-1 space-y-6 min-w-0">
@@ -547,39 +760,90 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         )}
 
         {/* Toolbar */}
-        <div className="table-toolbar">
-          <div className="search-field">
-            <input
-              type="text"
-              placeholder="Search design code, name, variant..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="input pr-8"
-            />
-            <Search className="h-4 w-4 search-icon" />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+        <div className="table-toolbar flex flex-wrap items-center justify-between gap-3">
+          {/* Left section: Search bar & Baby sizes */}
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="search-field !flex-none w-full sm:w-60 md:w-64 relative">
+              <input
+                type="text"
+                placeholder="Search design code, name, variant..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="input pr-8"
+              />
+              <Search className="h-4 w-4 search-icon" />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            <label className="flex items-center space-x-2 cursor-pointer select-none text-sm text-gray-600 bg-gray-50 border border-gray-200 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors shrink-0">
+              <input
+                type="checkbox"
+                checked={babySizesOnly}
+                onChange={(e) => setBabySizesOnly(e.target.checked)}
+                className="h-4 w-4 accent-gray-900"
+              />
+              <span>Baby Sizes (&lt;8.0&quot; Only)</span>
+            </label>
           </div>
 
-          <label className="flex items-center space-x-2 cursor-pointer select-none text-sm text-gray-600">
-            <input
-              type="checkbox"
-              checked={babySizesOnly}
-              onChange={(e) => setBabySizesOnly(e.target.checked)}
-              className="h-4 w-4 accent-gray-900"
-            />
-            <span>Baby Sizes (&lt;8.0&quot; Only)</span>
-          </label>          
+          {/* Right section: Stock Product & Make to Order Availability Filter */}
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1.5 rounded-xl border border-gray-200 shrink-0 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setStockFilter('all')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                stockFilter === 'all'
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              <span>All</span>
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${stockFilter === 'all' ? 'bg-gray-200 text-gray-800' : 'bg-gray-200/60 text-gray-600'}`}>
+                {allCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockFilter('stock')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                stockFilter === 'stock'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-emerald-700 hover:bg-white/60'
+              }`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${stockFilter === 'stock' ? 'bg-white' : 'bg-emerald-500'}`} />
+              <span>Stock Product</span>
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${stockFilter === 'stock' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+                {stockCount}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStockFilter('mto')}
+              className={`flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all cursor-pointer ${
+                stockFilter === 'mto'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-gray-600 hover:text-amber-700 hover:bg-white/60'
+              }`}
+            >
+              <span className={`h-2.5 w-2.5 rounded-full ${stockFilter === 'mto' ? 'bg-white' : 'bg-amber-500'}`} />
+              <span>Make to Order</span>
+              <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded-full ${stockFilter === 'mto' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-800'}`}>
+                {mtoCount}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* Results count */}
-        {(selectedCatId !== null || searchQuery || minPrice !== null || maxPrice !== null) && (() => {
+        {(selectedCatId !== null || searchQuery || minPrice !== null || maxPrice !== null || stockFilter !== 'all') && (() => {
           const isChildOnlySearch = searchQuery.trim() !== '' && filteredDesigns.length > 0 &&
             filteredDesigns.every(design => {
               const sm = getDesignSearchMatch(design, searchQuery);
@@ -653,11 +917,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                           <span className="absolute top-2 right-2 bg-white/90 border border-gray-200 text-[10px] font-bold text-gray-700 uppercase px-2 py-1 rounded">
                             {design.collection || 'New Arrival'}
                           </span>
-                          {hasBabyInVariant && (
-                            <span className="absolute bottom-2 right-2 bg-emerald-700 text-white text-[10px] font-bold px-2 py-0.5 rounded">
-                              Baby Sizes Available
-                            </span>
-                          )}
+
                           {catName && (
                             <span className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
                               {catName}
@@ -686,7 +946,21 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                   </span>
                                 </div>
                               </div>
-                              <span className="badge-neutral shrink-0">MOQ: {design.moq} pcs</span>
+                              {(() => {
+                                const totalReadyStockPcs = (matchedV.sizes || []).reduce((sAcc: number, s: any) => {
+                                  if (s.status !== 'Active') return sAcc;
+                                  return sAcc + Math.max(0, (s.stock_available || 0) - (s.stock_reserved || 0));
+                                }, 0);
+                                return totalReadyStockPcs > 0 ? (
+                                  <span className="badge-success shrink-0">
+                                    In Stock ({totalReadyStockPcs} pcs)
+                                  </span>
+                                ) : (
+                                  <span className="badge-warning shrink-0">
+                                    Make to Order
+                                  </span>
+                                );
+                              })()}
                             </div>
                             <div className="flex flex-wrap gap-2 text-xs text-gray-500 mt-1.5">
                               <span>⚖ {design.weight_range || '18.5 - 24.3g'}</span>
@@ -728,11 +1002,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                   return (
                                     <div
                                       key={sz.id || idx}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onSelectProduct(design.name, matchedV.id, sz.id);
-                                      }}
-                                      className="flex items-center justify-between px-3 py-2 hover:bg-blue-50 hover:border-l-2 hover:border-l-blue-500 transition-all cursor-pointer group/sz"
+                                      onClick={(e) => handleQuickAddToCart(e, design, matchedV.id, sz.id)}
+                                      className="flex items-center justify-between px-3 py-2 hover:bg-emerald-50/60 transition-all cursor-pointer group/sz"
                                     >
                                       <div className="flex items-center gap-2">
                                         <span className="font-extrabold text-gray-900 text-sm w-12">{sz.size}"</span>
@@ -743,7 +1014,43 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                       </div>
                                       <div className="flex items-center gap-3">
                                         <span className="font-mono font-extrabold text-gray-900 text-sm">₹{priceObj.total.toLocaleString('en-IN')}</span>
-                                        <span className="text-[9px] text-blue-600 font-bold group-hover/sz:underline">Select →</span>
+                                        {(() => {
+                                          const itemQty = getCartItemQuantity(matchedV.id, sz.id);
+                                          return itemQty > 0 ? (
+                                            <div
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="flex items-center gap-1 bg-amber-50 border border-amber-300 rounded-lg p-0.5 shadow-2xs"
+                                            >
+                                              <button
+                                                type="button"
+                                                onClick={(e) => handleDecrementQuantity(e, matchedV.id, sz.id)}
+                                                className="h-6 w-6 flex items-center justify-center bg-white text-amber-900 border border-amber-200 rounded font-bold text-xs hover:bg-amber-100 cursor-pointer transition-colors"
+                                                title="Decrease quantity"
+                                              >
+                                                −
+                                              </button>
+                                              <span className="font-mono font-extrabold text-amber-950 text-xs px-1.5 min-w-[18px] text-center">
+                                                {itemQty}
+                                              </span>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => handleQuickAddToCart(e, design, matchedV.id, sz.id)}
+                                                className="h-6 w-6 flex items-center justify-center bg-amber-600 text-white rounded font-bold text-xs hover:bg-amber-700 cursor-pointer transition-colors"
+                                                title="Increase quantity"
+                                              >
+                                                +
+                                              </button>
+                                            </div>
+                                          ) : (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => handleQuickAddToCart(e, design, matchedV.id, sz.id)}
+                                              className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs transition-colors cursor-pointer"
+                                            >
+                                              + Add
+                                            </button>
+                                          );
+                                        })()}
                                       </div>
                                     </div>
                                   );
@@ -859,10 +1166,12 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
               return (
                 <div
                   key={design.id}
-                  onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
-                  className="catalog-card group cursor-pointer"
+                  className="catalog-card group"
                 >
-                  <div className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200">
+                  <div
+                    className="aspect-video bg-gray-100 relative overflow-hidden border-b border-gray-200 cursor-pointer"
+                    onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
+                  >
                     <img
                       src={
                         defaultVariant?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
@@ -894,12 +1203,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                       </span>
                     )}
 
-                    {/* Baby Sizes Available Tag */}
-                    {babyDetails.hasBabySizes && !babySizesOnly && (
-                      <span className="absolute bottom-3 right-3 bg-emerald-700 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-sm">
-                        Baby Sizes ({babyDetails.babySizes.map(s => `${s}"`).join(', ')})
-                      </span>
-                    )}
+
 
                     {/* Wishlist Heart Button */}
                     <button
@@ -921,16 +1225,58 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
                   <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                     <div className="space-y-2">
-                      <div className="flex justify-between items-start gap-3">
-                        <span className="text-xs text-gray-500 font-mono tracking-wide font-semibold">{design.design_code}</span>
-                        <span className="badge-neutral">MOQ: {design.moq} pcs</span>
-                      </div>
-                      <h3 className="text-lg font-bold text-gray-900 leading-snug">{design.name}</h3>
-                      
-                      <div className="flex flex-wrap gap-2 text-xs text-gray-500">
-                        <span>⚖ {design.weight_range || '18.5 - 24.3g'}</span>
-                        <span>• {design.variants.length} variant{design.variants.length !== 1 ? 's' : ''}</span>
-                        <span>• {design.metal}</span>
+                      {(() => {
+                        const totalReadyStockPcs = getDesignReadyStockPcs(design);
+                        return (
+                          <div className="flex justify-between items-center gap-2">
+                            {/* Left: design code */}
+                            <span className="text-xs text-gray-500 font-mono tracking-wide font-semibold">{design.design_code}</span>
+
+                            {/* Right: badge only */}
+                            {totalReadyStockPcs > 0 ? (
+                              <span className="badge-success whitespace-nowrap shrink-0">
+                                In Stock ({totalReadyStockPcs} pcs)
+                              </span>
+                            ) : (
+                              <span className="badge-warning whitespace-nowrap shrink-0">
+                                Make to Order
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
+
+                      {/* Product name — full width, click to navigate */}
+                      <h3
+                        className="text-lg font-bold text-gray-900 leading-snug cursor-pointer hover:text-amber-700 transition-colors"
+                        onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
+                      >
+                        {design.name}
+                      </h3>
+
+                      {/* Weight info + Add Cart button on same row */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                          <span>⚖ {design.weight_range || '18.5 - 24.3g'}</span>
+                          <span>• {design.variants.length} variant{design.variants.length !== 1 ? 's' : ''}</span>
+                          <span>• {design.metal}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setQuickAddModalDesign(design);
+                            const firstVar = design.variants[0];
+                            setSelectedQuickVariantId(firstVar?.id || null);
+                            setSelectedQuickSizeId(firstVar?.sizes[0]?.id || null);
+                            setQuickQuantity(1);
+                          }}
+                          className="shrink-0 bg-slate-900 hover:bg-slate-700 active:bg-slate-950 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg border border-slate-800 cursor-pointer transition-all flex items-center gap-1 shadow-sm"
+                        >
+                          <ShoppingBag className="h-3 w-3" />
+                          Add Cart
+                        </button>
                       </div>
 
                       {/* Filter Match Summary Badges */}
@@ -955,15 +1301,12 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                             {displayVariantItems.map((item: any, idx: number) => (
                               <div
                                 key={`${item.variantId}-${item.sizeId}-${idx}`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onSelectProduct(design.name, item.variantId, item.sizeId);
-                                }}
-                                className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-center justify-between text-xs hover:border-emerald-500 hover:shadow-xs transition-all cursor-pointer group/item"
+                                onClick={(e) => handleQuickAddToCart(e, design, item.variantId, item.sizeId)}
+                                className="bg-white border border-gray-200 rounded-lg p-2.5 flex items-center justify-between text-xs hover:border-amber-500 hover:shadow-xs transition-all cursor-pointer group/item"
                               >
                                 <div className="space-y-0.5 min-w-0 pr-2">
                                   <div className="flex items-center gap-1.5 flex-wrap font-semibold text-gray-900">
-                                    <span className="text-emerald-800 font-bold">Size: {item.size}&quot;</span>
+                                    <span className="text-amber-800 font-bold">Size: {item.size}&quot;</span>
                                     <span className="text-gray-300">•</span>
                                     <span>Weight: {item.weight}g</span>
                                   </div>
@@ -973,11 +1316,47 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                     {item.purity && <span>{item.purity}</span>}
                                   </div>
                                 </div>
-                                <div className="text-right shrink-0">
+                                <div className="text-right shrink-0 flex flex-col items-end gap-1">
                                   <span className="font-mono font-extrabold text-gray-900 text-xs block">
                                     ₹{item.price.toLocaleString('en-IN')}
                                   </span>
-                                  <span className="text-[9px] text-blue-600 font-bold group-hover/item:underline">Select →</span>
+                                  {(() => {
+                                    const itemQty = getCartItemQuantity(item.variantId, item.sizeId);
+                                    return itemQty > 0 ? (
+                                      <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex items-center gap-1 bg-amber-50 border border-amber-300 rounded-lg p-0.5 shadow-2xs"
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleDecrementQuantity(e, item.variantId, item.sizeId)}
+                                          className="h-6 w-6 flex items-center justify-center bg-white text-amber-900 border border-amber-200 rounded font-bold text-xs hover:bg-amber-100 cursor-pointer transition-colors"
+                                          title="Decrease quantity"
+                                        >
+                                          −
+                                        </button>
+                                        <span className="font-mono font-extrabold text-amber-950 text-xs px-1.5 min-w-[18px] text-center">
+                                          {itemQty}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => handleQuickAddToCart(e, design, item.variantId, item.sizeId)}
+                                          className="h-6 w-6 flex items-center justify-center bg-amber-600 text-white rounded font-bold text-xs hover:bg-amber-700 cursor-pointer transition-colors"
+                                          title="Increase quantity"
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => handleQuickAddToCart(e, design, item.variantId, item.sizeId)}
+                                        className="bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold px-2.5 py-1 rounded-full shadow-2xs transition-colors cursor-pointer"
+                                      >
+                                        + Add
+                                      </button>
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             ))}
@@ -986,7 +1365,10 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                       )}
                     </div>
 
-                    <div className="border-t border-gray-200 pt-4 flex justify-between items-end text-sm">
+                    <div
+                      className="border-t border-gray-200 pt-4 flex justify-between items-end text-sm cursor-pointer"
+                      onClick={() => onSelectProduct(design.name, targetVariantId, targetSizeId)}
+                    >
                       <div>
                         <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
                           {priceDetails.hasPriceFilter
@@ -1019,9 +1401,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                           )}
                         </p>
                       </div>
-                      <div className="flex items-center space-x-1.5 text-gray-700 font-bold group-hover:text-gray-900 transition-colors">
+                      <div className="flex items-center space-x-1 text-gray-500 font-bold group-hover:text-gray-900 transition-colors text-xs">
                         <span>View</span>
-                        <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
+                        <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                       </div>
                     </div>
                   </div>
@@ -1030,36 +1412,55 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             })}
           </div>
         )) : (
-          <div className="empty-state max-w-md mx-auto mt-12">
-            <AlertCircle className="h-10 w-10 text-gray-400 mx-auto" />
-            <h4 className="text-lg font-bold text-gray-900 mt-3">
-              {searchQuery || selectedCatId ? 'No Matching Designs' : 'No Designs Loaded'}
-            </h4>
-            <p className="text-sm text-gray-500 leading-relaxed mt-2">
-              {searchQuery || selectedCatId
-                ? 'Try adjusting your filters or search query.'
-                : 'Sync the catalog if you just started the backend server.'}
-            </p>
-            {!searchQuery && !selectedCatId && (
-              <button
-                onClick={() => { fetchCategories(); fetchDesigns(); }}
-                className="mt-4 btn-secondary"
-              >
-                Sync Catalog
-              </button>
-            )}
-            {(searchQuery || selectedCatId || minPrice !== null || maxPrice !== null) && (
-              <button
-                onClick={() => { 
-                  setSearchQuery(''); 
-                  handleSelectCat(null); 
-                  setMinPrice(null); 
-                  setMaxPrice(null); 
-                }}
-                className="mt-4 btn-secondary"
-              >
-                Clear Filters
-              </button>
+          <div className="bg-white border border-gray-200 rounded-2xl p-10 text-center max-w-lg mx-auto mt-8 shadow-xs">
+            {hasActiveFilters || designs.length > 0 ? (
+              <>
+                <div className="h-14 w-14 bg-amber-50 text-amber-700 rounded-full flex items-center justify-center mx-auto mb-4 border border-amber-200">
+                  <Search className="h-7 w-7" />
+                </div>
+                <h4 className="text-xl font-extrabold text-gray-900">
+                  No Products Found
+                </h4>
+                <p className="text-sm text-gray-600 leading-relaxed mt-2">
+                  We couldn't find any products matching your search or active filter criteria.
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  Try adjusting your price range, clearing category filters, or searching with different keywords.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { 
+                    setSearchQuery(''); 
+                    handleSelectCat(null); 
+                    setPurityFilter('All');
+                    setMinPrice(null); 
+                    setMaxPrice(null); 
+                    setBabySizesOnly(false);
+                    setStockFilter('all');
+                  }}
+                  className="mt-6 inline-flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white font-bold text-xs px-5 py-2.5 rounded-xl shadow-xs transition-all cursor-pointer"
+                >
+                  <X className="h-4 w-4" />
+                  <span>Clear All Filters</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <AlertCircle className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                <h4 className="text-lg font-extrabold text-gray-900">
+                  No Designs Loaded
+                </h4>
+                <p className="text-sm text-gray-500 leading-relaxed mt-1">
+                  Sync the catalog if you just started the backend server.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => { fetchCategories(); fetchDesigns(); }}
+                  className="mt-5 btn-secondary text-xs px-4 py-2 cursor-pointer font-bold"
+                >
+                  Sync Catalog
+                </button>
+              </>
             )}
           </div>
         )}
@@ -1103,6 +1504,169 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
           </div>
         )}
       </div>
+
+      {/* ── Quick Size Selection Modal (matches Product Detail style) ── */}
+      {quickAddModalDesign && (
+        <div
+          onClick={() => {
+            setQuickAddModalDesign(null);
+            setQuickSizeQuantities({});
+          }}
+          className="fixed inset-0 bg-gray-900/70 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92vh] overflow-hidden shadow-2xl border border-gray-200 flex flex-col cursor-default"
+          >
+
+            {/* ── Modal Header ── */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 bg-gray-50/80 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="h-11 w-11 rounded-xl border border-gray-200 overflow-hidden bg-white shrink-0">
+                  <img
+                    src={
+                      quickAddModalDesign.variants?.find((v: any) => v.id === selectedQuickVariantId)?.media?.find((m: any) => m.file_type?.startsWith('image'))?.url ||
+                      quickAddModalDesign.media?.find((m: any) => m.file_type?.startsWith('image'))?.url ||
+                      'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=400'
+                    }
+                    alt={quickAddModalDesign.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div>
+                  <p className="font-extrabold text-gray-900 text-sm leading-tight">{quickAddModalDesign.name}</p>
+                  <p className="text-[11px] text-gray-500 font-mono">{quickAddModalDesign.design_code}</p>
+                </div>
+              </div>
+              <button type="button" onClick={() => { setQuickAddModalDesign(null); setQuickSizeQuantities({}); }} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors cursor-pointer">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* ── Scrollable Content ── */}
+            <div className="overflow-y-auto flex-1 p-5">
+              <SizeConfigurator
+                design={quickAddModalDesign}
+                selectedVariantId={selectedQuickVariantId}
+                onSelectVariant={(varId) => {
+                  setSelectedQuickVariantId(varId);
+                  setQuickSizeQuantities({});
+                }}
+                sizeQuantities={quickSizeQuantities}
+                onUpdateQuantity={(sizeId, qty) => {
+                  setQuickSizeQuantities(prev => {
+                    if (qty <= 0) {
+                      const copy = { ...prev };
+                      delete copy[sizeId];
+                      return copy;
+                    }
+                    return { ...prev, [sizeId]: qty };
+                  });
+                }}
+                onRemoveSize={(sizeId) => {
+                  setQuickSizeQuantities(prev => {
+                    const copy = { ...prev };
+                    delete copy[sizeId];
+                    return copy;
+                  });
+                }}
+                onToggleSizePill={(sizeId) => {
+                  setQuickSizeQuantities(prev => ({
+                    ...prev,
+                    [sizeId]: (prev[sizeId] || 0) + 1
+                  }));
+                }}
+              />
+            </div>
+
+            {/* ── Footer: Add to Cart CTA ── */}
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/80 shrink-0">
+              <button
+                type="button"
+                disabled={Object.keys(quickSizeQuantities).length === 0}
+                onClick={() => {
+                  if (!quickAddModalDesign) return;
+                  const currentVar = quickAddModalDesign.variants?.find((v: any) => v.id === selectedQuickVariantId) || quickAddModalDesign.variants?.[0];
+                  const itemsToAdd: any[] = [];
+
+                  Object.entries(quickSizeQuantities).forEach(([sizeIdStr, qty]) => {
+                    const sizeId = Number(sizeIdStr);
+                    const sizeObj = currentVar?.sizes?.find((s: any) => s.id === sizeId);
+                    if (!sizeObj || qty <= 0) return;
+
+                    const totalAvailableReady = Math.max(0, (sizeObj.stock_available || 0) - (sizeObj.stock_reserved || 0));
+                    
+                    // Count how many ready_stock are already in cart for this size
+                    const currentReadyInCart = cart
+                      .filter(item => item.variant?.id === currentVar?.id && item.size?.id === sizeObj.id && item.orderType === 'ready_stock')
+                      .reduce((sum, item) => sum + item.quantity, 0);
+
+                    const remainingReadyAvailable = Math.max(0, totalAvailableReady - currentReadyInCart);
+                    const readyQty = Math.min(qty, remainingReadyAvailable);
+                    const mtoQty = qty - readyQty;
+
+                    const breakdown = calculatePriceBreakdown(
+                      sizeObj.weight,
+                      quickAddModalDesign.purity,
+                      quickAddModalDesign.wastage_percent,
+                      quickAddModalDesign.making_charge_per_gram
+                    );
+
+                    if (readyQty > 0) {
+                      itemsToAdd.push({
+                        design: quickAddModalDesign,
+                        variant: currentVar,
+                        size: sizeObj,
+                        quantity: readyQty,
+                        orderType: 'ready_stock',
+                        lockedPrice: breakdown.total,
+                        lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                        lockedEffectiveWeight: breakdown.effectiveWeight,
+                        lockedBasePrice: breakdown.basePrice,
+                        lockedMakingCharges: breakdown.makingCharges,
+                        lockedGst: breakdown.gst
+                      });
+                    }
+
+                    if (mtoQty > 0) {
+                      itemsToAdd.push({
+                        design: quickAddModalDesign,
+                        variant: currentVar,
+                        size: sizeObj,
+                        quantity: mtoQty,
+                        orderType: 'make_order',
+                        lockedPrice: breakdown.total,
+                        lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                        lockedEffectiveWeight: breakdown.effectiveWeight,
+                        lockedBasePrice: breakdown.basePrice,
+                        lockedMakingCharges: breakdown.makingCharges,
+                        lockedGst: breakdown.gst
+                      });
+                    }
+                  });
+
+                  if (itemsToAdd.length > 0) {
+                    addMultipleToCart(itemsToAdd);
+                  }
+
+                  setQuickAddModalDesign(null);
+                  setQuickSizeQuantities({});
+                }}
+                className={`w-full py-4 rounded-2xl font-extrabold text-sm flex items-center justify-center gap-2.5 transition-all ${
+                  Object.keys(quickSizeQuantities).length > 0
+                    ? 'bg-slate-900 hover:bg-slate-800 active:bg-slate-950 text-white shadow-lg cursor-pointer'
+                    : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                }`}
+              >
+                <ShoppingBag className="h-4 w-4" />
+                {Object.keys(quickSizeQuantities).length > 0
+                  ? 'Add Selected Sizes to Cart (' + Object.values(quickSizeQuantities).reduce((a, b) => a + b, 0) + ' pcs)'
+                  : 'Select at Least One Size'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

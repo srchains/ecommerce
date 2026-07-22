@@ -46,55 +46,88 @@ def create_order(order_in: OrderCreate, db: Session = Depends(get_db)):
     db.add(db_customer)
     
     for item in order_in.items:
-        # Check if the variant and size exists
-        # To identify, we'll look up by variant_code and size
-        # We need size as float since it's float in the DB
         try:
             size_val = float(item.size)
         except ValueError:
-            raise HTTPException(status_code=400, detail=f"Invalid size value: {item.size}")
-            
+            size_val = 0.0
+
+        # Bulletproof variant_size lookup: try variant_code, then design_code + size
         variant_size = db.query(VariantSize).join(ProductVariant).filter(
             ProductVariant.variant_code == item.variant_code,
             VariantSize.size == size_val
         ).first()
         
         if not variant_size:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"Variant code {item.variant_code} with size {item.size} not found in catalog"
-            )
+            variant_size = db.query(VariantSize).join(ProductVariant).join(ProductDesign).filter(
+                ProductDesign.design_code == item.design_code,
+                VariantSize.size == size_val
+            ).first()
+
+        if not variant_size:
+            variant_size = db.query(VariantSize).join(ProductVariant).join(ProductDesign).filter(
+                ProductDesign.design_code == item.design_code
+            ).first()
             
+        avail_stock = variant_size.stock_available if variant_size else 0
+
         if item.order_type == "ready_stock":
-            # Check inventory
-            if variant_size.stock_available < item.quantity:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Insufficient ready stock for {item.variant_code} (Size {item.size}). Requested: {item.quantity}, Available: {variant_size.stock_available}"
-                )
-            # Deduct inventory
-            variant_size.stock_available -= item.quantity
+            actual_ready = min(item.quantity, max(0, avail_stock))
+            excess_mto = item.quantity - actual_ready
             
-        # Create order item
-        db_item = OrderItem(
-            order_id=db_order.id,
-            design_code=item.design_code,
-            variant_code=item.variant_code,
-            size=item.size,
-            weight=item.weight,
-            quantity=item.quantity,
-            order_type=item.order_type,
-            price=item.price
-        )
-        db.add(db_item)
-        db.flush() # Get order item ID
-        
-        # If it is made-to-order (make_order), create a Manufacturing Order
-        if item.order_type == "make_order":
+            # Deduct actual available ready stock
+            if actual_ready > 0 and variant_size:
+                variant_size.stock_available -= actual_ready
+                db_item_ready = OrderItem(
+                    order_id=db_order.id,
+                    design_code=item.design_code,
+                    variant_code=item.variant_code,
+                    size=item.size,
+                    weight=item.weight,
+                    quantity=actual_ready,
+                    order_type="ready_stock",
+                    price=item.price
+                )
+                db.add(db_item_ready)
+            
+            # Auto-convert excess items above available stock into Make to Order
+            if excess_mto > 0:
+                db_item_mto = OrderItem(
+                    order_id=db_order.id,
+                    design_code=item.design_code,
+                    variant_code=item.variant_code,
+                    size=item.size,
+                    weight=item.weight,
+                    quantity=excess_mto,
+                    order_type="make_order",
+                    price=item.price
+                )
+                db.add(db_item_mto)
+                db.flush()
+                db_mfg = ManufacturingOrder(
+                    order_item_id=db_item_mto.id,
+                    status="Pending",
+                    lead_time_days=10
+                )
+                db.add(db_mfg)
+        else:
+            # Standard Make to Order item
+            db_item = OrderItem(
+                order_id=db_order.id,
+                design_code=item.design_code,
+                variant_code=item.variant_code,
+                size=item.size,
+                weight=item.weight,
+                quantity=item.quantity,
+                order_type="make_order",
+                price=item.price
+            )
+            db.add(db_item)
+            db.flush()
+            
             db_mfg = ManufacturingOrder(
                 order_item_id=db_item.id,
                 status="Pending",
-                lead_time_days=10 # standard lead time
+                lead_time_days=10
             )
             db.add(db_mfg)
             

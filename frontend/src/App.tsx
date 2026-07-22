@@ -41,7 +41,8 @@ import {
   Info,
   Heart,
   UserCircle,
-  ChevronUp
+  ChevronUp,
+  Download
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
@@ -351,7 +352,7 @@ const MainLayout: React.FC = () => {
             ).total;
         return {
           design_code: item.design.design_code,
-          variant_code: item.variant.variant_code,
+          variant_code: item.variant.variant_code || item.variant.variant_name || item.design.design_code,
           size: item.size.size.toString(),
           weight: item.size.weight,
           quantity: item.quantity,
@@ -394,28 +395,107 @@ const MainLayout: React.FC = () => {
         message += `   - Qty: ${item.quantity} | Subtotal: ₹${itemPrice.toLocaleString('en-IN')}\n\n`;
       });
       
+      message += `----------------------------------------\n`;
       message += `*Total Weight:* ${cartTotals.weight.toFixed(2)}g\n`;
-      message += `*Estimated Total Invoice:* ₹${cartTotals.price.toLocaleString('en-IN')}\n\n`;
-      message += `Thank you for your order!`;
+      message += `*In-Stock Payable Amount (${cartTotals.inStockPcs} pcs):* ₹${cartTotals.inStockPrice.toLocaleString('en-IN')}\n`;
+      if (cartTotals.mtoPcs > 0) {
+        message += `*Make to Order Amount (${cartTotals.mtoPcs} pcs):* ₹${cartTotals.mtoPrice.toLocaleString('en-IN')}\n`;
+      }
+      message += `*Total Order Amount:* ₹${cartTotals.price.toLocaleString('en-IN')}\n`;
+      message += `----------------------------------------\n\n`;
+      message += `Thank you for your wholesale order!`;
 
       // Open WhatsApp for Wholesaler
       const wholesalerPhone = '917010674487';
       const wholesalerUrl = `https://api.whatsapp.com/send?phone=${wholesalerPhone}&text=${encodeURIComponent(message)}`;
-      window.open(wholesalerUrl, '_blank');
-
       setOrderSuccess(res.data.order_number);
       clearCart();
-      fetchDesigns();
+      setTimeout(() => { fetchDesigns(); }, 100);
+      window.open(wholesalerUrl, '_blank');
       setTimeout(() => {
         setOrderSuccess(null);
         setCartOpen(false);
-      }, 5000);
+      }, 4000);
     } catch (err: any) {
       console.error(err);
       alert(err.response?.data?.detail || 'Failed to submit order. Check stock availability.');
     } finally {
       setOrderSubmitting(false);
     }
+  };
+
+  const handleDownloadCartInvoice = () => {
+    if (cart.length === 0) {
+      alert("Your wholesale cart is empty.");
+      return;
+    }
+
+    let content = `====================================================\n`;
+    content += `         SR CHAINS - WHOLESALE CART INVOICE         \n`;
+    content += `====================================================\n`;
+    content += `Customer Name : ${currentCustomer?.name || 'Wholesale Buyer'}\n`;
+    content += `Mobile Number : ${currentCustomer?.mobile_number || 'N/A'}\n`;
+    content += `Email Address : ${currentCustomer?.email || 'N/A'}\n`;
+    content += `Generated Date: ${new Date().toLocaleString()}\n`;
+    content += `----------------------------------------------------\n\n`;
+
+    content += `ITEMIZED WHOLESALE PRODUCTS:\n`;
+    content += `----------------------------------------------------\n`;
+
+    cart.forEach((item, idx) => {
+      const itemPricePerPiece = item.lockedPrice !== undefined
+        ? item.lockedPrice
+        : calculatePriceBreakdown(
+            item.size.weight,
+            item.design.purity,
+            item.design.wastage_percent,
+            item.design.making_charge_per_gram
+          ).total;
+
+      const br = calculatePriceBreakdown(
+        item.size.weight,
+        item.design.purity,
+        item.design.wastage_percent,
+        item.design.making_charge_per_gram
+      );
+
+      const itemSubtotal = itemPricePerPiece * item.quantity;
+      const typeStr = item.orderType === 'ready_stock' ? 'Ready Stock (Warehouse)' : 'Make to Order (7-10 Days)';
+
+      content += `${idx + 1}. DESIGN: ${item.design.name} (${item.design.design_code})\n`;
+      content += `   Variant       : ${item.variant.variant_name} (${item.variant.variant_code})\n`;
+      content += `   Size & Weight : ${item.size.size.toFixed(2)}" | ${item.size.weight.toFixed(2)}g per piece\n`;
+      content += `   Fulfillment   : ${typeStr}\n`;
+      content += `   Quantity      : ${item.quantity} pcs\n`;
+      content += `   Silver Base   : ₹${(br.basePrice * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 2})}\n`;
+      content += `   Making Charges: ₹${(br.makingCharges * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 2})}\n`;
+      content += `   GST (3%)      : ₹${(br.gst * item.quantity).toLocaleString('en-IN', {maximumFractionDigits: 2})}\n`;
+      content += `   Subtotal Price: ₹${itemSubtotal.toLocaleString('en-IN', {maximumFractionDigits: 2})}\n\n`;
+    });
+
+    content += `====================================================\n`;
+    content += `SUMMARY FINANCIAL & WEIGHT BREAKDOWN:\n`;
+    content += `====================================================\n`;
+    content += `Total Gross Weight           : ${cartTotals.weight.toFixed(2)} g\n`;
+    content += `In-Stock Payable Amount (${cartTotals.inStockPcs} pcs) : ₹${cartTotals.inStockPrice.toLocaleString('en-IN')}\n`;
+    if (cartTotals.mtoPcs > 0) {
+      content += `Make to Order Amount (${cartTotals.mtoPcs} pcs)   : ₹${cartTotals.mtoPrice.toLocaleString('en-IN')}\n`;
+    }
+    content += `----------------------------------------------------\n`;
+    content += `TOTAL ORDER INVOICE AMOUNT   : ₹${cartTotals.price.toLocaleString('en-IN')}\n`;
+    content += `====================================================\n\n`;
+    content += `* Note: Total pricing incorporates live spot silver rates, BIS hallmarking, wastage, 3% GST, and making charges.\n`;
+    content += `Thank you for choosing SR Chains Wholesale B2B Silver Jewelry!\n`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SR_Chains_Wholesale_Cart_Invoice_${Date.now()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleUpdateMfgStatus = async (orderItemId: number, status: string) => {
@@ -479,11 +559,19 @@ const MainLayout: React.FC = () => {
           item.design.wastage_percent,
           item.design.making_charge_per_gram
         ).total;
+    
+    const subtotal = itemPrice * item.quantity;
+    const isReady = item.orderType === 'ready_stock';
+
     return {
       weight: acc.weight + (item.size.weight * item.quantity),
-      price: acc.price + (itemPrice * item.quantity)
+      price: acc.price + subtotal,
+      inStockPrice: acc.inStockPrice + (isReady ? subtotal : 0),
+      mtoPrice: acc.mtoPrice + (!isReady ? subtotal : 0),
+      inStockPcs: acc.inStockPcs + (isReady ? item.quantity : 0),
+      mtoPcs: acc.mtoPcs + (!isReady ? item.quantity : 0),
     };
-  }, { weight: 0, price: 0 });
+  }, { weight: 0, price: 0, inStockPrice: 0, mtoPrice: 0, inStockPcs: 0, mtoPcs: 0 });
 
   if (mode === 'admin' && !isAuthenticated) {
     return <AdminLogin />;
@@ -767,6 +855,23 @@ const MainLayout: React.FC = () => {
             )}
           </div>
         </header>
+
+        {/* Live Silver Spot Rate Bar for Mobile */}
+        {mode === 'buyer' && (
+          <div className="flex md:hidden items-center justify-between bg-slate-950 text-white px-4 py-2 text-[11px] font-mono shadow-inner border-b border-slate-800 shrink-0">
+            <div className="flex items-center space-x-2 truncate">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
+              <span className="text-gray-300 font-sans text-[10px] uppercase font-bold tracking-wider">Live Silver:</span>
+              <span className="font-extrabold text-white">₹{livePrice?.silver_gram_rate.toFixed(2)}/g</span>
+              <span className="text-gray-500">•</span>
+              <span className="font-extrabold text-emerald-400">₹{livePrice ? livePrice.silver_kg_rate.toLocaleString('en-IN') : '2,30,300'}/kg</span>
+            </div>
+            <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              LIVE
+            </span>
+          </div>
+        )}
 
         {/* Mobile Navigation Menu Drawer for Buyer */}
         {mode === 'buyer' && mobileMenuOpen && (
@@ -1315,30 +1420,51 @@ const MainLayout: React.FC = () => {
       </div>
 
       {cartOpen && (
-        <div className="fixed inset-0 bg-gray-900/40 backdrop-blur-sm z-50 flex justify-end">
+        <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex justify-end">
           <div className="absolute inset-0" onClick={() => setCartOpen(false)}></div>
           
-          <div className="drawer-light relative w-full max-w-xl h-full flex flex-col justify-between z-50">
-            <div className="drawer-header p-6 flex justify-between items-center">
-              <div className="flex items-center space-x-2.5">
-                <div className="h-9 w-9 rounded-lg bg-gray-50 border border-gray-200 flex items-center justify-center text-gray-700">
-                  <ShoppingBag className="h-5 w-5" />
+          <div className="relative w-full max-w-lg h-full bg-white flex flex-col justify-between z-50 shadow-2xl">
+            {/* ── Amazon-Style Header ── */}
+            <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-20 flex justify-between items-center">
+              <div className="flex items-center space-x-2">
+                <div className="h-8 w-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-800">
+                  <ShoppingBag className="h-4.5 w-4.5" />
                 </div>
-                <span className="font-bold text-sm tracking-wider uppercase">Wholesale Cart</span>
+                <span className="font-extrabold text-base text-gray-900 tracking-tight">Shopping Cart</span>
+                <span className="bg-amber-100 text-amber-900 font-extrabold text-xs px-2 py-0.5 rounded-full">
+                  {cart.reduce((s, i) => s + i.quantity, 0)} items
+                </span>
               </div>
-              <button onClick={() => setCartOpen(false)} className="text-gray-500 hover:text-gray-900 cursor-pointer">
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                {cart.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadCartInvoice}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-900 border border-amber-300 rounded-xl text-xs font-extrabold shadow-2xs transition-all cursor-pointer"
+                    title="Download Cart Estimate Invoice"
+                  >
+                    <Download className="h-3.5 w-3.5 text-amber-700" />
+                    <span>Download</span>
+                  </button>
+                )}
+                <button 
+                  onClick={() => setCartOpen(false)} 
+                  className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin">
+            {/* ── Cart Items Scrollable List ── */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 scrollbar-thin bg-gray-50/70">
               {orderSuccess && (
-                <div className="p-4 bg-green-50 border border-green-200 text-green-700 rounded-xl text-sm space-y-1.5">
+                <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm space-y-1 shadow-2xs">
                   <div className="flex items-center space-x-2">
-                    <CheckCircle className="h-4.5 w-4.5" />
-                    <span className="font-bold">Wholesale Order Logged!</span>
+                    <CheckCircle className="h-4.5 w-4.5 text-emerald-600" />
+                    <span className="font-bold">Order Placed Successfully!</span>
                   </div>
-                  <p className="text-xs text-gray-600">Order ID: <span className="font-mono text-gray-900 font-semibold">{orderSuccess}</span> has been saved and ready stock weights cleared.</p>
+                  <p className="text-xs text-gray-600">Order Reference: <span className="font-mono text-gray-900 font-bold">{orderSuccess}</span> has been logged.</p>
                 </div>
               )}
 
@@ -1384,6 +1510,7 @@ const MainLayout: React.FC = () => {
                     let groupGst = 0;
                     let groupTotal = 0;
                     let groupWeight = 0;
+                    let groupPureWeight = 0;
 
                     group.items.forEach(it => {
                       const cartItem = cart[it.cartIdx];
@@ -1410,48 +1537,61 @@ const MainLayout: React.FC = () => {
                         groupGst += br.gst * it.quantity;
                         groupTotal += br.total * it.quantity;
                       }
-                      groupWeight += it.size.weight * it.quantity;
+                      const grossW = it.size.weight * it.quantity;
+                      groupWeight += grossW;
+                      groupPureWeight += grossW * (group.design.purity / 100);
                     });
 
                     const firstImage = group.variant.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
                       group.design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
-                      group.design.variants?.find((v: any) => v.media?.some((m: any) => m.file_type.startsWith('image')))
-                        ?.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
                       'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
 
                     return (
-                      <div 
-                        key={groupIdx} 
-                        onClick={() => {
-                          setSelectedDesignCode(group.design.name);
-                          setInitialVariantId(group.variant.id);
-                          if (group.items[0]) {
-                            setInitialSizeId(group.items[0].size.id);
-                          }
-                          setCartOpen(false);
-                        }}
-                        className="cart-item space-y-3 p-4 rounded-xl border border-gray-200 hover:border-gray-300 bg-white transition-all cursor-pointer relative group"
+                      <div
+                        key={groupIdx}
+                        className="bg-white border border-gray-200 rounded-2xl p-4 shadow-2xs space-y-3 hover:border-gray-300 transition-all"
                       >
-                        {/* Product Header */}
-                        <div className="flex items-start space-x-3 text-sm">
-                          <div className="h-14 w-14 bg-gray-100 border border-gray-200 rounded-lg overflow-hidden shrink-0">
-                            <img 
-                              src={firstImage} 
-                              alt="cart item" 
-                              className="w-full h-full object-cover" 
-                            />
+                        {/* Variant Header */}
+                        <div className="flex items-start gap-3.5">
+                          <div
+                            onClick={() => {
+                              setSelectedDesignCode(group.design.name);
+                              setInitialVariantId(group.variant.id);
+                              if (group.items[0]) setInitialSizeId(group.items[0].size.id);
+                              setCartOpen(false);
+                            }}
+                            className="h-16 w-16 bg-gray-100 border border-gray-200 rounded-xl overflow-hidden shrink-0 cursor-pointer group"
+                          >
+                            <img src={firstImage} alt={group.design.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <span className="font-mono text-xs text-gray-500 block">{group.design.design_code}</span>
-                            <h4 className="font-bold text-gray-900 truncate">{group.design.name}</h4>
-                            <p className="text-xs text-gray-500 mt-0.5">
-                              Variant: <span className="font-semibold text-gray-700">{group.variant.variant_name}</span>
+
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex justify-between items-start gap-2">
+                              <h4
+                                onClick={() => {
+                                  setSelectedDesignCode(group.design.name);
+                                  setInitialVariantId(group.variant.id);
+                                  if (group.items[0]) setInitialSizeId(group.items[0].size.id);
+                                  setCartOpen(false);
+                                }}
+                                className="font-extrabold text-gray-900 text-sm truncate hover:text-amber-700 cursor-pointer"
+                              >
+                                {group.design.name}
+                              </h4>
+                              <span className="font-mono font-extrabold text-gray-900 text-base shrink-0">
+                                ₹{groupTotal.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+
+                            <p className="text-xs text-gray-500">
+                              Code: <span className="font-mono text-gray-800 font-semibold">{group.design.design_code}</span> • Variant: <strong className="text-gray-800">{group.variant.variant_name}</strong>
                             </p>
                           </div>
                         </div>
 
-                        {/* Sizes List */}
+                        {/* Configured Sizes List inside Variant */}
                         <div className="space-y-2 border-t border-gray-100 pt-3">
+                          <span className="text-[11px] font-bold text-gray-500 uppercase tracking-wider block">Configured Sizes:</span>
                           {group.items.map((it) => {
                             const cartItem = cart[it.cartIdx];
                             const itemPrice = cartItem.lockedPrice !== undefined
@@ -1465,35 +1605,58 @@ const MainLayout: React.FC = () => {
                             const itemSubtotal = itemPrice * it.quantity;
 
                             return (
-                              <div 
-                                key={it.cartIdx} 
-                                className="flex items-center justify-between gap-3 py-2 border-b border-gray-50 last:border-b-0 text-xs"
-                                onClick={(e) => e.stopPropagation()} // Prevent nav to details when interacting with controls
+                              <div
+                                key={it.cartIdx}
+                                className="flex items-center justify-between gap-2.5 py-2 px-3 bg-gray-50/70 border border-gray-100 rounded-xl text-xs"
                               >
-                                {/* Size, Weight and Tag */}
+                                {/* Size & Tag */}
                                 <div className="flex items-center gap-2 min-w-[120px]">
-                                  <span className="font-bold text-gray-900 font-mono">{it.size.size.toFixed(2)}&quot;</span>
-                                  <span className="text-gray-400 font-mono">({it.size.weight.toFixed(2)}g)</span>
-                                  <span className={`badge ${it.orderType === 'ready_stock' ? 'badge-success' : 'badge-warning'} scale-90 shrink-0`}>
+                                  <span className="font-extrabold text-gray-900 font-mono text-sm">{it.size.size.toFixed(2)}"</span>
+                                  <span className="text-gray-400 font-mono text-[11px]">({it.size.weight.toFixed(2)}g)</span>
+                                  <span className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 ${
+                                    it.orderType === 'ready_stock'
+                                      ? 'bg-emerald-100 text-emerald-800'
+                                      : 'bg-amber-100 text-amber-800'
+                                  }`}>
                                     {it.orderType === 'ready_stock' ? 'Stock' : 'MTO'}
                                   </span>
                                 </div>
 
-                                {/* Qty pickers */}
-                                <div className="qty-control h-[26px] scale-95">
-                                  <button type="button" onClick={() => updateCartQuantity(it.cartIdx, Math.max(1, it.quantity - 1))}>-</button>
-                                  <span>{it.quantity}</span>
-                                  <button type="button" onClick={() => updateCartQuantity(it.cartIdx, it.quantity + 1)}>+</button>
+                                {/* Amazon Stepper */}
+                                <div className="flex items-center border border-amber-300 rounded-lg bg-amber-50/70 overflow-hidden shadow-2xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (it.quantity > 1) {
+                                        updateCartQuantity(it.cartIdx, it.quantity - 1);
+                                      } else {
+                                        removeFromCart(it.cartIdx);
+                                      }
+                                    }}
+                                    className="h-6 w-6 flex items-center justify-center bg-white text-gray-800 font-bold hover:bg-amber-100 transition-colors cursor-pointer border-r border-amber-200"
+                                  >
+                                    {it.quantity === 1 ? <Trash2 className="h-3 w-3 text-red-500" /> : '−'}
+                                  </button>
+                                  <span className="font-mono font-extrabold text-gray-900 text-xs px-2 min-w-[20px] text-center">
+                                    {it.quantity}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateCartQuantity(it.cartIdx, it.quantity + 1)}
+                                    className="h-6 w-6 flex items-center justify-center bg-white text-gray-800 font-bold hover:bg-amber-100 transition-colors cursor-pointer border-l border-amber-200"
+                                  >
+                                    +
+                                  </button>
                                 </div>
 
-                                {/* Price and Delete */}
-                                <div className="flex items-center gap-2.5 ml-auto text-right">
+                                {/* Subtotal & Remove */}
+                                <div className="flex items-center gap-2 ml-auto text-right">
                                   <span className="font-bold text-gray-900 font-mono">₹{itemSubtotal.toLocaleString('en-IN')}</span>
-                                  <button 
+                                  <button
                                     type="button"
                                     onClick={() => removeFromCart(it.cartIdx)}
                                     className="text-gray-400 hover:text-red-600 transition-colors p-1 cursor-pointer"
-                                    title="Remove from cart"
+                                    title="Remove size"
                                   >
                                     <Trash2 className="h-3.5 w-3.5" />
                                   </button>
@@ -1503,23 +1666,32 @@ const MainLayout: React.FC = () => {
                           })}
                         </div>
 
-                        {/* Pricing Breakdown summary for this variant */}
-                        <div className="bg-gray-50 rounded-lg p-2.5 mt-3 border border-gray-200 text-[11px] text-gray-500 space-y-1.5" onClick={(e) => e.stopPropagation()}>
-                          <div className="flex justify-between">
-                            <span>Silver Base ({groupWeight.toFixed(2)}g total)</span>
-                            <span className="font-mono text-gray-700">₹{groupSilverBase.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                        {/* Variant Math & Weight Breakdown Box */}
+                        <div className="bg-amber-50/40 border border-amber-200/70 rounded-xl p-3 text-[11px] space-y-1.5 text-gray-700">
+                          <div className="flex justify-between items-center font-bold text-gray-900 pb-1 border-b border-amber-200/50">
+                            <span>Variant Specification Summary</span>
+                            <span className="font-mono text-amber-900">{groupWeight.toFixed(2)}g Gross Wt</span>
                           </div>
-                          <div className="flex justify-between">
-                            <span>Making Charge</span>
-                            <span className="font-mono text-gray-700">₹{groupMaking.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+
+                          <div className="flex justify-between text-gray-600">
+                            <span>Pure Metal Weight ({group.design.purity}% Purity):</span>
+                            <span className="font-mono font-bold text-gray-900">{groupPureWeight.toFixed(3)}g</span>
                           </div>
-                          <div className="flex justify-between font-medium text-gray-600 border-t border-gray-200 pt-1 mt-1">
-                            <span>GST (3%)</span>
-                            <span className="font-mono">₹{groupGst.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                          <div className="flex justify-between text-gray-600">
+                            <span>Silver Base Cost:</span>
+                            <span className="font-mono text-gray-800">₹{groupSilverBase.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
                           </div>
-                          <div className="flex justify-between font-bold text-gray-900 border-t border-gray-200 pt-1 mt-1">
-                            <span>Variant Total (Approx. Price)</span>
-                            <span className="font-mono">₹{groupTotal.toLocaleString('en-IN')}</span>
+                          <div className="flex justify-between text-gray-600">
+                            <span>Making Charges:</span>
+                            <span className="font-mono text-gray-800">₹{groupMaking.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-600 pt-0.5 border-t border-amber-200/40">
+                            <span>GST (3%):</span>
+                            <span className="font-mono text-gray-800">₹{groupGst.toLocaleString('en-IN', {maximumFractionDigits: 0})}</span>
+                          </div>
+                          <div className="flex justify-between items-center pt-1 border-t border-amber-200/60 font-extrabold text-xs text-gray-950">
+                            <span>Variant Total Price:</span>
+                            <span className="font-mono text-sm text-amber-950">₹{groupTotal.toLocaleString('en-IN')}</span>
                           </div>
                         </div>
                       </div>
@@ -1527,62 +1699,81 @@ const MainLayout: React.FC = () => {
                   })
                 ) : (
                   !orderSuccess && (
-                    <div className="text-center py-12 text-gray-500 flex flex-col items-center space-y-2 select-none">
-                      <ShoppingBag className="h-10 w-10 text-gray-300" />
-                      <span className="text-sm font-bold text-gray-700">Wholesale cart is empty</span>
-                      <p className="text-xs text-gray-500 max-w-[200px]">Add designs from the catalog page to compile invoice pricing.</p>
+                    <div className="text-center py-16 text-gray-500 flex flex-col items-center space-y-3 select-none">
+                      <div className="h-14 w-14 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center text-amber-600">
+                        <ShoppingBag className="h-7 w-7" />
+                      </div>
+                      <span className="text-base font-extrabold text-gray-900">Your Cart is Empty</span>
+                      <p className="text-xs text-gray-500 max-w-[220px] leading-relaxed">Add jewelry designs from the catalog page to compile wholesale pricing.</p>
                     </div>
                   )
                 );
               })()}
             </div>
 
+            {/* ── Amazon Cart Summary Footer ── */}
             {cart.length > 0 && (
-              <div className="drawer-footer p-6 space-y-4 shrink-0">
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-500">Total Weight (g)</span>
-                    <span className="text-gray-900 font-mono font-semibold">{cartTotals.weight.toFixed(2)}g</span>
-                  </div>
-                  <div className="flex justify-between font-extrabold border-t border-gray-200 pt-2.5 text-base text-gray-900">
-                    <span>Estimated Total Invoice (Approx. Price)</span>
-                    <span className="font-mono">₹{cartTotals.price.toLocaleString('en-IN')}</span>
-                  </div>
-                  <p className="text-xs text-gray-500 leading-relaxed pt-1.5">
-                    * Total calculated pricing incorporates BIS hallmarking, wastage rates, 3% GST, and making charges corresponding to live spot rates.
-                  </p>
+              <div className="p-4 border-t border-gray-200 bg-white space-y-3 shrink-0 shadow-lg">
+                {/* Weight & Total Items */}
+                <div className="flex justify-between items-center text-xs text-gray-600 font-medium">
+                  <span>Total Gross Weight: <strong className="font-mono text-gray-900">{cartTotals.weight.toFixed(2)}g</strong></span>
+                  <span>{cart.reduce((s, i) => s + i.quantity, 0)} items in cart</span>
                 </div>
 
-                {/* Customer info or login prompt */}
+                {/* Payable Breakdown Cards */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-0.5">
+                    <span className="text-[10px] font-bold text-emerald-900 block">In-Stock Payable ({cartTotals.inStockPcs} pcs)</span>
+                    <span className="font-mono font-extrabold text-emerald-950 text-sm block">₹{cartTotals.inStockPrice.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-0.5">
+                    <span className="text-[10px] font-bold text-amber-900 block">Make to Order ({cartTotals.mtoPcs} pcs)</span>
+                    <span className="font-mono font-extrabold text-amber-950 text-sm block">₹{cartTotals.mtoPrice.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+
+                {/* Grand Total Order Amount */}
+                <div className="flex justify-between items-center pt-1 border-t border-gray-100">
+                  <div>
+                    <span className="font-extrabold text-gray-900 text-sm">Total Order Amount:</span>
+                    <p className="text-[10px] text-gray-500">In-Stock + Make to Order total</p>
+                  </div>
+                  <span className="font-mono font-extrabold text-gray-950 text-xl">
+                    ₹{cartTotals.price.toLocaleString('en-IN')}
+                  </span>
+                </div>
+
+                {/* Customer Account Info */}
                 {isCustomerAuthenticated && currentCustomer ? (
-                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-gray-900 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-2.5 flex items-center gap-2.5 text-xs">
+                    <div className="h-7 w-7 rounded-full bg-gray-900 text-white flex items-center justify-center font-bold text-xs shrink-0">
                       {currentCustomer.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-gray-900 truncate">{currentCustomer.name}</p>
-                      <p className="text-[10px] text-gray-500 truncate">{currentCustomer.mobile_number} • {currentCustomer.email}</p>
+                      <p className="font-bold text-gray-900 truncate">{currentCustomer.name}</p>
                     </div>
-                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                    <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
                   </div>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setBuyerLoginOpen(true)}
-                    className="w-full flex items-center justify-center gap-2 p-3 border-2 border-dashed border-gray-300 rounded-xl text-xs font-bold text-gray-600 hover:border-gray-500 hover:text-gray-900 transition-all cursor-pointer"
+                    className="w-full flex items-center justify-center gap-2 p-2.5 border border-dashed border-amber-300 bg-amber-50/50 rounded-xl text-xs font-bold text-amber-900 hover:bg-amber-100 transition-all cursor-pointer"
                   >
                     <UserCircle className="h-4 w-4" />
                     <span>Login / Sign Up to Place Order</span>
                   </button>
                 )}
 
-                <form onSubmit={handleCheckout} className="pt-1">
+                {/* Bottom Checkout Button */}
+                <form onSubmit={handleCheckout}>
                   <button
                     type="submit"
                     disabled={orderSubmitting || !isCustomerAuthenticated}
-                    className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full bg-amber-400 hover:bg-amber-500 active:bg-amber-600 disabled:opacity-50 text-gray-950 font-extrabold py-3 px-4 rounded-xl shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer border border-amber-500 text-base"
                   >
-                    <span>{orderSubmitting ? 'Filing Order...' : 'Submit Order'}</span>
-                    <ChevronRight className="h-4 w-4" />
+                    <span>{orderSubmitting ? 'Filing Order...' : `Proceed to Buy (${cart.reduce((s, i) => s + i.quantity, 0)} items)`}</span>
+                    <ChevronRight className="h-5 w-5" />
                   </button>
                 </form>
               </div>
@@ -1782,12 +1973,57 @@ const MainLayout: React.FC = () => {
   );
 };
 
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: Error | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("ErrorBoundary caught an error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-6 text-center">
+          <div className="bg-white border border-gray-200 rounded-3xl p-8 max-w-md shadow-xl space-y-4">
+            <div className="h-14 w-14 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-extrabold text-gray-900">Something went wrong</h2>
+            <p className="text-xs text-gray-500 font-mono bg-gray-100 p-3 rounded-xl text-left overflow-x-auto">
+              {this.state.error?.message || "An unexpected error occurred."}
+            </p>
+            <button
+              onClick={() => {
+                this.setState({ hasError: false, error: null });
+                window.location.href = '/';
+              }}
+              className="w-full py-3 bg-slate-900 text-white font-bold text-xs rounded-xl shadow-md cursor-pointer hover:bg-slate-800"
+            >
+              Return to Home Page
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function App() {
   return (
-    <AppProvider>
-      <MainLayout />
-    </AppProvider>
-  )
+    <ErrorBoundary>
+      <AppProvider>
+        <MainLayout />
+      </AppProvider>
+    </ErrorBoundary>
+  );
 }
 
 export default App;

@@ -50,6 +50,7 @@ This file contains crucial specifications, instructions, and records of modifica
 - **2026-07-15 (Update 10)**: Grouped designs in the Product Catalog (All Designs) view by `Category` (e.g. `Battani`, `Titanic-New`, `Flower`). Displays parent category cards summarizing nested design codes and total variants count. Clicking a parent card drilldowns "inside" to view only the designs belonging to that category with edit/delete controls and a back navigation button.
 - **2026-07-15 (Update 11)**: Sorted categories on the left sidebar and products on the main catalog grid alphabetically (A, B, C, D...) in `BuyerStorefront.tsx` instead of rendering them in database insertion order.
 - **2026-07-20 (Update 12)**: Added full mobile responsiveness for navigation in `App.tsx`. Added a mobile hamburger toggle menu in the header with a slide-down menu drawer for **Home**, **Collections Catalog**, and **About Us**. Also added a fixed bottom navigation bar on mobile screens with instant quick links for **Home**, **Catalog**, **Wishlist**, **Cart**, and **About Us**.
+- **2026-07-20 (Update 13)**: Restructured the `relatedItems` recommendation algorithm in `BuyerProductDetail.tsx`. Prioritizes items 1st by **Collection Matching** (e.g. `Bridal Collection`, `Antique Collection`, `Battani`), and 2nd by **Price Proximity** (displaying items whose estimated price is closest to the currently viewed product's price).
 
 
 

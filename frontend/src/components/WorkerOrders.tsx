@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useApp } from '../context/AppContext';
+import { useApp, API_BASE_URL } from '../context/AppContext';
 import { 
   ClipboardList, 
   User, 
@@ -51,7 +51,7 @@ export const WorkerOrders: React.FC = () => {
   const fetchOrders = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:8000/api/products/worker-orders');
+      const res = await axios.get(`${API_BASE_URL}/api/products/worker-orders`);
       setOrders(res.data);
     } catch (err) {
       console.error('Error fetching worker orders:', err);
@@ -102,7 +102,7 @@ export const WorkerOrders: React.FC = () => {
     }
 
     try {
-      await axios.post('http://localhost:8000/api/products/worker-orders', {
+      await axios.post(`${API_BASE_URL}/api/products/worker-orders`, {
         customer_name: custName,
         mobile_number: custPhone || null,
         variant_size_id: selectedSizeId,
@@ -132,7 +132,7 @@ export const WorkerOrders: React.FC = () => {
     if (newQty < 1) return;
 
     try {
-      await axios.put(`http://localhost:8000/api/products/worker-orders/${orderId}`, {
+      await axios.put(`${API_BASE_URL}/api/products/worker-orders/${orderId}`, {
         new_quantity: newQty
       });
       fetchOrders();
@@ -146,7 +146,7 @@ export const WorkerOrders: React.FC = () => {
   const handleCompleteOrder = async (orderId: number) => {
     if (!confirm('Are you sure you want to complete this order? This will deduct the physical stock.')) return;
     try {
-      await axios.post(`http://localhost:8000/api/products/worker-orders/${orderId}/complete`);
+      await axios.post(`${API_BASE_URL}/api/products/worker-orders/${orderId}/complete`);
       setMsg('Order fulfilled and stock updated successfully');
       fetchOrders();
       fetchDesigns();
@@ -160,7 +160,7 @@ export const WorkerOrders: React.FC = () => {
   const handleDeleteOrder = async (orderId: number) => {
     if (!confirm('Are you sure you want to delete/cancel this order reservation?')) return;
     try {
-      await axios.delete(`http://localhost:8000/api/products/worker-orders/${orderId}`);
+      await axios.delete(`${API_BASE_URL}/api/products/worker-orders/${orderId}`);
       setMsg('Order cancelled and reservation released');
       fetchOrders();
       fetchDesigns();
