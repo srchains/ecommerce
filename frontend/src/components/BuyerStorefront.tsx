@@ -2,11 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Folder,
-  FolderOpen,
   Search,
   ArrowRight,
   AlertCircle,
-  ChevronRight,
   ChevronDown,
   ChevronUp,
   X,
@@ -15,7 +13,6 @@ import {
   Heart,
   ShoppingBag,
 } from 'lucide-react';
-import { SizeConfigurator } from './SizeConfigurator';
 
 interface BuyerStorefrontProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
@@ -28,9 +25,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   onSelectProduct,
   selectedCollectionFilter,
   onClearCollectionFilter,
-  onOpenCart
 }) => {
-  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, wishlist, cart, addToCart, addMultipleToCart, updateCartQuantity, removeFromCart } = useApp();
+  const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, cart, addToCart, addMultipleToCart, updateCartQuantity, removeFromCart } = useApp();
 
   const [selectedCatIds, setSelectedCatIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -40,7 +36,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [stockFilter, setStockFilter] = useState<'all' | 'stock' | 'mto'>('all');
   const [showAllCategories, setShowAllCategories] = useState(false);
-  const [addedSizeId, setAddedSizeId] = useState<number | null>(null);
   // Inline Size Dropdown Panel state (expands inside product card)
   const [inlineAddDesignId, setInlineAddDesignId] = useState<number | null>(null);
   const [inlineVariantId, setInlineVariantId] = useState<number | null>(null);
@@ -369,10 +364,11 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       let matchesCollection = true;
       if (selectedCollectionFilter) {
         const target = selectedCollectionFilter.toLowerCase();
-        matchesCollection = 
+        matchesCollection = Boolean(
           (design.collection && design.collection.toLowerCase().includes(target)) ||
           (design.name && design.name.toLowerCase().includes(target)) ||
-          (design.design_code && design.design_code.toLowerCase().includes(target));
+          (design.design_code && design.design_code.toLowerCase().includes(target))
+        );
       }
 
       const matchesPurity = purityFilter === 'All' || design.purity.toString() === purityFilter;
@@ -454,7 +450,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     if (!isChildOnlySearch) return [];
     return filteredDesigns.flatMap(design => {
       const searchMatch = getDesignSearchMatch(design, searchQuery);
-      return searchMatch.matchedVariants.map(matchedV => ({
+      return searchMatch.matchedVariants.map((matchedV: any) => ({
         design,
         matchedV
       }));
@@ -878,8 +874,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                     const minPriceVal = priceObjs.length ? Math.min(...priceObjs.map(p => p.total)) : null;
                     const maxPriceVal = priceObjs.length ? Math.max(...priceObjs.map(p => p.total)) : null;
 
-                    const hasBabyInVariant = allSizes.some((s: any) => s.size < 8.0);
-
                     const variantImage =
                       matchedV.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
                       design.media?.find((m: any) => m.file_type.startsWith('image'))?.url ||
@@ -1122,34 +1116,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                 targetSizeId = design.variants[0]?.sizes[0]?.id;
               }
 
-              // Collect matching variant items to render directly inside card
-              let displayVariantItems: any[] = [];
-              let filterBadgeLabel = '';
-              let filterBadgeBg = '';
-
-              if (babySizesOnly && priceDetails.hasPriceFilter) {
-                displayVariantItems = babyDetails.matchingBabyItems.filter(item => {
-                  const minOk = minPrice === null || item.price >= minPrice;
-                  const maxOk = maxPrice === null || item.price <= maxPrice;
-                  return minOk && maxOk;
-                });
-                filterBadgeLabel = `Baby Sizes (<8.0") & ₹${minPrice || 0} – ₹${maxPrice || '∞'}`;
-                filterBadgeBg = 'border-emerald-200 bg-emerald-50/70 text-emerald-950';
-              } else if (babySizesOnly) {
-                displayVariantItems = babyDetails.matchingBabyItems;
-                filterBadgeLabel = 'Available Baby Size Products (<8.0")';
-                filterBadgeBg = 'border-emerald-200 bg-emerald-50/70 text-emerald-950';
-              } else if (priceDetails.hasPriceFilter) {
-                displayVariantItems = priceDetails.matchingVariantItems;
-                filterBadgeLabel = `Matching Products (₹${minPrice || 0} – ₹${maxPrice || '∞'})`;
-                filterBadgeBg = 'border-amber-200/80 bg-amber-50/70 text-amber-950';
-              }
-
               const defaultVariant = design.variants.find(v => v.id === targetVariantId) || design.variants[0];
-              const defaultSize = (targetSizeId ? defaultVariant?.sizes.find(s => s.id === targetSizeId) : null) || defaultVariant?.sizes.find(s => s.size === 8.0) || defaultVariant?.sizes[0];
-              const weight = defaultSize ? defaultSize.weight : 20.0;
-              const price = calculatePriceBreakdown(weight, design.purity, design.wastage_percent, design.making_charge_per_gram);
-
               const catName = categories.find(c => c.id === design.category_id)?.name;
 
               return (

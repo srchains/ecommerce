@@ -230,7 +230,7 @@ export const Reports: React.FC<ReportsProps> = ({ orders, loading }) => {
                 <LineChart data={timelineData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                   <XAxis dataKey="date" tick={{ fill: '#6b7280', fontSize: 10 }} axisLine={false} tickLine={false} />
                   <YAxis tick={{ fill: '#6b7280', fontSize: 10, fontFamily: 'monospace' }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']} />
+                  <Tooltip formatter={(value) => [`₹${(value ?? 0).toLocaleString()}`, 'Revenue']} />
                   <Line type="monotone" dataKey="sales" stroke="#111827" strokeWidth={3} dot={{ fill: '#111827', r: 4 }} activeDot={{ r: 6 }} />
                 </LineChart>
               </ResponsiveContainer>
@@ -262,11 +262,11 @@ export const Reports: React.FC<ReportsProps> = ({ orders, loading }) => {
                     paddingAngle={5}
                     dataKey="value"
                   >
-                    {orderTypeData.map((entry, index) => (
+                    {orderTypeData.map((_, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
-                  <Tooltip formatter={(value) => [`${value} pcs`, 'Quantity']} />
+                  <Tooltip formatter={(value) => [`${value ?? 0} pcs`, 'Quantity']} />
                   <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>

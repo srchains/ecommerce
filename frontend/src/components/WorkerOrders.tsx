@@ -6,10 +6,7 @@ import {
   Phone, 
   Trash2, 
   Check, 
-  Plus, 
-  Minus, 
   PlusCircle, 
-  Info,
   Calendar
 } from 'lucide-react';
 import axios from 'axios';

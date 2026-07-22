@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Lock, User, Mail, Phone, Store, AlertCircle, X, ArrowLeft, Eye, EyeOff } from 'lucide-react';
+import { Lock, User, Mail, Phone, AlertCircle, X, Eye, EyeOff } from 'lucide-react';
 import { API_BASE_URL } from '../context/AppContext';
 
 interface BuyerLoginProps {

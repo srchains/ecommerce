@@ -13,7 +13,6 @@ import {
   Settings, 
   ChevronDown, 
   ChevronUp, 
-  Store,
   LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';

@@ -23,18 +23,14 @@ import {
   ChevronRight, 
   ArrowLeft,
   X, 
-  Store, 
   TrendingUp, 
   CheckCircle,
   ArrowRight,
   Clock,
-  User,
   Plus,
   AlertCircle,
   Menu,
   LogOut,
-  MessageCircle,
-  Phone,
   Home,
   Grid,
   ChevronDown,
@@ -120,7 +116,6 @@ const AppFooter: React.FC<AppFooterProps> = ({ onHomeClick, onCatalogClick, onAb
 const MainLayout: React.FC = () => {
   const { 
     mode, 
-    setMode, 
     adminTab, 
     setAdminTab,
     selectedDesignCode, 
@@ -136,8 +131,6 @@ const MainLayout: React.FC = () => {
     fetchDesigns,
     fetchCategories,
     isAuthenticated,
-    logout,
-    navigateTo,
     // Customer auth
     isCustomerAuthenticated,
     currentCustomer,
@@ -146,7 +139,6 @@ const MainLayout: React.FC = () => {
     // Wishlist
     wishlist,
     removeFromWishlist,
-    isInWishlist,
   } = useApp();
 
   const [cartOpen, setCartOpen] = useState(false);
@@ -1468,7 +1460,7 @@ const MainLayout: React.FC = () => {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCart([])}
+                      onClick={() => clearCart()}
                       className="flex items-center justify-center gap-1 px-3 py-2 sm:py-2 bg-slate-800 hover:bg-red-950 hover:text-red-300 text-slate-300 rounded-xl text-xs font-bold transition-all cursor-pointer border border-slate-700"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

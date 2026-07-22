@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { Lock, User, Store, AlertCircle, ArrowLeft } from 'lucide-react';
+import { Lock, User, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export const AdminLogin: React.FC = () => {
   const { login, navigateTo } = useApp();

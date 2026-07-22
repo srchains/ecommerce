@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { useApp } from '../context/AppContext';
 import type { MediaItem } from '../context/AppContext';
 
@@ -13,7 +13,6 @@ import {
   Sparkles,
   ChevronRight
 } from 'lucide-react';
-import { SizeConfigurator } from './SizeConfigurator';
 
 interface BuyerProductDetailProps {
   designCode: string;
@@ -32,7 +31,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   onRequireLogin,
   onSelectProduct
 }) => {
-  const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist, wishlist, isCustomerAuthenticated } = useApp();
+  const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist, isCustomerAuthenticated } = useApp();
 
   const design = useMemo(() => {
     if (!designCode) return undefined;
@@ -98,62 +97,12 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
   const [addedToCartMsg, setAddedToCartMsg] = useState(false);
   const [selectedSizesConfig, setSelectedSizesConfig] = useState<Record<number, { readyStockQty: number; makeOrderQty: number }>>({});
-  const [readyStockInput, setReadyStockInput] = useState<number>(0);
-  const [makeOrderInput, setMakeOrderInput] = useState<number>(0);
-
-  // Sync inputs when selected size changes or selectedSizesConfig changes
-  useEffect(() => {
-    if (selectedSizeId) {
-      const config = selectedSizesConfig[selectedSizeId];
-      setReadyStockInput(config?.readyStockQty || 0);
-      setMakeOrderInput(config?.makeOrderQty || 0);
-    } else {
-      setReadyStockInput(0);
-      setMakeOrderInput(0);
-    }
-  }, [selectedSizeId, selectedSizesConfig]);
-
-  // Sync local inputs when active size or size configurations change
-  useEffect(() => {
-    if (activeSize) {
-      const config = selectedSizesConfig[activeSize.id];
-      if (config) {
-        setReadyStockInput(config.readyStockQty);
-        setMakeOrderInput(config.makeOrderQty);
-      } else {
-        setReadyStockInput(0);
-        setMakeOrderInput(0);
-      }
-    }
-  }, [selectedSizeId]);
-
-  // Helper: Update size quantity directly from size card stepper
-  const handleUpdateSizeQty = (sizeId: number, newTotalQty: number) => {
-    const sObj = availableSizes.find(s => s.id === sizeId);
-    if (!sObj) return;
-    const availStock = Math.max(0, sObj.stock_available - (sObj.stock_reserved || 0));
-    const validQty = Math.max(0, newTotalQty);
-    const rQty = Math.min(validQty, availStock);
-    const mQty = Math.max(0, validQty - rQty);
-
-    setSelectedSizesConfig(prev => {
-      if (validQty === 0) {
-        const copy = { ...prev };
-        delete copy[sizeId];
-        return copy;
-      }
-      return {
-        ...prev,
-        [sizeId]: { readyStockQty: rQty, makeOrderQty: mQty }
-      };
-    });
-  };
 
   const [activeMediaIdx, setActiveMediaIdx] = useState(0);
-
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   const handleShare = async () => {
+    if (!design) return;
     try {
       if (navigator.share) {
         await navigator.share({
@@ -351,9 +300,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   const [priceFlash, setPriceFlash] = useState(false);
   const prevPriceRef = useRef<number | null>(null);
 
-  // Countdown to next live rate refresh (5s)
-  const [refreshCountdown, setRefreshCountdown] = useState(5);
-
   const weight = design ? (activeSize ? activeSize.weight : 20.0) : 20.0;
   const priceBreakdown = calculatePriceBreakdown(
     weight,
@@ -393,18 +339,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     }
     prevPriceRef.current = priceBreakdown.total;
   }, [priceBreakdown.total]);
-
-  // Countdown timer synced to 5s live refresh
-  useEffect(() => {
-    setRefreshCountdown(5);
-    const tick = setInterval(() => {
-      setRefreshCountdown(prev => {
-        if (prev <= 1) return 5;
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(tick);
-  }, [livePrice?.last_updated]);
 
   // Load active variant media
   let mediaList: MediaItem[] = (activeVariant?.media && activeVariant.media.length > 0) ? activeVariant.media : [];
@@ -853,8 +787,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                         const newQty = totalConfiguredQty + 1;
                         const rQty = Math.min(newQty, availStock);
                         const mQty = Math.max(0, newQty - rQty);
-                        setReadyStockInput(rQty);
-                        setMakeOrderInput(mQty);
                         setSelectedSizesConfig(prev => ({
                           ...prev,
                           [s.id]: { readyStockQty: rQty, makeOrderQty: mQty }

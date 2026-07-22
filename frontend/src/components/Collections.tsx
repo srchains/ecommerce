@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { useApp, API_BASE_URL } from '../context/AppContext';
-import { Layers, FolderOpen, ChevronDown, ChevronUp, Image as ImageIcon, Eye, AlertCircle } from 'lucide-react';
+import { useApp } from '../context/AppContext';
+import { FolderOpen, ChevronDown, ChevronUp, Image as ImageIcon, Eye, AlertCircle } from 'lucide-react';
 
-interface CollectionGroup {
+export interface CollectionGroup {
   name: string;
   designs: any[];
   totalVariants: number;

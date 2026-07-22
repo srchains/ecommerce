@@ -407,7 +407,7 @@ export const InventoryManagement: React.FC = () => {
                                       <td className="text-gray-900">Total</td>
                                       <td className="text-gray-900 font-mono">{variant.variantWeight.toFixed(2)}g</td>
                                       <td className="text-center text-gray-900 font-mono">{variant.variantPhysicalStock} pcs</td>
-                                      <td className="text-center text-gray-500 font-mono">{variant.variantReserved} pcs</td>
+                                      <td className="text-center text-gray-500 font-mono">{(variant as any).variantReserved} pcs</td>
                                       <td className="text-center text-green-700 font-mono">{variant.variantAvailable} pcs</td>
                                       <td></td>
                                     </tr>

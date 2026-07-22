@@ -1,5 +1,5 @@
   import React from 'react';
-import { X, Truck, Camera, Store, ShieldCheck, Phone, MapPin, Clock } from 'lucide-react';
+import { X, Truck, Camera, Store, Phone, MapPin, Clock } from 'lucide-react';
 
 interface AboutUsModalProps {
   isOpen: boolean;
