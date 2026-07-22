@@ -72,7 +72,7 @@ export const AdminLogin: React.FC = () => {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email" 
+                placeholder="srchains19@gmail.com" 
                 className="input pl-10"
                 autoComplete="off"
               />
@@ -91,7 +91,7 @@ export const AdminLogin: React.FC = () => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter a Password" 
+                placeholder="srchains195757" 
                 className="input pl-10"
                 autoComplete="new-password"
               />

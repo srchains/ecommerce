@@ -502,8 +502,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Admin login
   const login = async (email: string, password: string) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    // Support admin credentials on Vercel static deployment or local server:
+    if (
+      (cleanEmail === 'srchains19@gmail.com' || cleanEmail === 'admin' || cleanEmail === 'admin@srchains.com') && 
+      cleanPass === 'srchains195757'
+    ) {
+      const fallbackToken = 'demo-admin-token-srchains195757';
+      localStorage.setItem('admin_token', fallbackToken);
+      setToken(fallbackToken);
+      setIsAuthenticated(true);
+      setMode('admin');
+      window.history.pushState({}, '', '/admin');
+      return;
+    }
+
     try {
-      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email, password });
+      const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email: cleanEmail, password: cleanPass });
       const receivedToken = res.data.token;
       localStorage.setItem('admin_token', receivedToken);
       setToken(receivedToken);
@@ -511,7 +528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setMode('admin');
       window.history.pushState({}, '', '/admin');
     } catch (err: any) {
-      throw new Error(err.response?.data?.detail || 'Login failed');
+      throw new Error(err.response?.data?.detail || 'Login failed. Invalid email or password.');
     }
   };
 
