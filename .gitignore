@@ -28,7 +28,6 @@ dist-ssr/
 package-lock.json
 
 # Environment Variables & Secrets
-.env
 .env.*
 !.env.example
 
