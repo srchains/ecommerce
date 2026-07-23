@@ -6,7 +6,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from app.database import get_db
 from app.routers.auth import get_admin_user
-from app.models.models import Category, ProductDesign, ProductVariant, VariantSize, MediaItem
+from app.models.models import Category, ProductDesign, ProductVariant, VariantSize, MediaItem, WorkerOrder
 import app.models.models as models
 from app.schemas.schemas import (
     CategoryCreate, CategoryResponse,
@@ -398,6 +398,11 @@ def delete_design(design_id: int, db: Session = Depends(get_db), admin_user: dic
     db_design = db.query(ProductDesign).filter(ProductDesign.id == design_id).first()
     if not db_design:
         raise HTTPException(status_code=404, detail="Design not found")
+
+    # Cleanly remove any worker orders tied to variant sizes of this design first
+    size_ids = [s.id for v in db_design.variants for s in v.sizes]
+    if size_ids:
+        db.query(WorkerOrder).filter(WorkerOrder.variant_size_id.in_(size_ids)).delete(synchronize_session=False)
         
     db.delete(db_design)
     db.commit()
@@ -413,6 +418,10 @@ def delete_variant(variant_id: int, db: Session = Depends(get_db), admin_user: d
     if not db_var:
         raise HTTPException(status_code=404, detail="Variant not found")
         
+    size_ids = [s.id for s in db_var.sizes]
+    if size_ids:
+        db.query(WorkerOrder).filter(WorkerOrder.variant_size_id.in_(size_ids)).delete(synchronize_session=False)
+
     db.delete(db_var)
     db.commit()
     return {"message": "Variant deleted successfully", "variant_id": variant_id}

@@ -519,12 +519,11 @@ const MainLayout: React.FC = () => {
     }
   };
 
-  const handleDeleteDesign = async (designCode: string) => {
-    if (!confirm('Are you sure you want to completely delete this product design? This action cannot be undone.')) return;
+  const handleDeleteDesign = async (designId: number, designName: string) => {
+    if (!confirm(`Are you sure you want to completely delete "${designName}"? This action cannot be undone.`)) return;
 
     try {
-      const res = await axios.get(`${API_BASE_URL}/api/products/designs/${designCode}`);
-      await axios.delete(`${API_BASE_URL}/api/products/designs/${res.data.id}`);
+      await axios.delete(`${API_BASE_URL}/api/products/designs/${designId}`);
       await fetchDesigns('');
       setSelectedDesignCode(null);
     } catch (err: any) {
@@ -1178,8 +1177,8 @@ const MainLayout: React.FC = () => {
                                   <span>Edit</span>
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteDesign(d.design_code)}
-                                  className="btn-secondary w-full text-xs border-red-200 text-red-700 hover:bg-red-50"
+                                  onClick={() => handleDeleteDesign(d.id, d.name)}
+                                  className="btn-secondary w-full text-xs border-red-200 text-red-700 hover:bg-red-50 cursor-pointer"
                                 >
                                   <span>Delete</span>
                                 </button>

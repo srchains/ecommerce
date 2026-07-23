@@ -701,7 +701,7 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
     if (!confirm('Are you sure you want to completely delete this product design? This action cannot be undone.')) return;
     try {
       setSubmitting(true);
-      const res = await axios.get(`${API_BASE_URL}/api/products/designs/${editingCode}`);
+      const res = await axios.get(`${API_BASE_URL}/api/products/designs/${encodeURIComponent(editingCode)}`);
       await axios.delete(`${API_BASE_URL}/api/products/designs/${res.data.id}`);
       await fetchDesigns('');
       onSuccess();
