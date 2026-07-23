@@ -897,6 +897,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                           <span className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow">
                             Child Variant Match
                           </span>
+                          
                           <span className="absolute top-2 right-2 bg-white/90 border border-gray-200 text-[10px] font-bold text-gray-700 uppercase px-2 py-1 rounded">
                             {design.collection || 'New Arrival'}
                           </span>
@@ -1159,8 +1160,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                       </span>
                     )}
 
-
-
                     {/* Wishlist Heart Button */}
                     <button
                       onClick={(e) => {
@@ -1178,9 +1177,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                     </button>
                   </div>
 
-
                   <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                     <div className="space-y-2">
+
                       {(() => {
                         const totalReadyStockPcs = getDesignReadyStockPcs(design);
                         return (
@@ -1323,6 +1322,24 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                       <div
                                         key={sz.id}
                                         onClick={() => {
+                                          // Add 1 piece directly to cart immediately
+                                          const breakdown = calculatePriceBreakdown(
+                                            sz.weight, design.purity, design.wastage_percent, design.making_charge_per_gram
+                                          );
+                                          const orderType = readyPcs > 0 ? 'ready_stock' : 'make_order';
+                                          addToCart({
+                                            design,
+                                            variant: currentVar,
+                                            size: sz,
+                                            quantity: 1,
+                                            orderType,
+                                            lockedPrice: breakdown.total,
+                                            lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                                            lockedEffectiveWeight: breakdown.effectiveWeight,
+                                            lockedBasePrice: breakdown.basePrice,
+                                            lockedMakingCharges: breakdown.makingCharges,
+                                            lockedGst: breakdown.gst
+                                          });
                                           setInlineSizeQuantities(prev => ({
                                             ...prev,
                                             [sz.id]: (prev[sz.id] || 0) + 1
@@ -1373,13 +1390,27 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                               <button
                                                 type="button"
                                                 onClick={() => {
+                                                // Decrement directly in cart
+                                                if (qty <= 1) {
+                                                  // Remove last piece from cart
+                                                  removeFromCart(szId);
                                                   setInlineSizeQuantities(prev => {
                                                     const copy = { ...prev };
-                                                    if (qty <= 1) delete copy[szId];
-                                                    else copy[szId] = qty - 1;
+                                                    delete copy[szId];
                                                     return copy;
                                                   });
-                                                }}
+                                                } else {
+                                                  // Decrement 1 from cart
+                                                  const existingIdx = cart.findIndex(item =>
+                                                    item.size?.id === szId &&
+                                                    item.variant?.id === (inlineVariantId || design.variants[0]?.id)
+                                                  );
+                                                  if (existingIdx !== -1) {
+                                                    updateCartQuantity(existingIdx, cart[existingIdx].quantity - 1);
+                                                  }
+                                                  setInlineSizeQuantities(prev => ({ ...prev, [szId]: qty - 1 }));
+                                                }
+                                              }}
                                                 className="h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-lg text-sm cursor-pointer transition-colors"
                                               >
                                                 −
@@ -1402,8 +1433,27 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                               <button
                                                 type="button"
                                                 onClick={() => {
-                                                  setInlineSizeQuantities(prev => ({ ...prev, [szId]: qty + 1 }));
-                                                }}
+                                                // Add 1 more to cart directly
+                                                const szObj = sizes.find((s: any) => s.id === szId);
+                                                if (szObj) {
+                                                  const breakdown = calculatePriceBreakdown(
+                                                    szObj.weight, design.purity, design.wastage_percent, design.making_charge_per_gram
+                                                  );
+                                                  const rPcs = Math.max(0, (szObj.stock_available || 0) - (szObj.stock_reserved || 0));
+                                                  addToCart({
+                                                    design, variant: currentVar, size: szObj,
+                                                    quantity: 1,
+                                                    orderType: rPcs > 0 ? 'ready_stock' : 'make_order',
+                                                    lockedPrice: breakdown.total,
+                                                    lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                                                    lockedEffectiveWeight: breakdown.effectiveWeight,
+                                                    lockedBasePrice: breakdown.basePrice,
+                                                    lockedMakingCharges: breakdown.makingCharges,
+                                                    lockedGst: breakdown.gst
+                                                  });
+                                                }
+                                                setInlineSizeQuantities(prev => ({ ...prev, [szId]: qty + 1 }));
+                                              }}
                                                 className="h-6 sm:h-7 w-6 sm:w-7 flex items-center justify-center bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 font-bold rounded-lg text-sm cursor-pointer transition-colors"
                                               >
                                                 +
@@ -1411,12 +1461,14 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                               <button
                                                 type="button"
                                                 onClick={() => {
-                                                  setInlineSizeQuantities(prev => {
-                                                    const copy = { ...prev };
-                                                    delete copy[szId];
-                                                    return copy;
-                                                  });
-                                                }}
+                                                // Remove this size from cart entirely
+                                                removeFromCart(szId);
+                                                setInlineSizeQuantities(prev => {
+                                                  const copy = { ...prev };
+                                                  delete copy[szId];
+                                                  return copy;
+                                                });
+                                              }}
                                                 className="text-gray-400 hover:text-red-600 ml-1 text-sm cursor-pointer font-bold px-1"
                                               >
                                                 ×
@@ -1506,7 +1558,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                                 >
                                   <ShoppingBag className="h-4 w-4" />
                                   {Object.keys(inlineSizeQuantities).length > 0
-                                    ? `Confirm (${Object.values(inlineSizeQuantities).reduce((a, b) => a + b, 0)} pcs)`
+                                    ? `Added ✓ (${Object.values(inlineSizeQuantities).reduce((a, b) => a + b, 0)} pcs in cart)`
                                     : 'Select at Least One Size'}
                                 </button>
                               </div>

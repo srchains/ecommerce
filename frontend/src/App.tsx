@@ -848,6 +848,27 @@ const MainLayout: React.FC = () => {
           </div>
         </header>
 
+        {/* FIXED FLOATING: Grand Total Weight & Price Box — page top-right corner, stays on scroll */}
+        {mode === 'buyer' && cart.length > 0 && (
+          <div
+            onClick={() => setCartOpen(true)}
+            className="fixed top-[90px] right-4 z-[60] cursor-pointer select-none"
+            title="Click to view cart"
+          >
+            <div className="bg-white border border-indigo-200 shadow-lg rounded-xl px-4 py-2.5 flex items-center space-x-4 animate-in fade-in zoom-in-95">
+              <div>
+                <span className="text-indigo-500 text-[9px] uppercase font-bold block leading-none mb-0.5">TOTAL WEIGHT</span>
+                <span className="font-bold font-mono text-slate-900 text-sm">{cartTotals.weight.toFixed(2)}g</span>
+              </div>
+              <div className="h-6 w-px bg-indigo-100"></div>
+              <div>
+                <span className="text-indigo-500 text-[9px] uppercase font-bold block leading-none mb-0.5">TOTAL PRICE (APPROX. PRICE)</span>
+                <span className="font-bold text-indigo-600 font-mono text-sm">₹{cartTotals.price.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Live Silver Spot Rate Bar for Mobile */}
         {mode === 'buyer' && (
           <div className="flex md:hidden items-center justify-between bg-slate-950 text-white px-4 py-2 text-[11px] font-mono shadow-inner border-b border-slate-800 shrink-0">

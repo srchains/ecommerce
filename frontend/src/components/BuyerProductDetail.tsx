@@ -308,28 +308,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     design?.making_charge_per_gram || 0
   );
 
-  // Calculate selection summary (total weight and price of currently selected configurations)
-  const selectionSummary = Object.entries(selectedSizesConfig).reduce((acc, [sizeIdStr, config]) => {
-    const sizeId = parseInt(sizeIdStr);
-    const sObj = availableSizes.find(s => s.id === sizeId);
-    if (!sObj || (config.readyStockQty === 0 && config.makeOrderQty === 0)) return acc;
-
-    const totalQty = config.readyStockQty + config.makeOrderQty;
-    const itemWeight = totalQty * sObj.weight;
-    const sBreakdown = calculatePriceBreakdown(
-      sObj.weight,
-      design?.purity || 70,
-      design?.wastage_percent || 0,
-      design?.making_charge_per_gram || 0
-    );
-    const itemPrice = totalQty * sBreakdown.total;
-
-    return {
-      qty: acc.qty + totalQty,
-      weight: acc.weight + itemWeight,
-      price: acc.price + itemPrice
-    };
-  }, { qty: 0, weight: 0, price: 0 });
 
   // Flash price when livePrice changes or size changes
   useEffect(() => {
@@ -543,24 +521,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
         <span>Back to Catalog</span>
       </button>
 
-      {/* Floating Dynamic Selection Summary (Scrolled State) */}
-      {selectionSummary.qty > 0 && (
-        <div 
-          className={`fixed top-24 right-8 z-40 flex items-center space-x-3 bg-white/95 backdrop-blur-md border border-gray-200 shadow-md px-4 py-2.5 rounded-full text-xs font-medium text-indigo-950 hover:shadow-lg transition-all duration-300 transform select-none ${
-            isScrolled ? 'translate-y-0 opacity-100 scale-100' : '-translate-y-4 opacity-0 scale-95 pointer-events-none'
-          }`}
-        >
-          <div>
-            <span className="text-indigo-500 text-[9px] uppercase font-bold block leading-none mb-0.5">Total Weight</span>
-            <span className="font-bold font-mono">{selectionSummary.weight.toFixed(2)}g</span>
-          </div>
-          <div className="h-6 w-px bg-gray-200"></div>
-          <div>
-            <span className="text-indigo-500 text-[9px] uppercase font-bold block leading-none mb-0.5">Total Price</span>
-            <span className="font-bold text-indigo-600 font-mono">₹{selectionSummary.price.toLocaleString('en-IN')} (Approx. Price)</span>
-          </div>
-        </div>
-      )}
 
       <div className="flex items-center justify-between">
         <button 
@@ -572,20 +532,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
         </button>
 
         <div className="flex items-center space-x-4">
-          {/* Dynamic Selection Summary next to Wishlist */}
-          {selectionSummary.qty > 0 && (
-            <div className="text-right text-xs shrink-0 select-none bg-indigo-50 border border-indigo-100 rounded-xl px-3.5 py-1.5 flex items-center space-x-3 text-indigo-950 font-medium animate-fadeIn">
-              <div>
-                <span className="text-indigo-500 text-[10px] uppercase font-bold block leading-none mb-0.5">Total Weight</span>
-                <span className="font-bold font-mono">{selectionSummary.weight.toFixed(2)}g</span>
-              </div>
-              <div className="h-6 w-px bg-indigo-200"></div>
-              <div>
-                <span className="text-indigo-500 text-[10px] uppercase font-bold block leading-none mb-0.5">Total Price</span>
-                <span className="font-bold text-indigo-600 font-mono">₹{selectionSummary.price.toLocaleString('en-IN')} (Approx. Price)</span>
-              </div>
-            </div>
-          )}
 
           {/* Wishlist button on product detail */}
           <button
@@ -783,6 +729,11 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                       key={s.id}
                       type="button"
                       onClick={() => {
+                        if (!isCustomerAuthenticated) {
+                          alert("Please login or sign up to add items to your wholesale cart.");
+                          if (onRequireLogin) onRequireLogin();
+                          return;
+                        }
                         setSelectedSizeId(s.id);
                         const newQty = totalConfiguredQty + 1;
                         const rQty = Math.min(newQty, availStock);
@@ -791,6 +742,21 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                           ...prev,
                           [s.id]: { readyStockQty: rQty, makeOrderQty: mQty }
                         }));
+                        // Immediately add 1 piece to cart so top-right total updates live
+                        const itemBreakdown = calculatePriceBreakdown(
+                          s.weight, design.purity, design.wastage_percent, design.making_charge_per_gram
+                        );
+                        const orderType = availStock > 0 ? 'ready_stock' : 'make_order';
+                        addToCart({
+                          design, variant: activeVariant!, size: s,
+                          quantity: 1, orderType,
+                          lockedPrice: itemBreakdown.total,
+                          lockedSilverRate: livePrice?.silver_gram_rate || 222.00,
+                          lockedEffectiveWeight: itemBreakdown.effectiveWeight,
+                          lockedBasePrice: itemBreakdown.basePrice,
+                          lockedMakingCharges: itemBreakdown.makingCharges,
+                          lockedGst: itemBreakdown.gst
+                        });
                       }}
                       className={`size-button flex flex-col items-center justify-center text-center relative cursor-pointer py-2 transition-all ${
                         isSelected

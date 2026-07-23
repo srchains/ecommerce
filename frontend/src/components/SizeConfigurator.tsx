@@ -37,24 +37,6 @@ export const SizeConfigurator: React.FC<SizeConfiguratorProps> = ({
     .map(Number)
     .filter(id => (safeQuantities[id] || 0) > 0);
 
-  const totalWeight = selectedSizeIds.reduce((sum, sizeId) => {
-    const sz = sizes.find(s => s.id === sizeId);
-    return sum + (sz ? sz.weight * (safeQuantities[sizeId] || 0) : 0);
-  }, 0);
-
-  const totalPrice = selectedSizeIds.reduce((sum, sizeId) => {
-    const sz = sizes.find(s => s.id === sizeId);
-    if (!sz) return sum;
-    const p = calculatePriceBreakdown
-      ? calculatePriceBreakdown(
-          sz.weight,
-          design.purity || 70,
-          design.wastage_percent || 0,
-          design.making_charge_per_gram || 0
-        )
-      : { total: 0, effectiveWeight: 0, basePrice: 0, makingCharges: 0, gst: 0 };
-    return sum + (p ? p.total * (safeQuantities[sizeId] || 0) : 0);
-  }, 0);
 
   return (
     <div className="space-y-5">
@@ -163,20 +145,6 @@ export const SizeConfigurator: React.FC<SizeConfiguratorProps> = ({
             <p className="text-[11px] font-extrabold text-gray-500 uppercase tracking-widest">
               Your Selected Configurations
             </p>
-            <div className="flex gap-4 text-[11px] font-bold text-gray-700">
-              <span>
-                Total Weight:{' '}
-                <span className="text-slate-900 font-mono">
-                  {totalWeight.toFixed(2)}g
-                </span>
-              </span>
-              <span>
-                Total Price:{' '}
-                <span className="text-slate-900 font-mono">
-                  ₹{totalPrice.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
-                </span>
-              </span>
-            </div>
           </div>
 
           <div className="space-y-2">
