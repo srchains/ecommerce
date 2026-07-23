@@ -185,7 +185,15 @@ def migrate_via_sqlalchemy(target_url: str, data: dict):
                         VALUES (:id, :customer_name, :mobile_number, :variant_size_id, :quantity, :status)
                         ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status
                     """), chunk)
-                db.commit()
+        # 9. Sync PostgreSQL Sequences
+        print("[+] Synchronizing PostgreSQL primary key auto-increment sequences...")
+        seq_tables = ['product_designs', 'product_variants', 'variant_sizes', 'categories', 'media_items', 'orders', 'order_items', 'customers', 'worker_orders']
+        for t in seq_tables:
+            try:
+                db.execute(text(f"SELECT setval(pg_get_serial_sequence('{t}', 'id'), COALESCE(max(id), 1)) FROM {t}"))
+            except Exception:
+                pass
+        db.commit()
 
         print("\n[+] SUCCESS! All SQLite data has been migrated directly to Supabase!")
 
