@@ -186,12 +186,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     last_updated: new Date().toISOString(),
     source: "Initializing..."
   });
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [designs, setDesigns] = useState<ProductDesign[]>([]);
+  const [categories, setCategories] = useState<Category[]>(() => {
+    try {
+      const stored = localStorage.getItem('cached_categories');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
+  const [designs, setDesigns] = useState<ProductDesign[]>(() => {
+    try {
+      const stored = localStorage.getItem('cached_designs');
+      return stored ? JSON.parse(stored) : [];
+    } catch { return []; }
+  });
   const [cart, setCart] = useState<CartItem[]>([]);
   
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [loadingDesigns, setLoadingDesigns] = useState(false);
+
 
   // Customer auth state
   const [customerToken, setCustomerToken] = useState<string | null>(localStorage.getItem('customer_token'));
@@ -338,7 +349,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await axios.get(`${API_BASE_URL}/api/products/designs`, {
         params: status === '' ? { status: '' } : { status }
       });
-      setDesigns(res.data);
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setDesigns(res.data);
+        try { localStorage.setItem('cached_designs', JSON.stringify(res.data)); } catch {}
+      }
     } catch (err) {
       console.error("Error fetching designs:", err);
     } finally {
@@ -350,11 +364,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const fetchCategories = async () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/products/categories`);
-      setCategories(res.data);
+      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+        setCategories(res.data);
+        try { localStorage.setItem('cached_categories', JSON.stringify(res.data)); } catch {}
+      }
     } catch (err) {
       console.error("Error fetching categories:", err);
     }
   };
+
 
   // Calculate Price Breakdown
   const calculatePriceBreakdown = (
