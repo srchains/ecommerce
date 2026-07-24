@@ -97,17 +97,23 @@ async def upload_file(
     else:
         size_str = f"{round(file_size_bytes / (1024 * 1024), 1)} MB"
 
-    # Build a unique filename to avoid collisions
+    # Save file to disk locally as backup
     ext = os.path.splitext(file.filename or "")[1] or ".jpg"
     unique_name = f"{uuid.uuid4().hex}{ext}"
     save_path = os.path.join(UPLOADS_DIR, unique_name)
-
-    # Actually write file bytes to disk
     with open(save_path, "wb") as f_out:
         f_out.write(contents)
 
-    # Full URL the browser can fetch directly
-    file_url = f"{BACKEND_BASE_URL}/uploads/{unique_name}"
+    # Convert images to Base64 Data URL so they are stored 100% inside Supabase
+    # and accessible on any computer running the project without missing file 404s.
+    content_type = file.content_type or "image/jpeg"
+    if content_type.startswith("image/"):
+        import base64
+        encoded = base64.b64encode(contents).decode("utf-8")
+        file_url = f"data:{content_type};base64,{encoded}"
+    else:
+        file_url = f"{BACKEND_BASE_URL}/uploads/{unique_name}"
+
 
     if design_id is not None:
         db_media = MediaItem(
