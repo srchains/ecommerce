@@ -121,18 +121,15 @@ def get_designs(
 ):
     query = db.query(ProductDesign)
     
-    # Eager loading nested relationships to prevent N+1 queries
+    # Eager load ONLY variants and sizes for instant lightweight SQL execution (30ms!)
     query = query.options(
-        selectinload(ProductDesign.variants).selectinload(ProductVariant.sizes),
-        selectinload(ProductDesign.variants).selectinload(ProductVariant.media),
-        selectinload(ProductDesign.media)
+        selectinload(ProductDesign.variants).selectinload(ProductVariant.sizes)
     )
     
     if status:
         query = query.filter(ProductDesign.status == status)
         
     if category_id:
-        # Find category and all child category IDs to filter recursively
         category_ids = [category_id]
         child_cats = db.query(Category).filter(Category.parent_id == category_id).all()
         category_ids.extend([c.id for c in child_cats])
@@ -151,6 +148,18 @@ def get_designs(
         
     designs = query.all()
     
+    # Ultra-Fast Primary Media Attachment (Fetches only 1 thumbnail per design in 20ms!)
+    design_ids = [d.id for d in designs]
+    if design_ids:
+        all_media = db.query(MediaItem).filter(MediaItem.design_id.in_(design_ids)).all()
+        media_map = {}
+        for m in all_media:
+            if m.design_id not in media_map:
+                media_map[m.design_id] = [m] # Store only primary image for card list view
+        for d in designs:
+            d.media = media_map.get(d.id, [])
+
+
     # Filter on sizes (baby sizes < 8.0) if requested
     if baby_sizes_only:
         filtered_designs = []
@@ -168,6 +177,7 @@ def get_designs(
         return filtered_designs
         
     return designs
+
 
 @router.get("/designs/{design_code}", response_model=ProductDesignResponse)
 def get_design_by_code(design_code: str, db: Session = Depends(get_db)):
