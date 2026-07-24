@@ -892,6 +892,10 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                           <img
                             src={variantImage}
                             alt={matchedV.variant_name || design.name}
+                            onError={(e) => {
+                              e.currentTarget.onerror = null;
+                              e.currentTarget.src = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+                            }}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                           />
                           <span className="absolute top-2 left-2 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded shadow">
@@ -1138,6 +1142,10 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'
                       }
                       alt={design.name}
+                      onError={(e) => {
+                        e.currentTarget.onerror = null;
+                        e.currentTarget.src = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+                      }}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     

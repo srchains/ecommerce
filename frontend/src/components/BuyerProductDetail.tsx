@@ -581,6 +581,10 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                   ref={imgRef}
                   src={currentMedia?.url || 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800'}
                   alt={design.name}
+                  onError={(e) => {
+                    e.currentTarget.onerror = null;
+                    e.currentTarget.src = 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=800';
+                  }}
                   draggable={false}
                   style={{
                     width: '100%',

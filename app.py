@@ -8,6 +8,42 @@ def run():
     backend_dir = os.path.join(root_dir, "backend")
     frontend_dir = os.path.join(root_dir, "frontend")
     
+    # --- AUTO-INSTALL DEPENDENCIES ---
+    print("============================================================")
+    print("📦 Checking and installing dependencies...")
+    print("============================================================")
+    
+    # 1. Install Backend Dependencies
+    requirements_file = os.path.join(backend_dir, "requirements.txt")
+    if os.path.exists(requirements_file):
+        print("🐍 Installing/verifying backend Python dependencies...")
+        try:
+            subprocess.run(["uv", "pip", "install", "-r", requirements_file], check=True)
+            print("✅ Backend dependencies checked/updated successfully.")
+        except Exception as e:
+            print(f"⚠️ uv pip install failed or uv not in PATH ({e}), falling back to pip...")
+            try:
+                subprocess.run([sys.executable, "-m", "pip", "install", "-r", requirements_file], check=True)
+                print("✅ Backend dependencies checked/updated successfully via pip.")
+            except Exception as e2:
+                print(f"❌ Failed to install backend dependencies: {e2}")
+                sys.exit(1)
+    
+    # 2. Install Frontend Dependencies
+    node_modules_dir = os.path.join(frontend_dir, "node_modules")
+    if not os.path.exists(node_modules_dir):
+        print("⚛️ frontend/node_modules not found. Installing frontend dependencies (npm install)...")
+        try:
+            subprocess.run("npm install", cwd=frontend_dir, shell=True, check=True)
+            print("✅ Frontend dependencies installed successfully.")
+        except Exception as e:
+            print(f"❌ Failed to install frontend dependencies: {e}")
+            sys.exit(1)
+    else:
+        print("✅ frontend/node_modules found. Skipping npm install.")
+    print("============================================================\n")
+
+    
     # 1. Determine Backend Python & Command
     # Use the virtualenv python directly to bypass manual activation.ps1
     venv_python = os.path.join(backend_dir, "venv", "Scripts", "python.exe")
