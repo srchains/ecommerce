@@ -38,10 +38,12 @@ import {
   Heart,
   UserCircle,
   ChevronUp,
-  Download
+  Download,
+  FileText
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
+import { downloadCatalogPDFForCollection } from './utils/catalogPdfGenerator';
 import { ProductForm } from './components/ProductForm';
 
 
@@ -161,11 +163,13 @@ const MainLayout: React.FC = () => {
   const [aboutModalOpen, setAboutModalOpen] = useState(false);
   const [selectedCollectionFilter, setSelectedCollectionFilter] = useState<string | null>(null);
   const [catalogDropdownOpen, setCatalogDropdownOpen] = useState(false);
+  const [pdfDropdownOpen, setPdfDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [storefrontResetKey, setStorefrontResetKey] = useState(0);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const catalogDropdownRef = useRef<HTMLDivElement>(null);
+  const pdfDropdownRef = useRef<HTMLDivElement>(null);
 
   // Automatically reset selected group when changing admin tabs
   useEffect(() => {
@@ -224,6 +228,13 @@ const MainLayout: React.FC = () => {
         setCatalogDropdownOpen(false);
       }
       if (
+        pdfDropdownOpen &&
+        pdfDropdownRef.current &&
+        !pdfDropdownRef.current.contains(e.target as Node)
+      ) {
+        setPdfDropdownOpen(false);
+      }
+      if (
         profileMenuOpen &&
         profileMenuRef.current &&
         !profileMenuRef.current.contains(e.target as Node)
@@ -235,7 +246,7 @@ const MainLayout: React.FC = () => {
     return () => {
       document.removeEventListener('mousedown', handleOutsideClick);
     };
-  }, [catalogDropdownOpen, profileMenuOpen]);
+  }, [catalogDropdownOpen, pdfDropdownOpen, profileMenuOpen]);
 
   // Synchronize design and parameters state with URL query parameters (popstate only — initial load handled by state initializers)
   useEffect(() => {
@@ -756,6 +767,95 @@ const MainLayout: React.FC = () => {
                 <Info className="h-4 w-4" />
                 <span>About Us</span>
               </button>
+
+              {/* Download Catalog PDF Button & Dropdown */}
+              <div className="relative" ref={pdfDropdownRef}>
+                <button
+                  onClick={() => {
+                    setAboutModalOpen(false);
+                    setCatalogDropdownOpen(false);
+                    setPdfDropdownOpen(!pdfDropdownOpen);
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                    pdfDropdownOpen
+                      ? 'bg-amber-700 text-white shadow-xs'
+                      : 'text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-300/80 shadow-2xs'
+                  }`}
+                  title="Download Catalog PDF for collections"
+                >
+                  <Download className="h-4 w-4 text-amber-700" />
+                  <span>Download Catalog</span>
+                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${pdfDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {pdfDropdownOpen && (
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2.5 w-64 bg-white rounded-2xl border border-amber-200 shadow-2xl p-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="text-[10px] font-extrabold text-amber-900 uppercase tracking-widest px-3 py-2 border-b border-amber-100 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <FileText className="h-3.5 w-3.5 text-amber-700" />
+                        <span>Download Catalog PDF</span>
+                      </span>
+                      <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">A4 TAGS</span>
+                    </div>
+
+                    {/* Download Full Catalog */}
+                    <button
+                      onClick={() => {
+                        downloadCatalogPDFForCollection('All', designs, categories);
+                        setPdfDropdownOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-950 flex items-center justify-between transition-all border border-amber-200/80 my-1 cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Download className="h-4 w-4 text-amber-700" />
+                        <span>All Collections Catalog</span>
+                      </span>
+                      <span className="text-[10px] font-mono text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded font-bold">PDF →</span>
+                    </button>
+
+                    <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-3 py-1.5 mt-1 border-t border-gray-100">
+                      Or Choose Collection
+                    </div>
+
+                    <div className="max-h-60 overflow-y-auto space-y-0.5 pr-0.5 scrollbar-thin">
+                      {Array.from(
+                        new Set(
+                          designs
+                            .filter(d => d.status === 'Active' || !d.status)
+                            .map(d => {
+                              const catName = categories.find(c => c.id === d.category_id)?.name;
+                              if (catName) return catName;
+                              if (d.collection && d.collection.trim()) return d.collection.trim();
+                              if (d.name && d.name.trim()) return d.name.split('-')[0].trim();
+                              return null;
+                            })
+                            .filter(Boolean) as string[]
+                        )
+                      )
+                      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
+                      .map((collName) => (
+                        <button
+                          key={collName}
+                          onClick={() => {
+                            downloadCatalogPDFForCollection(collName, designs, categories);
+                            setPdfDropdownOpen(false);
+                          }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 hover:bg-amber-50 hover:text-amber-900 flex items-center justify-between transition-colors cursor-pointer"
+                        >
+                          <span className="flex items-center gap-2 truncate">
+                            <FileText className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                            <span className="truncate">{collName} PDF</span>
+                          </span>
+                          <span className="text-[10px] font-bold text-amber-700 flex items-center gap-1 shrink-0">
+                            <span>Download</span>
+                            <Download className="h-3 w-3" />
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </nav>
           )}
           
@@ -977,6 +1077,20 @@ const MainLayout: React.FC = () => {
               >
                 <Info className="h-4 w-4" />
                 <span>About Us</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  downloadCatalogPDFForCollection('All', designs, categories);
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-amber-950 bg-amber-50 border border-amber-300 transition-all cursor-pointer shadow-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <Download className="h-4 w-4 text-amber-700" />
+                  <span>Download Catalog PDF</span>
+                </div>
+                <span className="text-[10px] font-mono bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded font-bold">A4 PDF</span>
               </button>
             </div>
           </div>
