@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Folder,
@@ -12,6 +12,7 @@ import {
   Info,
   Heart,
   ShoppingBag,
+  Download,
 } from 'lucide-react';
 
 interface BuyerStorefrontProps {
@@ -48,6 +49,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [showCatalogDropdown, setShowCatalogDropdown] = useState(false);
+  const catalogDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleResize = () => {
@@ -76,6 +79,86 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   useEffect(() => {
     setCurrentPage(1);
   }, [selectedCatIds, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter, stockFilter]);
+
+  // Close catalog dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (catalogDropdownRef.current && !catalogDropdownRef.current.contains(e.target as Node)) {
+        setShowCatalogDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Get collections grouped by root category name
+  const catalogCollections = useMemo(() => {
+    const rootCats = categories.filter(c => c.parent_id === null).sort((a, b) => a.name.localeCompare(b.name));
+    return rootCats.map(cat => {
+      const childIds = categories.filter(c => c.parent_id === cat.id).map(c => c.id);
+      const allIds = [cat.id, ...childIds];
+      const groupDesigns = designs.filter(d => d.status === 'Active' && allIds.includes(d.category_id || -1));
+      return { name: cat.name, designs: groupDesigns };
+    }).filter(g => g.designs.length > 0);
+  }, [categories, designs]);
+
+  // PDF catalog generator (same logic as admin inventory)
+  const generateCatalogPDF = (title: string, itemsList: Array<{ design: any; variant: any }>) => {
+    if (!itemsList || itemsList.length === 0) {
+      alert('No designs in this collection to export.');
+      return;
+    }
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups in your browser to download the PDF catalog.');
+      return;
+    }
+    const logoUrl = `${window.location.origin}/logo.jpg`;
+    const getImage = (design: any, variant: any): string => {
+      const checkMedia = (media: any[]) => {
+        if (!media || media.length === 0) return null;
+        const img = media.find((m: any) => m.file_type?.startsWith('image'));
+        return img?.url || null;
+      };
+      return checkMedia(variant?.media) || checkMedia(design?.media) ||
+        design?.variants?.map((v: any) => checkMedia(v.media)).find(Boolean) ||
+        'https://images.unsplash.com/photo-1611591475155-4284fa2893ab?w=500&auto=format&fit=crop&q=80';
+    };
+    const cardsHtml = itemsList.map(({ design, variant }) => {
+      const imgUrl = getImage(design, variant);
+      const code = (variant?.variant_code || design?.design_code || '').replace(/\s*Z\s*$/i, '').trim();
+      const purity = design?.purity || 70;
+      const titleText = `${purity}% FINE SILVER ${design?.name || code}`;
+      const productUrl = `${window.location.origin}/?design=${encodeURIComponent(design?.name || '')}`;
+      const sizesArr = variant?.sizes || [];
+      const avgW = sizesArr.length > 0 ? (sizesArr.reduce((a: number, s: any) => a + (Number(s.weight) || 0), 0) / sizesArr.length) : 0;
+      const weightText = avgW ? `${avgW.toFixed(2)}g (approx)` : '';
+      const sizeValues = sizesArr.map((s: any) => Number(s.size));
+      const minSz = sizeValues.length ? Math.min(...sizeValues).toFixed(1) : '5.0';
+      const maxSz = sizeValues.length ? Math.max(...sizeValues).toFixed(1) : '11.0';
+      const sizeText = sizeValues.length <= 1 ? `${minSz}"` : `${minSz}" - ${maxSz}"`;
+      return `<div class="catalog-card"><a href="${productUrl}" target="_blank" style="text-decoration:none;color:inherit;display:block;"><div class="image-box"><img src="${imgUrl}" alt="${code}" /></div></a><a href="${productUrl}" target="_blank" style="text-decoration:none;color:inherit;"><div class="item-title">${titleText}</div></a><div class="item-info"><strong>Tag Label:</strong> ${code}<br/><strong>Weight:</strong> ${weightText}<br/><strong>Size:</strong> ${sizeText}<br/><strong>Touch:</strong> ${purity}%</div></div>`;
+    }).join('');
+    const htmlContent = `<!DOCTYPE html><html><head><title>SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog</title><meta charset="utf-8"/><style>@page{size:A4 portrait;margin:6mm 8mm}*{box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;margin:0;padding:16px;color:#111827;background:#fff;-webkit-print-color-adjust:exact;print-color-adjust:exact}.header-table{width:100%;border-bottom:2px solid #e5e7eb;padding-bottom:12px;margin-bottom:20px}.company-name{font-size:20px;font-weight:900;color:#b45309;letter-spacing:.5px;margin:0 0 2px;text-transform:uppercase}.catalog-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px 16px}.catalog-card{page-break-inside:avoid;break-inside:avoid;text-align:center;background:#fff;padding:4px}.image-box{width:100%;height:220px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center;margin-bottom:8px}.image-box img{width:100%;height:100%;object-fit:cover}.item-title{font-size:11.5px;font-weight:900;color:#1d4ed8;text-transform:uppercase;margin-bottom:4px;line-height:1.25}.item-info{font-size:10px;color:#111827;font-weight:700;line-height:1.45}.item-info strong{font-weight:800;color:#000}.action-bar{position:fixed;top:16px;right:16px;display:flex;gap:10px;z-index:99999}.print-btn{background:#0f172a;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3)}@media print{.action-bar{display:none!important}body{padding:0}}</style></head><body><div class="action-bar"><button class="print-btn" onclick="window.print()">📥 Download PDF / Print Catalog</button></div><table class="header-table"><tr><td style="vertical-align:top;"><div style="display:flex;align-items:center;gap:12px;margin-bottom:6px;"><img src="${logoUrl}" alt="SR Chains Logo" style="height:48px;width:48px;object-fit:cover;border-radius:8px;border:1px solid #cbd5e1;"/><div><h1 class="company-name" style="margin:0;line-height:1.1;">SR CHAINS</h1><div style="font-size:10px;font-weight:800;color:#d97706;text-transform:uppercase;letter-spacing:.5px;margin-top:2px;">B2B Silver Jewelry</div></div></div><div style="font-size:10px;color:#4b5563;line-height:1.45;"><strong>Contact &amp; Registered Office:</strong><br/>64, Arumuga Pillayar Koil Street,<br/>Gugai,<br/>Salem - 636 005</div></td><td style="vertical-align:top;text-align:right;font-size:10px;color:#374151;line-height:1.45;"><div style="font-size:16px;font-weight:900;color:#0f172a;margin-bottom:4px;">SR CHAINS</div><div><strong>Ph no :</strong> 70106 74487<br/><strong>Email :</strong> srchains19@gmail.com</div></td></tr></table><div class="catalog-grid">${cardsHtml}</div><script>window.onload=function(){setTimeout(function(){window.print();},500);};</script></body></html>`;
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
+  const handleDownloadCollectionPDF = (collection: { name: string; designs: any[] }) => {
+    const items = collection.designs.flatMap(design =>
+      (design.variants || [{ id: undefined, variant_code: design.design_code, sizes: [], media: [] }]).map((variant: any) => ({ design, variant }))
+    );
+    generateCatalogPDF(`${collection.name} Collection`, items);
+    setShowCatalogDropdown(false);
+  };
+
+  const handleDownloadAllCatalogPDF = () => {
+    const items = designs.filter(d => d.status === 'Active').flatMap(design =>
+      (design.variants || []).map((variant: any) => ({ design, variant }))
+    );
+    generateCatalogPDF('SR Chains Full Catalog', items);
+    setShowCatalogDropdown(false);
+  };
 
   const rootCategories = categories.filter(c => c.parent_id === null).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
   const getChildren = (parentId: number) => categories.filter(c => c.parent_id === parentId).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
@@ -705,8 +788,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
         {/* Toolbar */}
         <div className="table-toolbar flex flex-wrap items-center justify-between gap-3">
-          {/* Left section: Search bar (Expanded full width) */}
-          <div className="flex-1 min-w-[260px] max-w-xl">
+          {/* Left section: Search bar + Download Catalog */}
+          <div className="flex items-center gap-2 flex-1 min-w-[260px] max-w-xl">
             <div className="search-field w-full relative">
               <input
                 type="text"
@@ -723,6 +806,43 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
+              )}
+            </div>
+            {/* Download Catalog Dropdown */}
+            <div className="relative shrink-0" ref={catalogDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setShowCatalogDropdown(v => !v)}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer whitespace-nowrap"
+                title="Download PDF Catalog"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Download Catalog</span>
+                <ChevronDown className="h-3 w-3" />
+              </button>
+              {showCatalogDropdown && (
+                <div className="absolute left-0 mt-1 w-52 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Download PDF Catalog</p>
+                  </div>
+                  <button
+                    onClick={handleDownloadAllCatalogPDF}
+                    className="w-full text-left px-3 py-2.5 text-xs font-bold text-amber-700 hover:bg-amber-50 flex items-center gap-2 border-b border-gray-100 cursor-pointer"
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                    All Collections
+                  </button>
+                  {catalogCollections.map(col => (
+                    <button
+                      key={col.name}
+                      onClick={() => handleDownloadCollectionPDF(col)}
+                      className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 flex items-center justify-between cursor-pointer"
+                    >
+                      <span className="font-semibold">{col.name}</span>
+                      <span className="text-[10px] text-gray-400 font-mono">{col.designs.length} designs</span>
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
           </div>
