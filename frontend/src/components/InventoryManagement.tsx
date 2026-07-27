@@ -13,7 +13,7 @@ import {
   Download
 } from 'lucide-react';
 import axios from 'axios';
-import { generateCatalogPDF, getZoomImageUrl } from '../utils/catalogPdfGenerator';
+import { generateCatalogPDF } from '../utils/catalogPdfGenerator';
 
 export const InventoryManagement: React.FC = () => {
   const { designs, fetchDesigns, categories } = useApp();

@@ -12,8 +12,7 @@ import {
   Info,
   Heart,
   ShoppingBag,
-  Download,
-  FileText
+  Download
 } from 'lucide-react';
 import { downloadCatalogPDFForCollection } from '../utils/catalogPdfGenerator';
 
