@@ -35,7 +35,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [minPrice, setMinPrice] = useState<number | null>(null);
   const [maxPrice, setMaxPrice] = useState<number | null>(null);
   const [stockFilter, setStockFilter] = useState<'all' | 'stock' | 'mto'>('all');
-  const [showAllCategories, setShowAllCategories] = useState(false);
   // Inline Size Dropdown Panel state (expands inside product card)
   const [inlineAddDesignId, setInlineAddDesignId] = useState<number | null>(null);
   const [inlineVariantId, setInlineVariantId] = useState<number | null>(null);
@@ -499,7 +498,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
           {/* Root categories with Checkboxes */}
           {(() => {
             const activeRootCats = rootCategories.filter(cat => countForCat(cat.id) > 0);
-            const visibleRootCats = showAllCategories ? activeRootCats : activeRootCats.slice(0, 6);
+            const visibleRootCats = activeRootCats;
 
             return (
               <>
@@ -571,65 +570,13 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                     </div>
                   );
                 })}
-
-                {/* Amazon-style See More / See Less Button */}
-                {activeRootCats.length > 6 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllCategories(prev => !prev)}
-                    className="flex items-center gap-1 text-xs font-semibold text-blue-600 hover:text-blue-800 pt-2 px-1 cursor-pointer transition-colors"
-                  >
-                    {showAllCategories ? (
-                      <>
-                        <ChevronUp className="h-3.5 w-3.5" />
-                        <span>See less</span>
-                      </>
-                    ) : (
-                      <>
-                        <ChevronDown className="h-3.5 w-3.5" />
-                        <span>See more</span>
-                      </>
-                    )}
-                  </button>
-                )}
               </>
             );
           })()}
         </div>
       </div>
 
-      {/* Price Range Filter */}
-      <div className="pt-4 border-t border-gray-200">
-        <h3 className="font-bold text-gray-900 text-sm mb-2 tracking-tight">Price Range (₹)</h3>
-        <div className="space-y-2">
-          <div className="flex items-center gap-1.5">
-            <input
-              type="number"
-              placeholder="₹ Min"
-              value={minPrice || ''}
-              onChange={(e) => setMinPrice(e.target.value ? Number(e.target.value) : null)}
-              className="w-full text-xs px-2 py-1.5 border border-gray-300 rounded-md focus:border-amber-500 focus:outline-none"
-            />
-            <span className="text-gray-400 text-xs">–</span>
-            <input
-              type="number"
-              placeholder="₹ Max"
-              value={maxPrice || ''}
-              onChange={(e) => setMaxPrice(e.target.value ? Number(e.target.value) : null)}
-              className="w-full text-xs px-2 py-1.5 border border-gray-300 rounded-md focus:border-amber-500 focus:outline-none"
-            />
-          </div>
-          {(minPrice !== null || maxPrice !== null) && (
-            <button
-              type="button"
-              onClick={() => { setMinPrice(null); setMaxPrice(null); }}
-              className="w-full text-xs font-semibold text-blue-600 hover:text-blue-800 text-left cursor-pointer"
-            >
-              Clear Price Filter
-            </button>
-          )}
-        </div>
-      </div>
+
 
       {/* Active Filters Summary */}
       {(selectedCatIds.size > 0 || minPrice !== null || maxPrice !== null) && (
