@@ -54,6 +54,8 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     };
     window.addEventListener('resize', handleResize);
+    fetchCategories();
+    fetchDesigns('');
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
