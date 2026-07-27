@@ -529,17 +529,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                         </label>
                         <div className="flex items-center gap-1 shrink-0">
                           <span className="text-gray-400 font-mono text-[11px]">({count})</span>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              downloadCatalogPDFForCollection(cat.name, designs, categories);
-                            }}
-                            className="p-1 text-amber-700 hover:text-amber-900 hover:bg-amber-100 rounded cursor-pointer transition-colors"
-                            title={`Download PDF Catalog for ${cat.name}`}
-                          >
-                            <Download className="h-3 w-3" />
-                          </button>
                           {hasChildren && (
                             <button
                               type="button"
