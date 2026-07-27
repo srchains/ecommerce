@@ -26,7 +26,7 @@ def get_categories(db: Session = Depends(get_db)):
 def create_category(category: CategoryCreate, db: Session = Depends(get_db), admin_user: dict = Depends(get_admin_user)):
     existing = db.query(Category).filter(Category.name == category.name, Category.parent_id == category.parent_id).first()
     if existing:
-        raise HTTPException(status_code=400, detail="Category already exists")
+        raise HTTPException(status_code=400, detail=f"Category '{category.name}' already exists")
 
     db_cat = Category(name=category.name, parent_id=category.parent_id)
     db.add(db_cat)

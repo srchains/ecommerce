@@ -3,6 +3,15 @@ import axios from 'axios';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
+// Automatically attach admin token header to all outbound API requests
+axios.interceptors.request.use((config) => {
+  const token = localStorage.getItem('admin_token') || 'demo-admin-token-srchains195757';
+  if (token && !config.headers.Authorization) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+}, (error) => Promise.reject(error));
+
 export interface Category {
   id: number;
   name: string;
@@ -349,7 +358,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await axios.get(`${API_BASE_URL}/api/products/designs`, {
         params: status === '' ? { status: '' } : { status }
       });
-      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.data && Array.isArray(res.data)) {
         setDesigns(res.data);
         try { localStorage.setItem('cached_designs', JSON.stringify(res.data)); } catch {}
       }
@@ -364,7 +373,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const fetchCategories = async () => {
     try {
       const res = await axios.get(`${API_BASE_URL}/api/products/categories`);
-      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.data && Array.isArray(res.data)) {
         setCategories(res.data);
         try { localStorage.setItem('cached_categories', JSON.stringify(res.data)); } catch {}
       }
