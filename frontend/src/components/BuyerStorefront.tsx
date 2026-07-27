@@ -11,10 +11,8 @@ import {
   CheckCircle,
   Info,
   Heart,
-  ShoppingBag,
-  Download
+  ShoppingBag
 } from 'lucide-react';
-import { downloadCatalogPDFForCollection } from '../utils/catalogPdfGenerator';
 
 interface BuyerStorefrontProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
