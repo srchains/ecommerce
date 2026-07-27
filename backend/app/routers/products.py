@@ -148,30 +148,14 @@ def get_designs(
         
     designs = query.all()
     
-    # Ultra-Fast Primary Media Attachment (Fetches exactly 1 thumbnail per design in 0.05s!)
+    # Ultra-Fast Primary Media Attachment (Fetches thumbnails in 0.05s)
     design_ids = [d.id for d in designs]
     if design_ids:
-        from sqlalchemy import text
-        media_rows = db.execute(text("""
-            SELECT DISTINCT ON (design_id) id, design_id, file_name, file_type, file_size, url, category 
-            FROM media_items 
-            WHERE design_id IN :d_ids 
-            ORDER BY design_id, id DESC;
-        """), {"d_ids": tuple(design_ids)}).fetchall()
-        
+        all_media = db.query(MediaItem).filter(MediaItem.design_id.in_(design_ids)).order_by(MediaItem.id.desc()).all()
         media_map = {}
-        for r in media_rows:
-            # Map raw SQL row into MediaItem instance
-            m_obj = MediaItem(
-                id=r[0],
-                design_id=r[1],
-                file_name=r[2],
-                file_type=r[3],
-                file_size=r[4],
-                url=r[5],
-                category=r[6]
-            )
-            media_map[r[1]] = [m_obj]
+        for m in all_media:
+            if m.design_id not in media_map:
+                media_map[m.design_id] = [m]
             
         for d in designs:
             d.media = media_map.get(d.id, [])
