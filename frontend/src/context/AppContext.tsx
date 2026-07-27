@@ -195,18 +195,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     last_updated: new Date().toISOString(),
     source: "Initializing..."
   });
-  const [categories, setCategories] = useState<Category[]>(() => {
-    try {
-      const stored = localStorage.getItem('cached_categories');
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  });
-  const [designs, setDesigns] = useState<ProductDesign[]>(() => {
-    try {
-      const stored = localStorage.getItem('cached_designs');
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  });
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [designs, setDesigns] = useState<ProductDesign[]>([]);
   const [cart, setCart] = useState<CartItem[]>([]);
   
   const [loadingPrice, setLoadingPrice] = useState(false);
