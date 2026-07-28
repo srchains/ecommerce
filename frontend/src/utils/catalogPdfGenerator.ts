@@ -76,7 +76,7 @@ export const generateCatalogPDF = (
   const rowsHtml: string[] = [];
   for (let i = 0; i < itemsList.length; i += 3) {
     const chunk = itemsList.slice(i, i + 3);
-    const cells = chunk.map(({ design, variant, sizes, variantWeight }) => {
+    const cells = chunk.map(({ design, variant, sizes }) => {
       const zoomUrl = getZoomImageUrl(design, variant);
       const rawCode = (variant?.variant_code || design?.design_code || 'SR-01').trim();
       const tagLabelCode = rawCode.replace(/\s*Z\s*$/i, '').trim();
