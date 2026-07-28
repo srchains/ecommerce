@@ -166,6 +166,7 @@ const MainLayout: React.FC = () => {
   const [pdfDropdownOpen, setPdfDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [storefrontResetKey, setStorefrontResetKey] = useState(0);
+  const [buyerPage, setBuyerPage] = useState(1);
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const catalogDropdownRef = useRef<HTMLDivElement>(null);
@@ -987,6 +988,8 @@ const MainLayout: React.FC = () => {
             selectedDesignCode === null ? (
               <BuyerStorefront 
                 key={storefrontResetKey}
+                currentPage={buyerPage}
+                onPageChange={setBuyerPage}
                 onSelectProduct={(code, variantId, sizeId) => {
                   setSelectedDesignCode(code);
                   setInitialVariantId(variantId);
@@ -1911,6 +1914,7 @@ const MainLayout: React.FC = () => {
             onClick={() => {
               setSelectedDesignCode(null);
               setSelectedCollectionFilter(null);
+              setBuyerPage(1);
               setAboutModalOpen(false);
               setStorefrontResetKey(prev => prev + 1);
             }}

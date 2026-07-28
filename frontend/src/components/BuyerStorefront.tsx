@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Folder,
@@ -22,12 +22,16 @@ interface BuyerStorefrontProps {
   selectedCollectionFilter?: string | null;
   onClearCollectionFilter?: () => void;
   onOpenCart?: () => void;
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({ 
   onSelectProduct,
   selectedCollectionFilter,
   onClearCollectionFilter,
+  currentPage: propPage,
+  onPageChange,
 }) => {
   const { designs, categories, livePrice, calculatePriceBreakdown, fetchDesigns, fetchCategories, addToWishlist, removeFromWishlist, isInWishlist, cart, addToCart, addMultipleToCart, updateCartQuantity, removeFromCart } = useApp();
 
@@ -70,7 +74,13 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [internalPage, setInternalPage] = useState(propPage || 1);
+  const currentPage = propPage !== undefined ? propPage : internalPage;
+  const setCurrentPage = (newPageOrFn: number | ((prev: number) => number)) => {
+    const nextVal = typeof newPageOrFn === 'function' ? newPageOrFn(currentPage) : newPageOrFn;
+    setInternalPage(nextVal);
+    if (onPageChange) onPageChange(nextVal);
+  };
 
   // Scroll to top when changing pagination page
   useEffect(() => {
@@ -122,7 +132,12 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [inlineAddDesignId]);
 
+  const isInitialMount = useRef(true);
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
     setCurrentPage(1);
   }, [selectedCatIds, searchQuery, babySizesOnly, purityFilter, minPrice, maxPrice, selectedCollectionFilter, stockFilter]);
 
