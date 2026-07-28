@@ -926,28 +926,27 @@ const MainLayout: React.FC = () => {
                 <span>Home</span>
               </button>
 
-              {/* Catalog Groups & Filters Button */}
+              {/* Download Catalog PDF Button */}
               <button
                 onClick={() => {
                   setSelectedDesignCode(null);
                   setAboutModalOpen(false);
                   setMobileMenuOpen(false);
                   setTimeout(() => {
-                    const btn = document.getElementById('open-mobile-filters-btn');
+                    const btn = document.getElementById('open-mobile-pdf-btn');
                     if (btn) btn.click();
                     else {
-                      const sec = document.getElementById('catalog-filters-section');
-                      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+                      downloadCatalogPDFForCollection('All', designs, categories);
                     }
                   }, 120);
                 }}
                 className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
               >
                 <div className="flex items-center gap-3">
-                  <Folder className="h-4 w-4 text-amber-700" />
-                  <span>Catalog Groups & Filters</span>
+                  <Download className="h-4 w-4 text-amber-700" />
+                  <span>Download Catalog PDF</span>
                 </div>
-                <span className="text-[10px] font-mono bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full font-bold">Filter →</span>
+                <span className="text-[10px] font-mono bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full font-bold">PDF ↓</span>
               </button>
 
               <button
@@ -1931,18 +1930,17 @@ const MainLayout: React.FC = () => {
               setAboutModalOpen(false);
               setMobileMenuOpen(false);
               setTimeout(() => {
-                const btn = document.getElementById('open-mobile-filters-btn');
+                const btn = document.getElementById('open-mobile-pdf-btn');
                 if (btn) btn.click();
                 else {
-                  const sec = document.getElementById('catalog-filters-section');
-                  if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+                  downloadCatalogPDFForCollection('All', designs, categories);
                 }
               }, 100);
             }}
             className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors text-amber-700 hover:text-amber-900`}
           >
-            <Folder className="h-5 w-5 text-amber-600" />
-            <span>Catalog</span>
+            <Download className="h-5 w-5 text-amber-600" />
+            <span>Catalog PDF</span>
           </button>
 
           {/* Wishlist */}
