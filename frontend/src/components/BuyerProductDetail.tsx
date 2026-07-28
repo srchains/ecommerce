@@ -11,7 +11,10 @@ import {
   Share2,
   X,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw
 } from 'lucide-react';
 
 interface BuyerProductDetailProps {
@@ -100,6 +103,16 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
   const [activeMediaIdx, setActiveMediaIdx] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+
+  const [zoomScale, setZoomScale] = useState(1);
+  const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+
+  useEffect(() => {
+    setZoomScale(1);
+    setZoomPosition({ x: 0, y: 0 });
+  }, [activeMediaIdx, isLightboxOpen]);
 
   const handleShare = async () => {
     if (!design) return;
@@ -1163,6 +1176,58 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               <X className="h-6 w-6" />
             </button>
 
+            {/* Zoom Controls Bar */}
+            {!currentMedia?.file_type?.startsWith('video') && (
+              <div className="absolute top-5 left-5 z-50 flex items-center gap-1.5 bg-black/60 backdrop-blur-md p-1.5 rounded-full border border-white/20 text-white shadow-xl">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoomScale(prev => Math.min(prev + 0.5, 3.5));
+                  }}
+                  className="p-1.5 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="h-4.5 w-4.5 text-white" />
+                </button>
+
+                <span className="text-[11px] font-mono font-bold px-1.5 min-w-[36px] text-center">
+                  {Math.round(zoomScale * 100)}%
+                </span>
+
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setZoomScale(prev => {
+                      const next = Math.max(prev - 0.5, 1);
+                      if (next === 1) setZoomPosition({ x: 0, y: 0 });
+                      return next;
+                    });
+                  }}
+                  className="p-1.5 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="h-4.5 w-4.5 text-white" />
+                </button>
+
+                {zoomScale > 1 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setZoomScale(1);
+                      setZoomPosition({ x: 0, y: 0 });
+                    }}
+                    className="p-1.5 hover:bg-white/20 rounded-full transition-colors cursor-pointer ml-0.5 border-l border-white/20"
+                    title="Reset Zoom"
+                  >
+                    <RotateCcw className="h-4 w-4 text-white/80" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {/* Counter */}
             <div className="absolute top-5 left-1/2 -translate-x-1/2 text-white/70 text-sm font-mono bg-black/40 px-3 py-1 rounded-full z-50">
               {activeMediaIdx + 1} / {total}
@@ -1180,10 +1245,23 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               </button>
             )}
 
-            {/* Media */}
+            {/* Media Area with Drag & Pinch & Click Zoom */}
             <div
-              className="relative w-full max-w-[95vw] max-h-[92vh] flex items-center justify-center px-14 sm:px-18"
+              className="relative w-full max-w-[95vw] max-h-[92vh] flex items-center justify-center px-4 sm:px-18 overflow-hidden select-none"
               onClick={(e) => e.stopPropagation()}
+              onWheel={(e) => {
+                if (currentMedia?.file_type?.startsWith('video')) return;
+                e.stopPropagation();
+                if (e.deltaY < 0) {
+                  setZoomScale(s => Math.min(s + 0.25, 3.5));
+                } else {
+                  setZoomScale(s => {
+                    const next = Math.max(s - 0.25, 1);
+                    if (next === 1) setZoomPosition({ x: 0, y: 0 });
+                    return next;
+                  });
+                }
+              }}
             >
               {currentMedia?.file_type?.startsWith('video') ? (
                 <video
@@ -1198,8 +1276,54 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                   key={currentMedia?.url}
                   src={currentMedia?.url || ''}
                   alt={design.name}
-                  className="max-w-full max-h-[88vh] object-contain rounded-xl shadow-2xl border border-gray-800"
-                  style={{ transition: 'opacity 0.2s ease' }}
+                  draggable={false}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (zoomScale === 1) {
+                      setZoomScale(2.2);
+                    } else {
+                      setZoomScale(1);
+                      setZoomPosition({ x: 0, y: 0 });
+                    }
+                  }}
+                  onMouseDown={(e) => {
+                    if (zoomScale > 1) {
+                      e.preventDefault();
+                      setIsDragging(true);
+                      dragStartRef.current = { x: e.clientX - zoomPosition.x, y: e.clientY - zoomPosition.y };
+                    }
+                  }}
+                  onMouseMove={(e) => {
+                    if (isDragging && zoomScale > 1) {
+                      e.preventDefault();
+                      setZoomPosition({
+                        x: e.clientX - dragStartRef.current.x,
+                        y: e.clientY - dragStartRef.current.y
+                      });
+                    }
+                  }}
+                  onMouseUp={() => setIsDragging(false)}
+                  onMouseLeave={() => setIsDragging(false)}
+                  onTouchStart={(e) => {
+                    if (zoomScale > 1 && e.touches.length === 1) {
+                      setIsDragging(true);
+                      dragStartRef.current = { x: e.touches[0].clientX - zoomPosition.x, y: e.touches[0].clientY - zoomPosition.y };
+                    }
+                  }}
+                  onTouchMove={(e) => {
+                    if (isDragging && zoomScale > 1 && e.touches.length === 1) {
+                      setZoomPosition({
+                        x: e.touches[0].clientX - dragStartRef.current.x,
+                        y: e.touches[0].clientY - dragStartRef.current.y
+                      });
+                    }
+                  }}
+                  onTouchEnd={() => setIsDragging(false)}
+                  className="max-w-full max-h-[88vh] object-contain rounded-xl shadow-2xl border border-gray-800 transition-transform duration-100 ease-out select-none"
+                  style={{
+                    transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
+                    cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in'
+                  }}
                 />
               )}
             </div>
