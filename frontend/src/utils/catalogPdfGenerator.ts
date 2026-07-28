@@ -89,10 +89,26 @@ export const generateCatalogPDF = (
       const productUrl = `${window.location.origin}/?design=${encodeURIComponent(targetDesignName)}${variant?.id ? `&variant=${variant.id}` : ''}`;
 
       const sizesArr = sizes || variant?.sizes || [];
-      const avgW = sizesArr.length > 0 ? (sizesArr.reduce((a: number, s: any) => a + (Number(s.weight) || 0), 0) / sizesArr.length) : 0;
-      const weightText = variantWeight ? `${variantWeight.toFixed(2)}g (approx)` : avgW ? `${avgW.toFixed(2)}g (approx)` : '32.89g (approx)';
+      
+      // Sort sizes by numeric size value to get starting size & ending size weights
+      const sortedSizes = [...sizesArr].sort((a: any, b: any) => Number(a.size || 0) - Number(b.size || 0));
+      const validSizes = sortedSizes.filter((s: any) => s && s.weight !== undefined && s.weight !== null && Number(s.weight) > 0);
 
-      const sizeValues = sizesArr.map((s: any) => Number(s.size));
+      let weightText = '';
+      if (validSizes.length > 0) {
+        const startSizeWeight = Number(validSizes[0].weight);
+        const endSizeWeight = Number(validSizes[validSizes.length - 1].weight);
+
+        if (startSizeWeight === endSizeWeight || validSizes.length === 1) {
+          weightText = `${startSizeWeight.toFixed(2)}g (approx)`;
+        } else {
+          weightText = `${startSizeWeight.toFixed(2)}g – ${endSizeWeight.toFixed(2)}g (approx)`;
+        }
+      } else {
+        weightText = '18.50g – 24.30g (approx)';
+      }
+
+      const sizeValues = sortedSizes.map((s: any) => Number(s.size)).filter((n: number) => !isNaN(n) && n > 0);
       const minSz = sizeValues.length ? Math.min(...sizeValues).toFixed(1) : '5.0';
       const maxSz = sizeValues.length ? Math.max(...sizeValues).toFixed(1) : '11.0';
       const sizeText = sizeValues.length <= 1 ? `${minSz}"` : `${minSz}" - ${maxSz}"`;
@@ -108,8 +124,7 @@ export const generateCatalogPDF = (
             <a href="${productUrl}" target="_blank" style="text-decoration: none; color: inherit;">
               <div style="font-size: 13px; font-weight: 900; color: #1d4ed8; text-transform: uppercase; margin-bottom: 4px; line-height: 1.25;">${titleText}</div>
             </a>
-            <div style="font-size: 10.5px; color: #111827; font-weight: 700; line-height: 1.45;">
-              <strong>Tag Label:</strong> ${tagLabelCode}<br />
+            <div style="font-size: 10.5px; color: #111827; font-weight: 700; line-height: 1.5;">
               <strong>Weight:</strong> ${weightText}<br />
               <strong>Size:</strong> ${sizeText}<br />
               <strong>Touch:</strong> ${purity}%
