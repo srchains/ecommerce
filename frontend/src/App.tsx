@@ -32,6 +32,7 @@ import {
   Menu,
   LogOut,
   Home,
+  Grid,
   ChevronDown,
   Info,
   Heart,
@@ -1929,17 +1930,16 @@ const MainLayout: React.FC = () => {
               setAboutModalOpen(false);
               setMobileMenuOpen(false);
               setTimeout(() => {
-                const btn = document.getElementById('open-mobile-pdf-btn');
+                const btn = document.getElementById('open-mobile-filters-btn');
                 if (btn) btn.click();
-                else {
-                  downloadCatalogPDFForCollection('All', designs, categories);
-                }
               }, 100);
             }}
-            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors text-amber-700 hover:text-amber-900`}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              mobileMenuOpen ? 'text-gray-900 font-extrabold' : 'text-gray-500 hover:text-gray-900'
+            }`}
           >
-            <Download className="h-5 w-5 text-amber-600" />
-            <span>Catalog PDF</span>
+            <Grid className="h-5 w-5" />
+            <span>Catalog</span>
           </button>
 
           {/* Wishlist */}

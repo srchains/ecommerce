@@ -50,13 +50,18 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   const [isMobilePdfDrawerOpen, setIsMobilePdfDrawerOpen] = useState(false);
 
   const pdfCollections = useMemo(() => {
-    const list = Array.from(
-      new Set([
-        ...categories.map(c => c.name),
-        ...designs.map(d => d.collection).filter((c): c is string => Boolean(c && c.trim()))
-      ])
-    ).filter((c): c is string => Boolean(c && c.trim())).sort();
-    return list;
+    const activeDesigns = designs.filter(d => d.status === 'Active' || !d.status);
+    const names = new Set<string>();
+    activeDesigns.forEach(d => {
+      if (d.collection && d.collection.trim()) {
+        names.add(d.collection.trim());
+      }
+      const cat = categories.find(c => c.id === d.category_id);
+      if (cat && cat.name && cat.name.trim()) {
+        names.add(cat.name.trim());
+      }
+    });
+    return Array.from(names).sort();
   }, [categories, designs]);
 
   // Track which root categories are expanded in the sidebar
@@ -64,6 +69,17 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
 
   const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Scroll to top when changing pagination page
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const mainEl = document.querySelector('.app-main');
+      if (mainEl) mainEl.scrollTo({ top: 0, behavior: 'smooth' });
+      if (document.body) document.body.scrollTo({ top: 0, behavior: 'smooth' });
+      if (document.documentElement) document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentPage]);
 
   useEffect(() => {
     const handleResize = () => {
