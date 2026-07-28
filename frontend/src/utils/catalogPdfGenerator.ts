@@ -157,11 +157,11 @@ export const generateCatalogPDF = (
   });
 
   const opt = {
-    margin:       [6, 8, 6, 8],
-    filename:     safeFileName,
-    image:        { type: 'jpeg', quality: 0.98 },
-    html2canvas:  { scale: 2, useCORS: true, logging: false },
-    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    margin: [6, 8, 6, 8] as [number, number, number, number],
+    filename: safeFileName,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
   Promise.all(promises).then(() => {
