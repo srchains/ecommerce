@@ -1292,13 +1292,13 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                       </h3>
 
                       {/* Weight info + Add Cart button + View button */}
-                      <div className="flex items-center justify-between gap-2 pt-1">
-                        <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500">
                           <span>⚖ {design.weight_range || '18.5 - 24.3g'}</span>
                           <span>• {design.variants.length} variant{design.variants.length !== 1 ? 's' : ''}</span>
                           <span>• {design.metal}</span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
+                        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
                           <button
                             type="button"
                             onClick={(e) => {
