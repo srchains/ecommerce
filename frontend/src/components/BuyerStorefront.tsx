@@ -420,10 +420,29 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       let matchesCategory = true;
       if (selectedCatIds.size > 0) {
         const allowedIds = new Set<number>();
+        const selectedCatNames = new Set<string>();
+
         selectedCatIds.forEach(catId => {
-          getAllowedCatIds(catId).forEach(id => allowedIds.add(id));
+          getAllowedCatIds(catId).forEach(id => {
+            allowedIds.add(id);
+            const cObj = categories.find(c => c.id === id);
+            if (cObj && cObj.name) selectedCatNames.add(cObj.name.toLowerCase());
+          });
         });
-        matchesCategory = allowedIds.has(design.category_id || -1);
+
+        const desCatObj = categories.find(c => c.id === design.category_id);
+        const desCatName = desCatObj?.name?.toLowerCase() || '';
+        const desCollName = design.collection?.toLowerCase() || '';
+        const desNamePrefix = design.name?.split('-')[0]?.trim()?.toLowerCase() || '';
+
+        const isIdMatch = allowedIds.has(design.category_id || -1);
+        const isNameMatch = Array.from(selectedCatNames).some(sc =>
+          (desCatName && desCatName.includes(sc)) ||
+          (desCollName && desCollName.includes(sc)) ||
+          (desNamePrefix && desNamePrefix.includes(sc))
+        );
+
+        matchesCategory = isIdMatch || isNameMatch;
       }
 
       let matchesCollection = true;
@@ -686,8 +705,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         {renderRefinementSidebar()}
       </aside>
 
-      {/* ── Mobile Top Bar: DOWNLOAD CATALOG PDF Button ── */}
-      <div id="pdf-download-section" className="lg:hidden w-full mb-2">
+      {/* ── Mobile Top Bar Buttons: DOWNLOAD CATALOG PDF & CATALOG GROUPS ── */}
+      <div id="pdf-download-section" className="lg:hidden w-full mb-3 space-y-2">
+        {/* PDF Download Button */}
         <button
           id="open-mobile-pdf-btn"
           type="button"
@@ -702,6 +722,25 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
             <span className="bg-amber-800/60 text-amber-100 text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold border border-amber-400/30">
               A4 TAGS PDF ↓
             </span>
+          </div>
+        </button>
+
+        {/* Catalog Groups & Checkbox Filters Button */}
+        <button
+          id="open-mobile-filters-btn"
+          type="button"
+          onClick={() => setIsMobileFilterDrawerOpen(true)}
+          className="w-full flex items-center justify-between px-4 py-3 bg-slate-900 text-white rounded-xl font-extrabold text-xs shadow-md cursor-pointer hover:bg-slate-800 transition-all border border-slate-700"
+        >
+          <div className="flex items-center gap-2.5">
+            <Folder className="h-4.5 w-4.5 text-amber-400" />
+            <span className="uppercase tracking-wider">CATALOG GROUPS & FILTERS</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="bg-slate-800 text-amber-300 text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold border border-slate-700">
+              {selectedCatIds.size > 0 ? `${selectedCatIds.size} CHECKED` : 'ALL GROUPS'}
+            </span>
+            <ChevronDown className="h-4 w-4 text-gray-300" />
           </div>
         </button>
       </div>
