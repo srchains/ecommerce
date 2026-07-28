@@ -836,7 +836,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         {/* Toolbar */}
         <div className="table-toolbar flex flex-wrap items-center justify-between gap-3">
           {/* Left section: Search bar (Expanded full width) */}
-          <div className="flex-1 min-w-[260px] max-w-xl">
+          <div className="flex-1 min-w-[200px] w-full sm:w-auto max-w-xl">
             <div className="search-field w-full relative">
               <input
                 type="text"

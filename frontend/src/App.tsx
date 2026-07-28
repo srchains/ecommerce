@@ -877,16 +877,16 @@ const MainLayout: React.FC = () => {
 
         {/* Live Silver Spot Rate Bar for Mobile */}
         {mode === 'buyer' && (
-          <div className="flex md:hidden items-center justify-between bg-slate-950 text-white px-4 py-2 text-[11px] font-mono shadow-inner border-b border-slate-800 shrink-0">
-            <div className="flex items-center space-x-2 truncate">
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-              <span className="text-gray-300 font-sans text-[10px] uppercase font-bold tracking-wider">Live Silver:</span>
-              <span className="font-extrabold text-white">₹{livePrice?.silver_gram_rate.toFixed(2)}/g</span>
-              <span className="text-gray-500">•</span>
-              <span className="font-extrabold text-emerald-400">₹{livePrice ? livePrice.silver_kg_rate.toLocaleString('en-IN') : '2,30,300'}/kg</span>
+          <div className="flex md:hidden items-center justify-between bg-slate-950 text-white px-3 py-1.5 text-[10px] font-mono shadow-inner border-b border-slate-800 shrink-0 w-full max-w-full overflow-hidden">
+            <div className="flex items-center space-x-1.5 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
+              <TrendingUp className="h-3 w-3 text-emerald-400 shrink-0" />
+              <span className="text-gray-300 font-sans text-[9px] uppercase font-bold tracking-wider shrink-0">Live Silver:</span>
+              <span className="font-extrabold text-white shrink-0">₹{livePrice?.silver_gram_rate.toFixed(2)}/g</span>
+              <span className="text-gray-500 shrink-0">•</span>
+              <span className="font-extrabold text-emerald-400 truncate">₹{livePrice ? livePrice.silver_kg_rate.toLocaleString('en-IN') : '2,30,300'}/kg</span>
             </div>
-            <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] font-extrabold px-2 py-0.5 rounded-full shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[8px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 ml-1">
+              <span className="h-1 w-1 rounded-full bg-emerald-400 animate-pulse"></span>
               LIVE
             </span>
           </div>
