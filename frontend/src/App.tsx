@@ -595,16 +595,6 @@ const MainLayout: React.FC = () => {
         <header className="topbar px-4 sm:px-8 py-3 sm:py-4 flex items-center justify-between shrink-0 z-30">
           {/* Left Side: Brand Logo */}
           <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
-            {/* Hamburger for Buyer Mobile */}
-            {mode === 'buyer' && (
-              <button
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-1.5 text-gray-700 hover:text-gray-900 md:hidden cursor-pointer shrink-0 rounded-lg hover:bg-gray-100 transition-colors"
-                aria-label="Toggle navigation menu"
-              >
-                {mobileMenuOpen ? <X className="h-5.5 w-5.5" /> : <Menu className="h-5.5 w-5.5" />}
-              </button>
-            )}
 
             {/* Hamburger for Admin Mobile */}
             {mode === 'admin' && (
@@ -792,7 +782,7 @@ const MainLayout: React.FC = () => {
                 {/* Wishlist Button */}
                 <button
                   onClick={() => setWishlistOpen(true)}
-                  className="relative p-2.5 bg-white border border-gray-200 hover:border-red-300 text-gray-700 hover:text-red-500 rounded-xl transition-all cursor-pointer shadow-xs"
+                  className="hidden sm:flex relative p-2.5 bg-white border border-gray-200 hover:border-red-300 text-gray-700 hover:text-red-500 rounded-xl transition-all cursor-pointer shadow-xs"
                   title="Wishlist"
                 >
                   <Heart className={`h-5 w-5 transition-colors ${wishlist.length > 0 ? 'fill-red-500 text-red-500' : ''}`} />
@@ -849,7 +839,7 @@ const MainLayout: React.FC = () => {
                 {/* Cart Button */}
                 <button 
                   onClick={() => setCartOpen(true)}
-                  className="relative p-2.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 rounded-xl transition-all cursor-pointer shadow-xs"
+                  className="hidden sm:flex relative p-2.5 bg-white border border-gray-200 hover:border-gray-400 text-gray-700 rounded-xl transition-all cursor-pointer shadow-xs"
                 >
                   <ShoppingBag className="h-5 w-5" />
                   {cart.length > 0 && (
