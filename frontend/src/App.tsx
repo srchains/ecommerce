@@ -33,6 +33,7 @@ import {
   LogOut,
   Home,
   Grid,
+  Folder,
   ChevronDown,
   Info,
   Heart,
@@ -926,59 +927,29 @@ const MainLayout: React.FC = () => {
                 <span>Home</span>
               </button>
 
-              {/* Mobile Catalog Collections Section */}
-              <div className="border border-gray-100 bg-gray-50/80 rounded-xl p-2.5 space-y-1.5">
-                <div className="flex items-center gap-2 text-xs font-bold text-gray-800 px-1 py-1">
-                  <Grid className="h-4 w-4 text-gray-600" />
-                  <span>Collections Catalog</span>
+              {/* Catalog Groups & Filters Button */}
+              <button
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setAboutModalOpen(false);
+                  setMobileMenuOpen(false);
+                  setTimeout(() => {
+                    const btn = document.getElementById('open-mobile-filters-btn');
+                    if (btn) btn.click();
+                    else {
+                      const sec = document.getElementById('catalog-filters-section');
+                      if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+                    }
+                  }, 120);
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <Folder className="h-4 w-4 text-amber-700" />
+                  <span>Catalog Groups & Filters</span>
                 </div>
-                <button
-                  onClick={() => {
-                    setSelectedDesignCode(null);
-                    setSelectedCollectionFilter(null);
-                    setMobileMenuOpen(false);
-                    setStorefrontResetKey(prev => prev + 1);
-                  }}
-                  className={`w-full text-left px-3 py-2 rounded-lg text-xs font-semibold flex items-center justify-between transition-colors ${
-                    !selectedCollectionFilter ? 'bg-gray-900 text-white' : 'text-gray-700 bg-white hover:bg-gray-100 border border-gray-100'
-                  }`}
-                >
-                  <span>All Collections</span>
-                  <span className="text-[10px] font-mono opacity-80">All →</span>
-                </button>
-                {Array.from(
-                  new Set(
-                    designs
-                      .filter(d => d.status === 'Active')
-                      .map(d => {
-                        if (d.collection && d.collection.trim()) return d.collection.trim();
-                        if (d.name && d.name.trim()) {
-                          const parts = d.name.split('-');
-                          return parts[0].trim();
-                        }
-                        return null;
-                      })
-                      .filter(Boolean) as string[]
-                  )
-                ).map((collName) => (
-                  <button
-                    key={collName}
-                    onClick={() => {
-                      setSelectedDesignCode(null);
-                      setSelectedCollectionFilter(collName);
-                      setMobileMenuOpen(false);
-                    }}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-between transition-colors ${
-                      selectedCollectionFilter?.toLowerCase() === collName.toLowerCase()
-                        ? 'bg-gray-900 text-white font-semibold'
-                        : 'text-gray-700 bg-white hover:bg-gray-100 border border-gray-100'
-                    }`}
-                  >
-                    <span>{collName} Collection</span>
-                    <span className="text-[10px] font-mono opacity-60">View →</span>
-                  </button>
-                ))}
-              </div>
+                <span className="text-[10px] font-mono bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-full font-bold">Filter →</span>
+              </button>
 
               <button
                 onClick={() => {
@@ -1958,15 +1929,20 @@ const MainLayout: React.FC = () => {
           <button
             onClick={() => {
               setSelectedDesignCode(null);
-              setMobileMenuOpen(!mobileMenuOpen);
+              setAboutModalOpen(false);
+              setMobileMenuOpen(false);
+              setTimeout(() => {
+                const btn = document.getElementById('open-mobile-filters-btn');
+                if (btn) btn.click();
+                else {
+                  const sec = document.getElementById('catalog-filters-section');
+                  if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+                }
+              }, 100);
             }}
-            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-              selectedCollectionFilter || mobileMenuOpen
-                ? 'text-gray-900 font-extrabold'
-                : 'text-gray-500 hover:text-gray-900'
-            }`}
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors text-amber-700 hover:text-amber-900`}
           >
-            <Grid className="h-5 w-5" />
+            <Folder className="h-5 w-5 text-amber-600" />
             <span>Catalog</span>
           </button>
 

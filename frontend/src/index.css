@@ -20,19 +20,34 @@
 @layer base {
   html {
     background: #ffffff;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   body {
     @apply bg-white text-gray-900 font-sans antialiased;
     min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
   }
 
   #root {
     min-height: 100vh;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
+    box-sizing: border-box;
   }
 
   * {
     border-color: #e5e7eb;
+    box-sizing: border-box;
   }
 
   button,
@@ -52,11 +67,17 @@
     min-height: 100vh;
     background: #f8f9fa;
     color: #111827;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
   }
 
   .app-main {
     background: #f8f9fa;
     color: #111827;
+    overflow-x: hidden;
+    max-width: 100vw;
+    width: 100%;
   }
 
   .topbar {

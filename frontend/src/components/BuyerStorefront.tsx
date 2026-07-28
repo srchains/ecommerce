@@ -623,8 +623,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
       </aside>
 
       {/* ── Mobile Filter Drawer Toggle Button ── */}
-      <div className="lg:hidden w-full mb-1">
+      <div id="catalog-filters-section" className="lg:hidden w-full mb-1">
         <button
+          id="open-mobile-filters-btn"
           type="button"
           onClick={() => setIsMobileFilterDrawerOpen(true)}
           className="w-full flex items-center justify-between px-4 py-3 bg-slate-900 text-white rounded-xl font-extrabold text-xs shadow-sm cursor-pointer hover:bg-slate-800 transition-all"
