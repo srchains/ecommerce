@@ -53,9 +53,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     const list = Array.from(
       new Set([
         ...categories.map(c => c.name),
-        ...designs.map(d => d.collection).filter(Boolean)
+        ...designs.map(d => d.collection).filter((c): c is string => Boolean(c && c.trim()))
       ])
-    ).filter(Boolean).sort();
+    ).filter((c): c is string => Boolean(c && c.trim())).sort();
     return list;
   }, [categories, designs]);
 

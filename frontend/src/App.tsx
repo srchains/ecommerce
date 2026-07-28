@@ -32,7 +32,6 @@ import {
   Menu,
   LogOut,
   Home,
-  Folder,
   ChevronDown,
   Info,
   Heart,
