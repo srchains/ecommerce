@@ -1,8 +1,6 @@
 // Shared Catalog PDF Generator Utility for SR Chains
 // Generates 100% non-blank downloadable A4 tag catalogs for collections or specific variants.
 
-import html2pdf from 'html2pdf.js';
-
 export interface PdfCatalogItem {
   design: any;
   variant: any;
