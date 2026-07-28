@@ -395,16 +395,16 @@ const MainLayout: React.FC = () => {
         message += `   - Size: ${item.size.size.toFixed(2)}"\n`;
         message += `   - Weight: ${item.size.weight.toFixed(2)}g\n`;
         message += `   - Type: ${typeStr}\n`;
-        message += `   - Qty: ${item.quantity} | Subtotal: ₹${itemPrice.toLocaleString('en-IN')}\n\n`;
+        message += `   - Qty: ${item.quantity}\n\n`;
       });
       
       message += `----------------------------------------\n`;
-      message += `*Total Weight:* ${cartTotals.weight.toFixed(2)}g\n`;
-      message += `*In-Stock Payable Amount (${cartTotals.inStockPcs} pcs):* ₹${cartTotals.inStockPrice.toLocaleString('en-IN')}\n`;
+      message += `*Total Weight:* ${cartTotals.weight.toFixed(2)}g (approx)\n`;
+      message += `*In-Stock Payable Amount (${cartTotals.inStockPcs} pcs):* ₹${cartTotals.inStockPrice.toLocaleString('en-IN')} (approx)\n`;
       if (cartTotals.mtoPcs > 0) {
-        message += `*Make to Order Amount (${cartTotals.mtoPcs} pcs):* ₹${cartTotals.mtoPrice.toLocaleString('en-IN')}\n`;
+        message += `*Make to Order Amount (${cartTotals.mtoPcs} pcs):* ₹${cartTotals.mtoPrice.toLocaleString('en-IN')} (approx)\n`;
       }
-      message += `*Total Order Amount:* ₹${cartTotals.price.toLocaleString('en-IN')}\n`;
+      message += `*Total Order Amount:* ₹${cartTotals.price.toLocaleString('en-IN')} (approx)\n`;
       message += `----------------------------------------\n\n`;
       message += `Thank you for your wholesale order!`;
 
