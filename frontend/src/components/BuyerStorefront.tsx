@@ -82,6 +82,21 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   }, [currentPage]);
 
   useEffect(() => {
+    const handleOpenGroups = () => {
+      setIsMobileFilterDrawerOpen(true);
+    };
+    const handleOpenPdf = () => {
+      setIsMobilePdfDrawerOpen(true);
+    };
+    window.addEventListener('open-catalog-groups-drawer', handleOpenGroups);
+    window.addEventListener('open-pdf-download-drawer', handleOpenPdf);
+    return () => {
+      window.removeEventListener('open-catalog-groups-drawer', handleOpenGroups);
+      window.removeEventListener('open-pdf-download-drawer', handleOpenPdf);
+    };
+  }, []);
+
+  useEffect(() => {
     const handleResize = () => {
       setIsMobile(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     };

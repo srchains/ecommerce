@@ -926,19 +926,30 @@ const MainLayout: React.FC = () => {
                 <span>Home</span>
               </button>
 
+              {/* Catalog Groups & Filters Button */}
+              <button
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setAboutModalOpen(false);
+                  setMobileMenuOpen(false);
+                  window.dispatchEvent(new Event('open-catalog-groups-drawer'));
+                }}
+                className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider text-gray-900 bg-gray-100 border border-gray-200 hover:bg-gray-200 transition-all cursor-pointer shadow-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <Grid className="h-4 w-4 text-gray-700" />
+                  <span>Catalog Groups & Filters</span>
+                </div>
+                <span className="text-[10px] font-mono bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">View →</span>
+              </button>
+
               {/* Download Catalog PDF Button */}
               <button
                 onClick={() => {
                   setSelectedDesignCode(null);
                   setAboutModalOpen(false);
                   setMobileMenuOpen(false);
-                  setTimeout(() => {
-                    const btn = document.getElementById('open-mobile-pdf-btn');
-                    if (btn) btn.click();
-                    else {
-                      downloadCatalogPDFForCollection('All', designs, categories);
-                    }
-                  }, 120);
+                  window.dispatchEvent(new Event('open-pdf-download-drawer'));
                 }}
                 className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider text-amber-950 bg-amber-50 border border-amber-300 hover:bg-amber-100 transition-all cursor-pointer shadow-xs"
               >
@@ -1929,14 +1940,9 @@ const MainLayout: React.FC = () => {
               setSelectedDesignCode(null);
               setAboutModalOpen(false);
               setMobileMenuOpen(false);
-              setTimeout(() => {
-                const btn = document.getElementById('open-mobile-filters-btn');
-                if (btn) btn.click();
-              }, 100);
+              window.dispatchEvent(new Event('open-catalog-groups-drawer'));
             }}
-            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-              mobileMenuOpen ? 'text-gray-900 font-extrabold' : 'text-gray-500 hover:text-gray-900'
-            }`}
+            className="flex flex-col items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-gray-900 transition-colors"
           >
             <Grid className="h-5 w-5" />
             <span>Catalog</span>
