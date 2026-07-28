@@ -1,5 +1,7 @@
 // Shared Catalog PDF Generator Utility for SR Chains
-// Generates direct PDF file downloads for collections or specific variants.
+// Directly downloads PDF files in the background without opening print popups or new tabs.
+
+import html2pdf from 'html2pdf.js';
 
 export interface PdfCatalogItem {
   design: any;
@@ -64,12 +66,6 @@ export const generateCatalogPDF = (
     return;
   }
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Please allow popups in your browser to download the PDF catalog.');
-    return;
-  }
-
   const logoUrl = `${window.location.origin}/logo.jpg`;
 
   const cardsHtml = itemsList.map(({ design, variant, sizes, variantWeight }) => {
@@ -78,11 +74,8 @@ export const generateCatalogPDF = (
     const tagLabelCode = rawCode.replace(/\s*Z\s*$/i, '').trim();
     
     const purity = design?.purity || 70;
-    // Title is simply design name/code (Removed "70% FINE SILVER" as requested)
+    // Clean title (no "70% FINE SILVER" prefix)
     const titleText = `${design?.name || tagLabelCode}`;
-    
-    const targetDesignName = design?.name || design?.design_code || rawCode;
-    const productUrl = `${window.location.origin}/?design=${encodeURIComponent(targetDesignName)}${variant?.id ? `&variant=${variant.id}` : ''}`;
 
     const sizesArr = sizes || variant?.sizes || [];
     const avgW = sizesArr.length > 0 ? (sizesArr.reduce((a: number, s: any) => a + (Number(s.weight) || 0), 0) / sizesArr.length) : 0;
@@ -94,16 +87,12 @@ export const generateCatalogPDF = (
     const sizeText = sizeValues.length <= 1 ? `${minSz}"` : `${minSz}" - ${maxSz}"`;
 
     return `
-      <div class="catalog-card">
-        <a href="${productUrl}" target="_blank" title="Click to view product on website" style="text-decoration: none; color: inherit; display: block;">
-          <div class="image-box">
-            <img src="${zoomUrl}" alt="${tagLabelCode}" crossorigin="anonymous" />
-          </div>
-        </a>
-        <a href="${productUrl}" target="_blank" title="Click to view product on website" style="text-decoration: none; color: inherit;">
-          <div class="item-title">${titleText}</div>
-        </a>
-        <div class="item-info">
+      <div style="page-break-inside: avoid; break-inside: avoid; text-align: center; background: #ffffff; padding: 4px;">
+        <div style="width: 100%; height: 200px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 8px;">
+          <img src="${zoomUrl}" alt="${tagLabelCode}" style="width: 100%; height: 100%; object-fit: cover; object-position: center;" crossorigin="anonymous" />
+        </div>
+        <div style="font-size: 13px; font-weight: 900; color: #1d4ed8; text-transform: uppercase; margin-bottom: 4px; line-height: 1.25;">${titleText}</div>
+        <div style="font-size: 10px; color: #111827; font-weight: 700; line-height: 1.45;">
           <strong>Tag Label:</strong> ${tagLabelCode}<br />
           <strong>Weight:</strong> ${weightText}<br />
           <strong>Size:</strong> ${sizeText}<br />
@@ -115,194 +104,74 @@ export const generateCatalogPDF = (
 
   const safeFileName = `SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog.pdf`;
 
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog</title>
-      <meta charset="utf-8" />
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-      <style>
-        @page {
-          size: A4 portrait;
-          margin: 6mm 8mm 6mm 8mm;
-        }
-        * { box-sizing: border-box; }
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-          margin: 0;
-          padding: 16px;
-          color: #111827;
-          background: #ffffff;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        .header-table {
-          width: 100%;
-          border-bottom: 2px solid #e5e7eb;
-          padding-bottom: 12px;
-          margin-bottom: 20px;
-        }
-        .company-name {
-          font-size: 22px;
-          font-weight: 900;
-          color: #b45309;
-          letter-spacing: 0.5px;
-          margin: 0 0 2px 0;
-          text-transform: uppercase;
-        }
-        .contact-details {
-          text-align: right;
-          font-size: 11px;
-          color: #374151;
-          line-height: 1.45;
-        }
-        .catalog-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 24px 16px;
-        }
-        .catalog-card {
-          page-break-inside: avoid;
-          break-inside: avoid;
-          text-align: center;
-          background: #ffffff;
-          padding: 4px;
-        }
-        .image-box {
-          width: 100%;
-          height: 220px;
-          background-color: #f8fafc;
-          border: 1px solid #e2e8f0;
-          border-radius: 8px;
-          overflow: hidden;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: 8px;
-        }
-        .image-box img {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-          object-position: center;
-        }
-        .item-title {
-          font-size: 13px;
-          font-weight: 900;
-          color: #1d4ed8;
-          text-transform: uppercase;
-          margin-bottom: 4px;
-          line-height: 1.25;
-        }
-        .item-info {
-          font-size: 10px;
-          color: #111827;
-          font-weight: 700;
-          line-height: 1.45;
-        }
-        .item-info strong {
-          font-weight: 800;
-          color: #000000;
-        }
-        .action-bar {
-          position: fixed;
-          top: 16px;
-          right: 16px;
-          display: flex;
-          gap: 10px;
-          z-index: 99999;
-        }
-        .download-btn {
-          background: #d97706;
-          color: #ffffff;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-weight: 700;
-          font-size: 13px;
-          cursor: pointer;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.3);
-        }
-        .print-btn {
-          background: #0f172a;
-          color: #ffffff;
-          border: none;
-          padding: 10px 20px;
-          border-radius: 8px;
-          font-weight: 700;
-          font-size: 13px;
-          cursor: pointer;
-          box-shadow: 0 4px 14px rgba(0,0,0,0.3);
-        }
-        @media print {
-          .action-bar { display: none !important; }
-          body { padding: 0; }
-        }
-      </style>
-    </head>
-    <body>
-      <div class="action-bar">
-        <button class="download-btn" onclick="downloadPdfNow()">📥 Save PDF File Directly</button>
-        <button class="print-btn" onclick="window.print()">🖨️ Print Catalog</button>
-      </div>
+  // Temporary container element offscreen
+  const container = document.createElement('div');
+  container.style.position = 'fixed';
+  container.style.left = '-9999px';
+  container.style.top = '-9999px';
+  container.style.width = '800px';
+  container.style.backgroundColor = '#ffffff';
+  container.style.padding = '16px';
+  container.style.color = '#111827';
+  container.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
 
-      <div id="catalog-container">
-        <table class="header-table">
-          <tr>
-            <td style="vertical-align: top;">
-              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
-                <img src="${logoUrl}" alt="SR Chains Logo" style="height: 48px; width: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1;" />
-                <div>
-                  <h1 class="company-name" style="margin: 0; line-height: 1.1;">SR CHAINS</h1>
-                  <div style="font-size: 11px; font-weight: 800; color: #d97706; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">B2B Silver Jewelry • ${title}</div>
-                </div>
-              </div>
-            </td>
-            <td style="vertical-align: top;" class="contact-details">
-              <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 4px;">SR CHAINS</div>
-              <div>
-                <strong>Ph no :</strong> 70106 74487<br />
-                <strong>Email :</strong> srchains19@gmail.com
-              </div>
-            </td>
-          </tr>
-        </table>
+  container.innerHTML = `
+    <table style="width: 100%; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; margin-bottom: 20px;">
+      <tr>
+        <td style="vertical-align: top;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+            <img src="${logoUrl}" alt="SR Chains Logo" style="height: 48px; width: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1;" crossorigin="anonymous" />
+            <div>
+              <h1 style="font-size: 22px; font-weight: 900; color: #b45309; letter-spacing: 0.5px; margin: 0; line-height: 1.1; text-transform: uppercase;">SR CHAINS</h1>
+              <div style="font-size: 11px; font-weight: 800; color: #d97706; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">B2B Silver Jewelry • ${title}</div>
+            </div>
+          </div>
+        </td>
+        <td style="vertical-align: top; text-align: right; font-size: 11px; color: #374151; line-height: 1.45;">
+          <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 4px;">SR CHAINS</div>
+          <div>
+            <strong>Ph no :</strong> 70106 74487<br />
+            <strong>Email :</strong> srchains19@gmail.com
+          </div>
+        </td>
+      </tr>
+    </table>
 
-        <div class="catalog-grid">
-          ${cardsHtml}
-        </div>
-      </div>
-
-      <script>
-        function downloadPdfNow() {
-          const element = document.getElementById('catalog-container');
-          if (window.html2pdf) {
-            const opt = {
-              margin:       [6, 8, 6, 8],
-              filename:     '${safeFileName}',
-              image:        { type: 'jpeg', quality: 0.98 },
-              html2canvas:  { scale: 2, useCORS: true, logging: false },
-              jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-            html2pdf().set(opt).from(element).save();
-          } else {
-            window.print();
-          }
-        }
-
-        window.onload = function() {
-          setTimeout(function() {
-            downloadPdfNow();
-          }, 800);
-        };
-      </script>
-    </body>
-    </html>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px 16px;">
+      ${cardsHtml}
+    </div>
   `;
 
-  printWindow.document.write(htmlContent);
-  printWindow.document.close();
+  document.body.appendChild(container);
+
+  // Pre-load all images before PDF capture
+  const images = container.querySelectorAll('img');
+  const promises = Array.from(images).map(img => {
+    return new Promise((res) => {
+      if (img.complete) res(true);
+      else {
+        img.onload = () => res(true);
+        img.onerror = () => res(true);
+      }
+    });
+  });
+
+  const opt = {
+    margin:       [6, 8, 6, 8],
+    filename:     safeFileName,
+    image:        { type: 'jpeg', quality: 0.98 },
+    html2canvas:  { scale: 2, useCORS: true, logging: false },
+    jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+
+  Promise.all(promises).then(() => {
+    html2pdf().set(opt).from(container).save().then(() => {
+      if (document.body.contains(container)) document.body.removeChild(container);
+    }).catch((err: any) => {
+      console.error('PDF Generation Error:', err);
+      if (document.body.contains(container)) document.body.removeChild(container);
+    });
+  });
 };
 
 export const downloadCatalogPDFForCollection = (
