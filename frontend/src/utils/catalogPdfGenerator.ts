@@ -1,5 +1,5 @@
 // Shared Catalog PDF Generator Utility for SR Chains
-// Generates printable/downloadable A4 tag catalogs for collections or specific variants.
+// Generates direct PDF file downloads for collections or specific variants.
 
 export interface PdfCatalogItem {
   design: any;
@@ -66,7 +66,7 @@ export const generateCatalogPDF = (
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    alert('Please allow popups in your browser to download/print the PDF catalog.');
+    alert('Please allow popups in your browser to download the PDF catalog.');
     return;
   }
 
@@ -78,7 +78,8 @@ export const generateCatalogPDF = (
     const tagLabelCode = rawCode.replace(/\s*Z\s*$/i, '').trim();
     
     const purity = design?.purity || 70;
-    const titleText = `${purity}% FINE SILVER ${design?.name || tagLabelCode}`;
+    // Title is simply design name/code (Removed "70% FINE SILVER" as requested)
+    const titleText = `${design?.name || tagLabelCode}`;
     
     const targetDesignName = design?.name || design?.design_code || rawCode;
     const productUrl = `${window.location.origin}/?design=${encodeURIComponent(targetDesignName)}${variant?.id ? `&variant=${variant.id}` : ''}`;
@@ -96,7 +97,7 @@ export const generateCatalogPDF = (
       <div class="catalog-card">
         <a href="${productUrl}" target="_blank" title="Click to view product on website" style="text-decoration: none; color: inherit; display: block;">
           <div class="image-box">
-            <img src="${zoomUrl}" alt="${tagLabelCode}" />
+            <img src="${zoomUrl}" alt="${tagLabelCode}" crossorigin="anonymous" />
           </div>
         </a>
         <a href="${productUrl}" target="_blank" title="Click to view product on website" style="text-decoration: none; color: inherit;">
@@ -112,12 +113,15 @@ export const generateCatalogPDF = (
     `;
   }).join('');
 
+  const safeFileName = `SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog.pdf`;
+
   const htmlContent = `
     <!DOCTYPE html>
     <html>
     <head>
       <title>SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog</title>
       <meta charset="utf-8" />
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
       <style>
         @page {
           size: A4 portrait;
@@ -140,21 +144,16 @@ export const generateCatalogPDF = (
           margin-bottom: 20px;
         }
         .company-name {
-          font-size: 20px;
+          font-size: 22px;
           font-weight: 900;
           color: #b45309;
           letter-spacing: 0.5px;
           margin: 0 0 2px 0;
           text-transform: uppercase;
         }
-        .company-details {
-          font-size: 10px;
-          color: #4b5563;
-          line-height: 1.45;
-        }
         .contact-details {
           text-align: right;
-          font-size: 10px;
+          font-size: 11px;
           color: #374151;
           line-height: 1.45;
         }
@@ -189,7 +188,7 @@ export const generateCatalogPDF = (
           object-position: center;
         }
         .item-title {
-          font-size: 11.5px;
+          font-size: 13px;
           font-weight: 900;
           color: #1d4ed8;
           text-transform: uppercase;
@@ -214,6 +213,17 @@ export const generateCatalogPDF = (
           gap: 10px;
           z-index: 99999;
         }
+        .download-btn {
+          background: #d97706;
+          color: #ffffff;
+          border: none;
+          padding: 10px 20px;
+          border-radius: 8px;
+          font-weight: 700;
+          font-size: 13px;
+          cursor: pointer;
+          box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+        }
         .print-btn {
           background: #0f172a;
           color: #ffffff;
@@ -233,45 +243,58 @@ export const generateCatalogPDF = (
     </head>
     <body>
       <div class="action-bar">
-        <button class="print-btn" onclick="window.print()">📥 Download PDF / Print Catalog</button>
+        <button class="download-btn" onclick="downloadPdfNow()">📥 Save PDF File Directly</button>
+        <button class="print-btn" onclick="window.print()">🖨️ Print Catalog</button>
       </div>
 
-      <table class="header-table">
-        <tr>
-          <td style="vertical-align: top;">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
-              <img src="${logoUrl}" alt="SR Chains Logo" style="height: 48px; width: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1;" />
-              <div>
-                <h1 class="company-name" style="margin: 0; line-height: 1.1;">SR CHAINS</h1>
-                <div style="font-size: 10px; font-weight: 800; color: #d97706; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">B2B Silver Jewelry • ${title}</div>
+      <div id="catalog-container">
+        <table class="header-table">
+          <tr>
+            <td style="vertical-align: top;">
+              <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 6px;">
+                <img src="${logoUrl}" alt="SR Chains Logo" style="height: 48px; width: 48px; object-fit: cover; border-radius: 8px; border: 1px solid #cbd5e1;" />
+                <div>
+                  <h1 class="company-name" style="margin: 0; line-height: 1.1;">SR CHAINS</h1>
+                  <div style="font-size: 11px; font-weight: 800; color: #d97706; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">B2B Silver Jewelry • ${title}</div>
+                </div>
               </div>
-            </div>
-            <div class="company-details">
-              <strong>Contact & Registered Office:</strong><br />
-              64, Arumuga Pillayar Koil Street,<br />
-              Gugai,<br />
-              Salem - 636 005
-            </div>
-          </td>
-          <td style="vertical-align: top;" class="contact-details">
-            <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 4px;">SR CHAINS</div>
-            <div>
-              <strong>Ph no :</strong> 70106 74487<br />
-              <strong>Email :</strong> srchains19@gmail.com
-            </div>
-          </td>
-        </tr>
-      </table>
+            </td>
+            <td style="vertical-align: top;" class="contact-details">
+              <div style="font-size: 16px; font-weight: 900; color: #0f172a; margin-bottom: 4px;">SR CHAINS</div>
+              <div>
+                <strong>Ph no :</strong> 70106 74487<br />
+                <strong>Email :</strong> srchains19@gmail.com
+              </div>
+            </td>
+          </tr>
+        </table>
 
-      <div class="catalog-grid">
-        ${cardsHtml}
+        <div class="catalog-grid">
+          ${cardsHtml}
+        </div>
       </div>
 
       <script>
+        function downloadPdfNow() {
+          const element = document.getElementById('catalog-container');
+          if (window.html2pdf) {
+            const opt = {
+              margin:       [6, 8, 6, 8],
+              filename:     '${safeFileName}',
+              image:        { type: 'jpeg', quality: 0.98 },
+              html2canvas:  { scale: 2, useCORS: true, logging: false },
+              jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+            html2pdf().set(opt).from(element).save();
+          } else {
+            window.print();
+          }
+        }
+
         window.onload = function() {
           setTimeout(function() {
-            window.print();
-          }, 500);
+            downloadPdfNow();
+          }, 800);
         };
       </script>
     </body>
