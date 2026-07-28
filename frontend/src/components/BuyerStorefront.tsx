@@ -851,9 +851,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                             Child Variant Match
                           </span>
                           
-                          <span className="absolute top-2 right-2 bg-white/90 border border-gray-200 text-[10px] font-bold text-gray-700 uppercase px-2 py-1 rounded">
-                            {design.collection || 'New Arrival'}
-                          </span>
+
 
                           {catName && (
                             <span className="absolute bottom-2 left-2 bg-black/60 text-white text-[10px] font-semibold px-2 py-0.5 rounded">
@@ -1098,10 +1096,7 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     
-                    {/* Collection Tag */}
-                    <span className="absolute top-3 right-3 bg-white/90 border border-gray-200 px-2.5 py-1 rounded-md text-[11px] font-bold text-gray-700 uppercase tracking-wider">
-                      {design.collection || 'New'}
-                    </span>
+
 
                     {/* Category Tag */}
                     {catName && (
