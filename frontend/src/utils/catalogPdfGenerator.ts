@@ -156,8 +156,8 @@ export const generateCatalogPDF = (
     });
   });
 
-  const opt = {
-    margin: [6, 8, 6, 8] as [number, number, number, number],
+  const opt: any = {
+    margin: [6, 8, 6, 8],
     filename: safeFileName,
     image: { type: 'jpeg', quality: 0.98 },
     html2canvas: { scale: 2, useCORS: true, logging: false },
