@@ -397,7 +397,7 @@ const MainLayout: React.FC = () => {
       }
       message += `*Total Order Amount:* ₹${cartTotals.price.toLocaleString('en-IN')} (approx)\n`;
       message += `----------------------------------------\n\n`;
-      message += `Thank you for your wholesale order!`;
+      message += `Thank you for your order`;
 
       // Open WhatsApp for Wholesaler
       const wholesalerPhone = '917010674487';

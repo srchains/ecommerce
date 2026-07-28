@@ -679,7 +679,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                 <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Purity</p>
-                <p className="font-semibold mt-1">{design.purity}% Fine</p>
+                <p className="font-semibold mt-1">{design.purity}%</p>
               </div>
               <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
                 <p className="text-xs text-gray-500 font-semibold uppercase tracking-wide">MOQ</p>
@@ -1078,7 +1078,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                     {/* Purity Badge */}
                     <div className="absolute top-2.5 left-2.5 z-10">
                       <span className="bg-white/95 backdrop-blur-md text-gray-900 text-[10px] font-bold px-2.5 py-1 rounded-full border border-gray-200 shadow-xs">
-                        {relDesign.purity}% Fine
+                        {relDesign.purity}%
                       </span>
                     </div>
 
