@@ -379,15 +379,6 @@ const MainLayout: React.FC = () => {
       message += `*Items Details:*\n`;
       
       cart.forEach((item, idx) => {
-        const itemPricePerPiece = item.lockedPrice !== undefined
-          ? item.lockedPrice
-          : calculatePriceBreakdown(
-              item.size.weight,
-              item.design.purity,
-              item.design.wastage_percent,
-              item.design.making_charge_per_gram
-            ).total;
-        const itemPrice = itemPricePerPiece * item.quantity;
         const typeStr = item.orderType === 'ready_stock' ? 'Ready Stock' : 'Make Order (MTO)';
         
         message += `${idx + 1}. *${item.design.name}* (${item.design.design_code})\n`;
