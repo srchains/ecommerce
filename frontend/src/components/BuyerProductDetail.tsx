@@ -108,10 +108,13 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   const [zoomPosition, setZoomPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
+  const pinchDistRef = useRef<number | null>(null);
+  const pinchStartScaleRef = useRef<number>(1);
 
   useEffect(() => {
     setZoomScale(1);
     setZoomPosition({ x: 0, y: 0 });
+    pinchDistRef.current = null;
   }, [activeMediaIdx, isLightboxOpen]);
 
   const handleShare = async () => {
@@ -1183,7 +1186,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    setZoomScale(prev => Math.min(prev + 0.5, 3.5));
+                    setZoomScale(prev => Math.min(prev + 0.5, 5.0));
                   }}
                   className="p-1.5 hover:bg-white/20 rounded-full transition-colors cursor-pointer"
                   title="Zoom In"
@@ -1245,7 +1248,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
               </button>
             )}
 
-            {/* Media Area with Drag & Pinch & Click Zoom */}
+            {/* Media Area with 2-Finger Pinch Zoom & Drag */}
             <div
               className="relative w-full max-w-[95vw] max-h-[92vh] flex items-center justify-center px-4 sm:px-18 overflow-hidden select-none"
               onClick={(e) => e.stopPropagation()}
@@ -1253,10 +1256,10 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                 if (currentMedia?.file_type?.startsWith('video')) return;
                 e.stopPropagation();
                 if (e.deltaY < 0) {
-                  setZoomScale(s => Math.min(s + 0.25, 3.5));
+                  setZoomScale(s => Math.min(s + 0.3, 5.0));
                 } else {
                   setZoomScale(s => {
-                    const next = Math.max(s - 0.25, 1);
+                    const next = Math.max(s - 0.3, 1);
                     if (next === 1) setZoomPosition({ x: 0, y: 0 });
                     return next;
                   });
@@ -1280,7 +1283,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     if (zoomScale === 1) {
-                      setZoomScale(2.2);
+                      setZoomScale(2.5);
                     } else {
                       setZoomScale(1);
                       setZoomPosition({ x: 0, y: 0 });
@@ -1305,21 +1308,52 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                   onMouseUp={() => setIsDragging(false)}
                   onMouseLeave={() => setIsDragging(false)}
                   onTouchStart={(e) => {
-                    if (zoomScale > 1 && e.touches.length === 1) {
+                    if (currentMedia?.file_type?.startsWith('video')) return;
+                    if (e.touches.length === 2) {
+                      const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                      );
+                      pinchDistRef.current = dist;
+                      pinchStartScaleRef.current = zoomScale;
+                      setIsDragging(false);
+                    } else if (e.touches.length === 1 && zoomScale > 1) {
                       setIsDragging(true);
-                      dragStartRef.current = { x: e.touches[0].clientX - zoomPosition.x, y: e.touches[0].clientY - zoomPosition.y };
+                      dragStartRef.current = {
+                        x: e.touches[0].clientX - zoomPosition.x,
+                        y: e.touches[0].clientY - zoomPosition.y
+                      };
                     }
                   }}
                   onTouchMove={(e) => {
-                    if (isDragging && zoomScale > 1 && e.touches.length === 1) {
+                    if (currentMedia?.file_type?.startsWith('video')) return;
+                    if (e.touches.length === 2 && pinchDistRef.current !== null) {
+                      const dist = Math.hypot(
+                        e.touches[0].clientX - e.touches[1].clientX,
+                        e.touches[0].clientY - e.touches[1].clientY
+                      );
+                      if (dist > 0) {
+                        const ratio = dist / pinchDistRef.current;
+                        const newScale = Math.max(1, Math.min(5.0, pinchStartScaleRef.current * ratio));
+                        setZoomScale(newScale);
+                        if (newScale === 1) setZoomPosition({ x: 0, y: 0 });
+                      }
+                    } else if (e.touches.length === 1 && isDragging && zoomScale > 1) {
                       setZoomPosition({
                         x: e.touches[0].clientX - dragStartRef.current.x,
                         y: e.touches[0].clientY - dragStartRef.current.y
                       });
                     }
                   }}
-                  onTouchEnd={() => setIsDragging(false)}
-                  className="max-w-full max-h-[88vh] object-contain rounded-xl shadow-2xl border border-gray-800 transition-transform duration-100 ease-out select-none"
+                  onTouchEnd={(e) => {
+                    if (e.touches.length < 2) {
+                      pinchDistRef.current = null;
+                    }
+                    if (e.touches.length === 0) {
+                      setIsDragging(false);
+                    }
+                  }}
+                  className="max-w-full max-h-[88vh] object-contain rounded-xl shadow-2xl border border-gray-800 transition-transform duration-75 ease-out select-none touch-none"
                   style={{
                     transform: `translate(${zoomPosition.x}px, ${zoomPosition.y}px) scale(${zoomScale})`,
                     cursor: zoomScale > 1 ? (isDragging ? 'grabbing' : 'grab') : 'zoom-in'
