@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Play, Pause, Sparkles, ArrowUpRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Pause } from 'lucide-react';
 import type { BannerConfig, BannerSlide, SceneEffect, BackgroundPreset } from '../types/banner';
 import { BACKGROUND_GRADIENTS } from '../types/banner';
 import './cinematic-hero-banner.css';
@@ -210,28 +210,6 @@ export const CinematicHeroBanner: React.FC<CinematicHeroBannerProps> = ({
           <div className="chb-vignette" aria-hidden="true" />
         </div>
       </div>
-
-      {/* Slide Branding & Title Overlay */}
-      <div className="chb-branding">
-        <span className="chb-brandName">
-          {currentSlide.title || 'SR CHAINS'}
-        </span>
-        <span className="chb-brandSub">
-          {currentSlide.subtitle || 'PURE 92.5 SILVER ANKLETS COLLECTION'}
-        </span>
-      </div>
-
-      {/* SKU / Design Code Badge */}
-      {currentSlide.design_code && (
-        <div 
-          className="chb-skuBadge cursor-pointer"
-          onClick={() => onSlideClick && onSlideClick(currentSlide)}
-        >
-          <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-          <span>{currentSlide.design_code}</span>
-          <ArrowUpRight className="h-3 w-3 text-amber-300" />
-        </div>
-      )}
 
       {/* Progress Dots */}
       {slides.length > 1 && (
