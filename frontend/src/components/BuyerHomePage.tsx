@@ -66,7 +66,42 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
         />
       </section>
 
-      {/* ── 2. FEATURED PRODUCTS SHOWCASE GRID ── */}
+      {/* ── 2. MORE PRODUCTS SHOWCASE BUTTON (DIRECTLY BELOW BANNER) ── */}
+      <section className="pt-1">
+        <div className="bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 rounded-3xl p-6 sm:p-8 text-white text-center space-y-3 shadow-2xl border border-amber-500/30 relative overflow-hidden">
+          {/* Background decorative shine */}
+          <div className="absolute -top-24 -left-24 w-60 h-60 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 max-w-2xl mx-auto space-y-3">
+            <span className="inline-flex items-center gap-1.5 bg-amber-400/20 text-amber-300 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-amber-400/30">
+              <Sparkles className="h-3 w-3" />
+              <span>Full Wholesale Catalog</span>
+            </span>
+
+            <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+              Explore All {designs.length}+ Silver Jewelry Collections
+            </h3>
+
+            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
+              Browse our complete catalog of Double Kushboo, Battani, Varisu, Titanic, Jalar, Pakija, and Rasakulla designs with custom size selection, instant MOQ pricing, and live silver rate locking.
+            </p>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={onExploreAll}
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-extrabold text-sm uppercase tracking-wider rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 border border-amber-200"
+              >
+                <span>EXPLORE FULL CATALOGUE (MORE PRODUCTS)</span>
+                <ArrowRight className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── 3. FEATURED PRODUCTS SHOWCASE GRID ── */}
       <section className="space-y-4">
         <div className="flex items-center justify-between border-b border-gray-200 pb-3">
           <div className="flex items-center gap-2.5">
@@ -216,41 +251,6 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
               </div>
             );
           })}
-        </div>
-      </section>
-
-      {/* ── 4. MORE PRODUCTS SHOWCASE BUTTON (BOTTOM BANNER CTA) ── */}
-      <section className="pt-4 pb-8">
-        <div className="bg-gradient-to-r from-slate-900 via-amber-950 to-slate-900 rounded-3xl p-6 sm:p-10 text-white text-center space-y-4 shadow-2xl border border-amber-500/30 relative overflow-hidden">
-          {/* Background decorative shine */}
-          <div className="absolute -top-24 -left-24 w-60 h-60 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -right-24 w-60 h-60 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="relative z-10 max-w-2xl mx-auto space-y-3">
-            <span className="inline-flex items-center gap-1.5 bg-amber-400/20 text-amber-300 text-[11px] font-bold uppercase tracking-widest px-3 py-1 rounded-full border border-amber-400/30">
-              <Sparkles className="h-3 w-3" />
-              <span>Full Wholesale Catalog</span>
-            </span>
-
-            <h3 className="text-xl sm:text-3xl font-extrabold tracking-tight text-white">
-              Explore All {designs.length}+ Silver Jewelry Collections
-            </h3>
-
-            <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
-              Browse our complete catalog of Double Kushboo, Battani, Varisu, Titanic, Jalar, Pakija, and Rasakulla designs with custom size selection, instant MOQ pricing, and live silver rate locking.
-            </p>
-
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={onExploreAll}
-                className="inline-flex items-center gap-2.5 px-8 py-4 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-extrabold text-sm uppercase tracking-wider rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer transform hover:-translate-y-0.5 border border-amber-200"
-              >
-                <span>EXPLORE FULL CATALOGUE (MORE PRODUCTS)</span>
-                <ArrowRight className="h-4.5 w-4.5" />
-              </button>
-            </div>
-          </div>
         </div>
       </section>
     </div>
