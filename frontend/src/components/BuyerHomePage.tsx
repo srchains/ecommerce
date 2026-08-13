@@ -3,10 +3,7 @@ import axios from 'axios';
 import { 
   Sparkles, 
   ArrowRight, 
-  ShieldCheck, 
-  Truck, 
-  Heart,
-  TrendingUp
+  Heart
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CinematicHeroBanner } from './CinematicHeroBanner';
@@ -69,40 +66,7 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
         />
       </section>
 
-      {/* ── 2. VALUE PROPOSITION HIGHLIGHTS BAR ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-amber-50 to-amber-100/50 border border-amber-200/80 rounded-2xl shadow-2xs">
-          <div className="h-10 w-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <ShieldCheck className="h-5 w-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-extrabold text-amber-950 uppercase tracking-wider">92.5 Pure Silver</h4>
-            <p className="text-[11px] text-amber-800/80 font-medium">BIS Hallmarked Wholesale Certified</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-slate-50 to-slate-100/50 border border-slate-200 rounded-2xl shadow-2xs">
-          <div className="h-10 w-10 rounded-xl bg-slate-900 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <Truck className="h-5 w-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">Direct Factory Supply</h4>
-            <p className="text-[11px] text-slate-600 font-medium">Ready Stock & Custom Bulk Orders</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3 p-3.5 bg-gradient-to-r from-emerald-50 to-emerald-100/50 border border-emerald-200/80 rounded-2xl shadow-2xs">
-          <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
-            <TrendingUp className="h-5 w-5" />
-          </div>
-          <div>
-            <h4 className="text-xs font-extrabold text-emerald-950 uppercase tracking-wider">Transparent Live Rates</h4>
-            <p className="text-[11px] text-emerald-800/80 font-medium">Real-time Spot Calculation</p>
-          </div>
-        </div>
-      </div>
-
-      {/* ── 3. FEATURED PRODUCTS SHOWCASE GRID ── */}
+      {/* ── 2. FEATURED PRODUCTS SHOWCASE GRID ── */}
       <section className="space-y-4">
         <div className="flex items-center justify-between border-b border-gray-200 pb-3">
           <div className="flex items-center gap-2.5">

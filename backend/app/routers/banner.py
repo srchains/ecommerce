@@ -15,7 +15,7 @@ except Exception:
     pass
 CONFIG_FILE = os.path.join(CONFIG_DIR, "banner_config.json")
 
-UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads", "banner")
+UPLOADS_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "uploads", "banner"))
 try:
     os.makedirs(UPLOADS_DIR, exist_ok=True)
 except Exception:
