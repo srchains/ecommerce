@@ -36,6 +36,7 @@ class BannerConfig(BaseModel):
     duration_ms: int = 5000 # 3000, 4000, 5000, 6000, 8000, 10000
     slides: List[BannerSlide] = []
     featured_design_codes: List[str] = []
+    featured_design_ids: Optional[List[int]] = []
 
 def get_default_config() -> dict:
     return {

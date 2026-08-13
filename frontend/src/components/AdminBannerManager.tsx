@@ -152,14 +152,17 @@ export const AdminBannerManager: React.FC = () => {
     }));
   };
 
-  const toggleFeaturedDesign = (designCode: string) => {
+  const toggleFeaturedDesign = (designId: number) => {
     setConfig((prev) => {
-      const exists = prev.featured_design_codes.includes(designCode);
+      const currentIds = prev.featured_design_ids || [];
+      const exists = currentIds.includes(designId);
+      const updatedIds = exists
+        ? currentIds.filter((id) => id !== designId)
+        : [...currentIds, designId];
       return {
         ...prev,
-        featured_design_codes: exists
-          ? prev.featured_design_codes.filter((c) => c !== designCode)
-          : [...prev.featured_design_codes, designCode],
+        featured_design_ids: updatedIds,
+        featured_design_codes: updatedIds.map(id => String(id)),
       };
     });
   };
@@ -478,22 +481,24 @@ export const AdminBannerManager: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-sm font-extrabold text-gray-900">
             <Sparkles className="h-4.5 w-4.5 text-amber-600" />
-            <span>Featured Products Below Banner ({config.featured_design_codes.length} Selected)</span>
+            <span>Featured Products Below Banner ({(config.featured_design_ids || config.featured_design_codes || []).length} Selected)</span>
           </div>
           <p className="text-xs text-gray-500 mt-0.5">
-            Select the specific product designs that will be highlighted directly under the animated banner on the buyer landing page.
+            Select specific individual product designs that will be highlighted under the animated banner on the buyer home page. (If none selected, no products will be shown).
           </p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {designs.map((design) => {
-            const isFeatured = config.featured_design_codes.includes(design.design_code);
+            const isFeatured = (config.featured_design_ids || []).includes(design.id) ||
+              (config.featured_design_codes || []).includes(String(design.id)) ||
+              (config.featured_design_codes || []).includes(design.name);
             const thumb = design.media?.[0]?.url || '/logo.jpg';
 
             return (
               <div
                 key={design.id}
-                onClick={() => toggleFeaturedDesign(design.design_code)}
+                onClick={() => toggleFeaturedDesign(design.id)}
                 className={`p-2.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between select-none ${
                   isFeatured
                     ? 'bg-amber-50/80 border-amber-500 ring-2 ring-amber-400/40 shadow-xs'
@@ -510,13 +515,13 @@ export const AdminBannerManager: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-[10px] font-mono font-bold text-gray-500">
-                    {design.design_code}
+                    {design.collection || design.design_code}
                   </span>
                   <p className="text-xs font-extrabold text-gray-900 truncate">
                     {design.name}
                   </p>
                   <span className="text-[10px] text-amber-700 font-semibold block mt-0.5">
-                    {design.collection || 'Collection'}
+                    {design.design_code}
                   </span>
                 </div>
               </div>

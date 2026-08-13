@@ -36,16 +36,20 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
     loadBanner();
   }, []);
 
-  // Filter featured designs based on admin selection or fallback to top active designs
+  // Filter featured designs based on admin selection (no fallback when empty)
   const featuredDesigns = useMemo(() => {
-    if (bannerConfig?.featured_design_codes && bannerConfig.featured_design_codes.length > 0) {
-      const selected = designs.filter((d) =>
-        bannerConfig.featured_design_codes.includes(d.design_code)
-      );
-      if (selected.length > 0) return selected;
+    const featuredIds = bannerConfig?.featured_design_ids || [];
+    const featuredCodes = bannerConfig?.featured_design_codes || [];
+
+    if (featuredIds.length === 0 && featuredCodes.length === 0) {
+      return [];
     }
-    // Default fallback: top 8 active designs
-    return designs.filter((d) => d.status === 'Active' || !d.status).slice(0, 8);
+
+    return designs.filter((d) =>
+      featuredIds.includes(d.id) ||
+      featuredCodes.includes(String(d.id)) ||
+      featuredCodes.includes(d.name)
+    );
   }, [designs, bannerConfig]);
 
   const handleSlideClick = (slide: BannerSlide) => {
@@ -101,8 +105,9 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
         </div>
       </section>
 
-      {/* ── 3. FEATURED PRODUCTS SHOWCASE GRID ── */}
-      <section className="space-y-4">
+      {/* ── 3. FEATURED PRODUCTS SHOWCASE GRID (ONLY IF FEATURED DESIGNS SELECTED) ── */}
+      {featuredDesigns.length > 0 && (
+        <section className="space-y-4">
         <div className="flex items-center justify-between border-b border-gray-200 pb-3">
           <div className="flex items-center gap-2.5">
             <div className="p-1.5 bg-amber-50 rounded-lg border border-amber-200">
@@ -253,6 +258,7 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
           })}
         </div>
       </section>
+      )}
     </div>
   );
 };

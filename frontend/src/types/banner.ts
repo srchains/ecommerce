@@ -24,6 +24,7 @@ export interface BannerConfig {
   duration_ms: number;
   slides: BannerSlide[];
   featured_design_codes: string[];
+  featured_design_ids?: number[];
 }
 
 export const SCENE_EFFECT_LABELS: Record<SceneEffect, string> = {
