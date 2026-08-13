@@ -3,6 +3,8 @@ import { AppProvider, useApp } from './context/AppContext';
 import { Sidebar } from './components/Sidebar';
 import { Dashboard } from './components/Dashboard';
 import { BuyerStorefront } from './components/BuyerStorefront';
+import { BuyerHomePage } from './components/BuyerHomePage';
+import { AdminBannerManager } from './components/AdminBannerManager';
 import { AdminLogin } from './components/AdminLogin';
 import { BuyerLogin } from './components/BuyerLogin';
 import { BuyerProductDetail } from './components/BuyerProductDetail';
@@ -167,6 +169,7 @@ const MainLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [storefrontResetKey, setStorefrontResetKey] = useState(0);
   const [buyerPage, setBuyerPage] = useState(1);
+  const [buyerHomeView, setBuyerHomeView] = useState<'home' | 'catalog'>('home');
   const [selectedInvoiceOrder, setSelectedInvoiceOrder] = useState<any>(null);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const catalogDropdownRef = useRef<HTMLDivElement>(null);
@@ -623,6 +626,7 @@ const MainLayout: React.FC = () => {
                 onClick={() => {
                   setSelectedDesignCode(null);
                   setSelectedCollectionFilter(null);
+                  setBuyerHomeView('home');
                   setStorefrontResetKey(prev => prev + 1);
                 }}
                 className="flex items-center space-x-3 select-none cursor-pointer shrink-0"
@@ -638,9 +642,9 @@ const MainLayout: React.FC = () => {
             )}
           </div>
 
-          {/* Center: Navigation Links (Home, Catalog, About Us) */}
+          {/* Center: Navigation Links (Home, Catalogue, About Us) */}
           {mode === 'buyer' && (
-            <nav className="hidden md:flex items-center justify-center space-x-4 lg:space-x-8 flex-1 px-6">
+            <nav className="hidden md:flex items-center justify-center space-x-3 lg:space-x-6 flex-1 px-4">
               {/* Home Button */}
               <button
                 onClick={() => {
@@ -648,10 +652,11 @@ const MainLayout: React.FC = () => {
                   setSelectedCollectionFilter(null);
                   setAboutModalOpen(false);
                   setCatalogDropdownOpen(false);
+                  setBuyerHomeView('home');
                   setStorefrontResetKey(prev => prev + 1);
                 }}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen
+                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen && buyerHomeView === 'home'
                     ? 'bg-gray-900 text-white shadow-xs'
                     : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
                 }`}
@@ -660,7 +665,25 @@ const MainLayout: React.FC = () => {
                 <span>Home</span>
               </button>
 
-
+              {/* Catalogue Button */}
+              <button
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setSelectedCollectionFilter(null);
+                  setAboutModalOpen(false);
+                  setCatalogDropdownOpen(false);
+                  setBuyerHomeView('catalog');
+                  setStorefrontResetKey(prev => prev + 1);
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen && buyerHomeView === 'catalog'
+                    ? 'bg-gray-900 text-white shadow-xs'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                }`}
+              >
+                <Grid className="h-4 w-4" />
+                <span>Catalogue</span>
+              </button>
 
               {/* About Us Button */}
               <button
@@ -905,10 +928,11 @@ const MainLayout: React.FC = () => {
                   setSelectedCollectionFilter(null);
                   setAboutModalOpen(false);
                   setMobileMenuOpen(false);
+                  setBuyerHomeView('home');
                   setStorefrontResetKey(prev => prev + 1);
                 }}
                 className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
-                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen
+                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen && buyerHomeView === 'home'
                     ? 'bg-gray-900 text-white shadow-xs'
                     : 'text-gray-700 hover:bg-gray-100'
                 }`}
@@ -917,21 +941,27 @@ const MainLayout: React.FC = () => {
                 <span>Home</span>
               </button>
 
-              {/* Catalog Groups & Filters Button */}
+              {/* Full Catalog Button */}
               <button
                 onClick={() => {
                   setSelectedDesignCode(null);
+                  setSelectedCollectionFilter(null);
                   setAboutModalOpen(false);
                   setMobileMenuOpen(false);
-                  window.dispatchEvent(new Event('open-catalog-groups-drawer'));
+                  setBuyerHomeView('catalog');
+                  setStorefrontResetKey(prev => prev + 1);
                 }}
-                className="w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider text-gray-900 bg-gray-100 border border-gray-200 hover:bg-gray-200 transition-all cursor-pointer shadow-xs"
+                className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer shadow-xs border ${
+                  selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen && buyerHomeView === 'catalog'
+                    ? 'bg-gray-900 text-white border-gray-900'
+                    : 'text-gray-900 bg-gray-100 border-gray-200 hover:bg-gray-200'
+                }`}
               >
                 <div className="flex items-center gap-3">
-                  <Grid className="h-4 w-4 text-gray-700" />
-                  <span>Catalog Groups & Filters</span>
+                  <Grid className="h-4 w-4" />
+                  <span>Full Catalog & Filters</span>
                 </div>
-                <span className="text-[10px] font-mono bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">View →</span>
+                <span className="text-[10px] font-mono bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">33+ Items →</span>
               </button>
 
               {/* Download Catalog PDF Button */}
@@ -986,26 +1016,52 @@ const MainLayout: React.FC = () => {
         <main className="app-main flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-8 pb-20 md:pb-8 scrollbar-thin">
           {mode === 'buyer' && (
             selectedDesignCode === null ? (
-              <BuyerStorefront 
-                key={storefrontResetKey}
-                currentPage={buyerPage}
-                onPageChange={setBuyerPage}
-                onSelectProduct={(code, variantId, sizeId) => {
-                  setSelectedDesignCode(code);
-                  setInitialVariantId(variantId);
-                  setInitialSizeId(sizeId);
+              buyerHomeView === 'home' ? (
+                <BuyerHomePage
+                  onSelectProduct={(code, variantId, sizeId) => {
+                    setSelectedDesignCode(code);
+                    setInitialVariantId(variantId);
+                    setInitialSizeId(sizeId);
 
-                  // Update URL with query parameters using pushState
-                  const params = new URLSearchParams();
-                  params.set('design', code);
-                  if (variantId) params.set('variant', String(variantId));
-                  if (sizeId) params.set('size', String(sizeId));
-                  window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-                }} 
-                selectedCollectionFilter={selectedCollectionFilter}
-                onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
-                onOpenCart={() => setCartOpen(true)}
-              />
+                    const params = new URLSearchParams();
+                    params.set('design', code);
+                    if (variantId) params.set('variant', String(variantId));
+                    if (sizeId) params.set('size', String(sizeId));
+                    window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+                  }}
+                  onExploreAll={() => {
+                    setBuyerHomeView('catalog');
+                    const scrollContainer = document.querySelector('.app-main');
+                    if (scrollContainer) {
+                      scrollContainer.scrollTop = 0;
+                    } else {
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  onOpenCart={() => setCartOpen(true)}
+                />
+              ) : (
+                <BuyerStorefront 
+                  key={storefrontResetKey}
+                  currentPage={buyerPage}
+                  onPageChange={setBuyerPage}
+                  onSelectProduct={(code, variantId, sizeId) => {
+                    setSelectedDesignCode(code);
+                    setInitialVariantId(variantId);
+                    setInitialSizeId(sizeId);
+
+                    // Update URL with query parameters using pushState
+                    const params = new URLSearchParams();
+                    params.set('design', code);
+                    if (variantId) params.set('variant', String(variantId));
+                    if (sizeId) params.set('size', String(sizeId));
+                    window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+                  }} 
+                  selectedCollectionFilter={selectedCollectionFilter}
+                  onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
+                  onOpenCart={() => setCartOpen(true)}
+                />
+              )
             ) : (
               <BuyerProductDetail 
                 key={selectedDesignCode}
@@ -1046,6 +1102,8 @@ const MainLayout: React.FC = () => {
           {mode === 'admin' && (
             <>
               {adminTab === 'dashboard' && <Dashboard />}
+
+              {adminTab === 'banner' && <AdminBannerManager />}
 
               {adminTab === 'reports' && <Reports orders={orders} loading={loadingOrders} />}
 
@@ -1418,6 +1476,7 @@ const MainLayout: React.FC = () => {
                 setSelectedCollectionFilter(null);
                 setAboutModalOpen(false);
                 setCatalogDropdownOpen(false);
+                setBuyerHomeView('home');
                 setStorefrontResetKey(prev => prev + 1);
               }}
               onCatalogClick={() => {
@@ -1425,6 +1484,7 @@ const MainLayout: React.FC = () => {
                 setSelectedCollectionFilter(null);
                 setAboutModalOpen(false);
                 setCatalogDropdownOpen(false);
+                setBuyerHomeView('catalog');
                 setStorefrontResetKey(prev => prev + 1);
               }}
               onAboutClick={() => {
@@ -1916,10 +1976,11 @@ const MainLayout: React.FC = () => {
               setSelectedCollectionFilter(null);
               setBuyerPage(1);
               setAboutModalOpen(false);
+              setBuyerHomeView('home');
               setStorefrontResetKey(prev => prev + 1);
             }}
             className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
-              selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen
+              selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen && buyerHomeView === 'home'
                 ? 'text-gray-900 font-extrabold'
                 : 'text-gray-500 hover:text-gray-900'
             }`}
@@ -1932,11 +1993,17 @@ const MainLayout: React.FC = () => {
           <button
             onClick={() => {
               setSelectedDesignCode(null);
+              setSelectedCollectionFilter(null);
               setAboutModalOpen(false);
               setMobileMenuOpen(false);
-              window.dispatchEvent(new Event('open-catalog-groups-drawer'));
+              setBuyerHomeView('catalog');
+              setStorefrontResetKey(prev => prev + 1);
             }}
-            className="flex flex-col items-center gap-1 text-[10px] font-bold text-gray-500 hover:text-gray-900 transition-colors"
+            className={`flex flex-col items-center gap-1 text-[10px] font-bold transition-colors ${
+              selectedDesignCode === null && !selectedCollectionFilter && !aboutModalOpen && buyerHomeView === 'catalog'
+                ? 'text-gray-900 font-extrabold'
+                : 'text-gray-500 hover:text-gray-900'
+            }`}
           >
             <Grid className="h-5 w-5" />
             <span>Catalog</span>

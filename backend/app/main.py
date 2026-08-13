@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from app.routers import products, orders, media, auth, customers, live_price
+from app.routers import products, orders, media, auth, customers, live_price, banner
 from app.database import Base, engine
 
 # Ensure uploads directory exists
@@ -85,6 +85,7 @@ app.include_router(orders.router)
 app.include_router(media.router)
 app.include_router(auth.router)
 app.include_router(customers.router)
+app.include_router(banner.router)
 
 
 @app.get("/health")

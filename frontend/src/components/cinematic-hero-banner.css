@@ -1,0 +1,481 @@
+/* ==========================================================================
+   SR CHAINS LUXURY CINEMATIC HERO BANNER
+   ========================================================================== */
+
+.chb-root {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 580px;
+  overflow: hidden;
+  border-radius: 16px;
+  outline: none;
+  isolation: isolate;
+  background: #0a0a0a;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(212, 175, 55, 0.2);
+  user-select: none;
+}
+
+@media (min-width: 1024px) {
+  .chb-root {
+    aspect-ratio: 21 / 9;
+    max-height: 520px;
+  }
+}
+
+@media (max-width: 640px) {
+  .chb-root {
+    aspect-ratio: 16 / 9;
+    max-height: 380px;
+    border-radius: 12px;
+  }
+}
+
+/* Clickable product layer */
+.chb-clickLayer {
+  all: unset;
+  position: absolute;
+  inset: 0;
+  cursor: pointer;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Scene container */
+.chb-scene {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: opacity 0.5s ease;
+}
+
+/* Image wrapper */
+.chb-imageWrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Image element */
+.chb-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  filter: drop-shadow(0 10px 25px rgba(0, 0, 0, 0.6));
+  will-change: transform, opacity;
+}
+
+/* ==========================================================================
+   ANIMATION KEYFRAMES (GPU ACCELERATED)
+   ========================================================================== */
+
+/* 1. Cinematic Pan */
+.chb-anim-pan {
+  animation: chbKeyframesPan var(--chb-duration, 5s) cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes chbKeyframesPan {
+  0% {
+    transform: scale(1.04) translateX(-40px);
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1.04) translateX(40px);
+    opacity: 0.95;
+  }
+}
+
+/* 2. Slow Zoom */
+.chb-anim-zoom {
+  animation: chbKeyframesZoom var(--chb-duration, 5s) cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes chbKeyframesZoom {
+  0% {
+    transform: scale(1.0);
+  }
+  100% {
+    transform: scale(1.14);
+  }
+}
+
+/* 3. Reverse Pan */
+.chb-anim-reversePan {
+  animation: chbKeyframesReversePan var(--chb-duration, 5s) cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes chbKeyframesReversePan {
+  0% {
+    transform: scale(1.05) translateX(45px);
+  }
+  100% {
+    transform: scale(1.05) translateX(-45px);
+  }
+}
+
+/* 4. Macro Zoom */
+.chb-anim-macro {
+  animation: chbKeyframesMacro var(--chb-duration, 5s) cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes chbKeyframesMacro {
+  0% {
+    transform: scale(1.2) translateX(-50px);
+  }
+  100% {
+    transform: scale(1.42) translateX(50px);
+  }
+}
+
+/* 5. Reveal */
+.chb-anim-reveal {
+  animation: chbKeyframesReveal var(--chb-duration, 5s) cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes chbKeyframesReveal {
+  0% {
+    transform: scale(1.15);
+    opacity: 0.85;
+  }
+  100% {
+    transform: scale(1.0);
+    opacity: 1;
+  }
+}
+
+/* 6. Cinematic Hero */
+.chb-anim-hero {
+  animation: chbKeyframesHero var(--chb-duration, 5s) cubic-bezier(0.65, 0, 0.35, 1) infinite alternate;
+}
+@keyframes chbKeyframesHero {
+  0% {
+    transform: scale(1.0) translateX(-25px);
+  }
+  100% {
+    transform: scale(1.06) translateX(15px);
+  }
+}
+
+/* Mobile Reduced Motion distance dampening */
+@media (max-width: 640px) {
+  @keyframes chbKeyframesPan {
+    0% { transform: scale(1.03) translateX(-20px); }
+    100% { transform: scale(1.03) translateX(20px); }
+  }
+  @keyframes chbKeyframesReversePan {
+    0% { transform: scale(1.03) translateX(20px); }
+    100% { transform: scale(1.03) translateX(-20px); }
+  }
+  @keyframes chbKeyframesMacro {
+    0% { transform: scale(1.15) translateX(-25px); }
+    100% { transform: scale(1.28) translateX(25px); }
+  }
+}
+
+/* ==========================================================================
+   LIGHT SWEEP & SPARKLES
+   ========================================================================== */
+
+.chb-lightSweep {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    115deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.15) 45%,
+    rgba(255, 255, 255, 0.35) 50%,
+    rgba(255, 255, 255, 0.15) 55%,
+    transparent 80%
+  );
+  pointer-events: none;
+  animation: chbSweep 4s ease-in-out infinite;
+}
+
+@keyframes chbSweep {
+  0% { transform: translateX(-150%); }
+  50%, 100% { transform: translateX(150%); }
+}
+
+.chb-sparkle {
+  position: absolute;
+  width: 140px;
+  height: 140px;
+  top: 30%;
+  left: 45%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.8) 0%, rgba(212, 175, 55, 0.4) 40%, transparent 70%);
+  border-radius: 50%;
+  filter: blur(8px);
+  pointer-events: none;
+  animation: chbSparklePulse 3s ease-in-out infinite;
+}
+
+@keyframes chbSparklePulse {
+  0%, 100% { opacity: 0; transform: scale(0.6); }
+  50% { opacity: 0.7; transform: scale(1.1); }
+}
+
+/* ==========================================================================
+   VIGNETTE & ATMOSPHERE BOKEH
+   ========================================================================== */
+
+.chb-vignette {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 100% at 50% 50%,
+    transparent 50%,
+    rgba(0, 0, 0, 0.65) 100%
+  );
+}
+
+.chb-bokeh {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(45px);
+  pointer-events: none;
+}
+
+.chb-bokeh--a {
+  width: 260px;
+  height: 260px;
+  top: -50px;
+  left: -50px;
+  background: #d4af37;
+  opacity: 0.22;
+}
+
+.chb-bokeh--b {
+  width: 300px;
+  height: 300px;
+  bottom: -60px;
+  right: -40px;
+  background: #7a1f2b;
+  opacity: 0.2;
+}
+
+.chb-bokeh--c {
+  width: 180px;
+  height: 180px;
+  top: 35%;
+  right: 15%;
+  background: #ffffff;
+  opacity: 0.08;
+}
+
+/* ==========================================================================
+   BRANDING & TEXT OVERLAY
+   ========================================================================== */
+
+.chb-branding {
+  position: absolute;
+  left: 24px;
+  bottom: 22px;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  pointer-events: none;
+  z-index: 10;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+}
+
+.chb-brandName {
+  font-family: 'Cinzel', 'Playfair Display', serif;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  font-size: 1.35rem;
+  color: #fce7a2;
+  background: linear-gradient(135deg, #fff 0%, #f6d365 50%, #fda085 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.chb-brandSub {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.7rem;
+  letter-spacing: 0.2em;
+  color: rgba(255, 255, 255, 0.85);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .chb-branding {
+    left: 14px;
+    bottom: 14px;
+  }
+  .chb-brandName {
+    font-size: 1rem;
+  }
+  .chb-brandSub {
+    font-size: 0.55rem;
+  }
+}
+
+/* ==========================================================================
+   SKU BADGE & VIEW PILL
+   ========================================================================== */
+
+.chb-skuBadge {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #fce7a2;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+}
+
+@media (max-width: 640px) {
+  .chb-skuBadge {
+    right: 12px;
+    bottom: 12px;
+    padding: 4px 10px;
+    font-size: 0.65rem;
+  }
+}
+
+/* ==========================================================================
+   SLIDE CONTROLS (ARROWS, PLAY/PAUSE, DOTS)
+   ========================================================================== */
+
+.chb-controlsWrap {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.chb-root:hover .chb-controlsWrap,
+.chb-root:focus-within .chb-controlsWrap {
+  opacity: 1;
+}
+
+@media (max-width: 640px) {
+  .chb-controlsWrap {
+    opacity: 1;
+    padding: 0 8px;
+  }
+}
+
+.chb-controlBtn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  pointer-events: auto;
+  transition: all 0.2s ease;
+}
+
+.chb-controlBtn:hover {
+  background: rgba(212, 175, 55, 0.9);
+  color: #111;
+  border-color: #d4af37;
+  transform: scale(1.1);
+}
+
+@media (max-width: 640px) {
+  .chb-controlBtn {
+    width: 30px;
+    height: 30px;
+  }
+}
+
+/* Top Right Play/Pause */
+.chb-playBtn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+  z-index: 20;
+  transition: all 0.2s ease;
+}
+
+.chb-playBtn:hover {
+  background: rgba(212, 175, 55, 0.85);
+  color: #000;
+}
+
+/* Progress Dots */
+.chb-dots {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 20;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 4px 10px;
+  border-radius: 999px;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.chb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.chb-dot--active {
+  background: #d4af37;
+  width: 22px;
+  border-radius: 4px;
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.8);
+}

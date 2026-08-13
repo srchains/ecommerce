@@ -11,6 +11,7 @@ import {
   Image as ImageIcon, 
   BarChart3, 
   Settings, 
+  Sparkles,
   ChevronDown, 
   ChevronUp, 
   LogOut
@@ -27,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
 
   const navItems = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
+    { id: 'banner', name: 'Banner & Hero', icon: Sparkles },
     { 
       id: 'designs-group', 
       name: 'Designs', 
