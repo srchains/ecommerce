@@ -961,7 +961,7 @@ const MainLayout: React.FC = () => {
                   <Grid className="h-4 w-4" />
                   <span>Full Catalog & Filters</span>
                 </div>
-                <span className="text-[10px] font-mono bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">33+ Items →</span>
+                <span className="text-[10px] font-mono bg-gray-200 text-gray-800 px-2 py-0.5 rounded-full font-bold">View All →</span>
               </button>
 
               {/* Download Catalog PDF Button */}

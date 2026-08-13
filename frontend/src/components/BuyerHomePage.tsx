@@ -84,7 +84,7 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
             </span>
 
             <h3 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-              Explore All {designs.length}+ Silver Jewelry Collections
+              Explore All Silver Jewelry Collections
             </h3>
 
             <p className="text-xs sm:text-sm text-gray-300 leading-relaxed">
