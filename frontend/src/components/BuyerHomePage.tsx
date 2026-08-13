@@ -15,11 +15,13 @@ import type { BannerConfig, BannerSlide } from '../types/banner';
 interface BuyerHomePageProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
   onExploreAll: () => void;
+  onOpenCart?: () => void;
 }
 
 export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
   onSelectProduct,
   onExploreAll,
+  onOpenCart: _onOpenCart,
 }) => {
   const { designs, calculatePriceBreakdown, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
   const [bannerConfig, setBannerConfig] = useState<BannerConfig | null>(null);
