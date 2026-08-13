@@ -3,12 +3,8 @@ import axios from 'axios';
 import { 
   Sparkles, 
   ArrowRight, 
-  ShoppingBag, 
-  Eye, 
-  Check, 
   ShieldCheck, 
   Truck, 
-  Layers,
   Heart,
   TrendingUp
 } from 'lucide-react';
@@ -19,15 +15,13 @@ import type { BannerConfig, BannerSlide } from '../types/banner';
 interface BuyerHomePageProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
   onExploreAll: () => void;
-  onOpenCart?: () => void;
 }
 
 export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
   onSelectProduct,
   onExploreAll,
-  onOpenCart,
 }) => {
-  const { designs, livePrice, calculatePriceBreakdown, addToCart, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
+  const { designs, calculatePriceBreakdown, addToWishlist, removeFromWishlist, isInWishlist } = useApp();
   const [bannerConfig, setBannerConfig] = useState<BannerConfig | null>(null);
 
   // Fetch banner configuration
@@ -195,7 +189,7 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
                     onClick={(e) => {
                       e.stopPropagation();
                       if (isLiked) removeFromWishlist(design.id);
-                      else addToWishlist(design.id);
+                      else addToWishlist(design);
                     }}
                     className="absolute top-2.5 right-2.5 p-2 bg-white/80 hover:bg-white text-gray-700 hover:text-red-500 rounded-full backdrop-blur-xs shadow-xs transition-colors cursor-pointer"
                   >

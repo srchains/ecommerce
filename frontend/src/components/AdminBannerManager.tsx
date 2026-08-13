@@ -13,18 +13,15 @@ import {
   Tablet, 
   Clock, 
   Film, 
-  Layers, 
-  Image as ImageIcon,
-  Palette
+  Layers
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { CinematicHeroBanner } from './CinematicHeroBanner';
-import type { BannerConfig, BannerSlide, SceneEffect, BackgroundPreset } from '../types/banner';
+import type { BannerConfig, BannerSlide, BackgroundPreset } from '../types/banner';
 import { 
   SCENE_EFFECT_LABELS, 
   SELECTABLE_SCENE_EFFECTS, 
-  DURATION_OPTIONS_MS,
-  BACKGROUND_GRADIENTS
+  DURATION_OPTIONS_MS
 } from '../types/banner';
 
 export const AdminBannerManager: React.FC = () => {
