@@ -17,14 +17,7 @@ import {
   User, 
   Share2, 
   Printer, 
-  Sparkles,
-  Phone,
-  MessageCircle,
-  Mail,
-  Globe,
-  MapPin,
-  Building2,
-  FileText
+  Sparkles
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
 import { DigitalCardPreview } from './DigitalCardPreview';

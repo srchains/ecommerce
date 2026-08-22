@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowLeft, Sparkles, AlertCircle, ShoppingBag } from 'lucide-react';
+import { ArrowLeft, AlertCircle, ShoppingBag } from 'lucide-react';
 import { DigitalCardPreview } from './DigitalCardPreview';
 import type { DigitalCard } from '../types/card';
 import { downloadVCard } from '../utils/vcard';

@@ -9,8 +9,8 @@ import {
   UserPlus, 
   User, 
   Sparkles,
-  Instagram,
-  Linkedin,
+  AtSign,
+  Link2,
   Building2,
   Check
 } from 'lucide-react';
@@ -165,7 +165,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-pink-400 hover:bg-pink-950/50 border border-slate-700 transition-colors"
                 title="Instagram"
               >
-                <Instagram className="h-4 w-4" />
+                <AtSign className="h-4 w-4" />
               </a>
             )}
             {card.linkedin && (
@@ -176,7 +176,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
                 className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-sky-400 hover:bg-sky-950/50 border border-slate-700 transition-colors"
                 title="LinkedIn"
               >
-                <Linkedin className="h-4 w-4" />
+                <Link2 className="h-4 w-4" />
               </a>
             )}
           </div>
