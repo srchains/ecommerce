@@ -10,12 +10,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-from app.routers import products, orders, media, auth, customers, live_price, banner
+from app.routers import products, orders, media, auth, customers, live_price, banner, cards
 from app.database import Base, engine
 
 # Ensure uploads directory exists
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
+os.makedirs(os.path.join(UPLOADS_DIR, "cards"), exist_ok=True)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,50 +29,53 @@ async def start_polling():
     """Start the background polling task on app startup."""
     global polling_task
     try:
-        polling_task = asyncio.create_task(live_price.poll_vijay_bullion())
-        logger.info("Background polling task started successfully")
+        polling_task = asyncio.create_task(live_price.poll_metals_api())
+        logger.info("Background metal price polling started successfully.")
     except Exception as e:
-        logger.error(f"Failed to start polling task: {e}")
-
-
-async def stop_polling():
-    """Stop the background polling task on app shutdown."""
-    global polling_task
-    if polling_task:
-        polling_task.cancel()
-        try:
-            await polling_task
-        except asyncio.CancelledError:
-            logger.info("Polling task cancelled successfully")
+        logger.error(f"Failed to start metal price polling: {e}")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """FastAPI lifespan manager for startup and shutdown events."""
     # Startup
+    logger.info("Starting SR Chains E-Commerce Backend...")
+    # Create DB tables
     Base.metadata.create_all(bind=engine)
+    # Start price polling loop
     await start_polling()
     yield
     # Shutdown
-    await stop_polling()
+    if polling_task:
+        polling_task.cancel()
+        logger.info("Background metal price polling stopped.")
+    logger.info("Shutting down backend service.")
 
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="SR Chains - Silver Jewelry ERP",
-    description="B2B wholesale silver jewelry manufacturing platform",
+    title="SR Chains E-Commerce API",
+    description="Enterprise wholesale backend for SR Chains silver jewelry",
     version="1.0.0",
     lifespan=lifespan
 )
 
-# CORS Configuration - Allow frontend to communicate with backend
+# CORS Middleware Setup
+origins = [
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:80",
+    "http://138.252.201.239",
+    "https://srchains.ddns.net",
+    "http://srchains.ddns.net",
+    "*"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:3000", "http://localhost:8000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
-    expose_headers=["*"],
-    allow_headers=["*"]
+    allow_headers=["*"],
 )
 
 
@@ -86,6 +90,7 @@ app.include_router(media.router)
 app.include_router(auth.router)
 app.include_router(customers.router)
 app.include_router(banner.router)
+app.include_router(cards.router)
 
 
 @app.get("/health")

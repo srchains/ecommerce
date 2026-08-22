@@ -12,6 +12,7 @@ import {
   BarChart3, 
   Settings, 
   Sparkles,
+  CreditCard,
   ChevronDown, 
   ChevronUp, 
   LogOut
@@ -29,6 +30,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const navItems = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'banner', name: 'Banner & Hero', icon: Sparkles },
+    { id: 'nfc-cards', name: 'NFC & Cards', icon: CreditCard },
     { 
       id: 'designs-group', 
       name: 'Designs', 

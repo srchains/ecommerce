@@ -5,6 +5,8 @@ import { Dashboard } from './components/Dashboard';
 import { BuyerStorefront } from './components/BuyerStorefront';
 import { BuyerHomePage } from './components/BuyerHomePage';
 import { AdminBannerManager } from './components/AdminBannerManager';
+import { PublicDigitalCardView } from './components/PublicDigitalCardView';
+import { DigitalCardHub } from './components/DigitalCardHub';
 import { AdminLogin } from './components/AdminLogin';
 import { BuyerLogin } from './components/BuyerLogin';
 import { BuyerProductDetail } from './components/BuyerProductDetail';
@@ -41,7 +43,8 @@ import {
   UserCircle,
   ChevronUp,
   Download,
-  FileText
+  FileText,
+  CreditCard
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
@@ -174,6 +177,44 @@ const MainLayout: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const catalogDropdownRef = useRef<HTMLDivElement>(null);
   const pdfDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Open Card Route States
+  const [activePublicCardId, setActivePublicCardId] = useState<string | null>(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const qCard = searchParams.get('card');
+    if (qCard) return qCard;
+    const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
+    return match ? match[1] : null;
+  });
+
+  const [activeCardHubTab, setActiveCardHubTab] = useState<'list' | 'create' | 'nfc' | null>(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const view = searchParams.get('view');
+    if (view === 'cards' || view === 'digital-cards') return 'list';
+    if (view === 'create-card') return 'create';
+    if (view === 'read-nfc') return 'nfc';
+    if (window.location.pathname.startsWith('/cards') || window.location.pathname.startsWith('/digital-cards')) return 'list';
+    return null;
+  });
+
+  useEffect(() => {
+    const handleCardPopState = () => {
+      const searchParams = new URLSearchParams(window.location.search);
+      const qCard = searchParams.get('card');
+      const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
+      setActivePublicCardId(qCard || (match ? match[1] : null));
+
+      const view = searchParams.get('view');
+      if (view === 'cards' || view === 'digital-cards') setActiveCardHubTab('list');
+      else if (view === 'create-card') setActiveCardHubTab('create');
+      else if (view === 'read-nfc') setActiveCardHubTab('nfc');
+      else if (window.location.pathname.startsWith('/cards') || window.location.pathname.startsWith('/digital-cards')) setActiveCardHubTab('list');
+      else setActiveCardHubTab(null);
+    };
+
+    window.addEventListener('popstate', handleCardPopState);
+    return () => window.removeEventListener('popstate', handleCardPopState);
+  }, []);
 
   // Automatically reset selected group when changing admin tabs
   useEffect(() => {
@@ -698,6 +739,26 @@ const MainLayout: React.FC = () => {
                 <span>About Us</span>
               </button>
 
+              {/* NFC Cards Open Button */}
+              <button
+                onClick={() => {
+                  setSelectedDesignCode(null);
+                  setSelectedCollectionFilter(null);
+                  setAboutModalOpen(false);
+                  setCatalogDropdownOpen(false);
+                  setActiveCardHubTab('list');
+                  window.history.pushState(null, '', '?view=cards');
+                }}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeCardHubTab
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
+                }`}
+              >
+                <CreditCard className="h-4 w-4 text-amber-600" />
+                <span>NFC Cards</span>
+              </button>
+
               {/* Download Catalog PDF Button & Dropdown */}
               <div className="relative" ref={pdfDropdownRef}>
                 <button
@@ -1014,96 +1075,120 @@ const MainLayout: React.FC = () => {
         )}
 
         <main className="app-main flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-8 pb-20 md:pb-8 scrollbar-thin">
-          {mode === 'buyer' && (
-            selectedDesignCode === null ? (
-              buyerHomeView === 'home' ? (
-                <BuyerHomePage
-                  onSelectProduct={(code, variantId, sizeId) => {
-                    setSelectedDesignCode(code);
-                    setInitialVariantId(variantId);
-                    setInitialSizeId(sizeId);
-
-                    const params = new URLSearchParams();
-                    params.set('design', code);
-                    if (variantId) params.set('variant', String(variantId));
-                    if (sizeId) params.set('size', String(sizeId));
-                    window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-                  }}
-                  onExploreAll={() => {
-                    setBuyerHomeView('catalog');
-                    const scrollContainer = document.querySelector('.app-main');
-                    if (scrollContainer) {
-                      scrollContainer.scrollTop = 0;
-                    } else {
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
-                    }
-                  }}
-                  onOpenCart={() => setCartOpen(true)}
-                />
-              ) : (
-                <BuyerStorefront 
-                  key={storefrontResetKey}
-                  currentPage={buyerPage}
-                  onPageChange={setBuyerPage}
-                  onSelectProduct={(code, variantId, sizeId) => {
-                    setSelectedDesignCode(code);
-                    setInitialVariantId(variantId);
-                    setInitialSizeId(sizeId);
-
-                    // Update URL with query parameters using pushState
-                    const params = new URLSearchParams();
-                    params.set('design', code);
-                    if (variantId) params.set('variant', String(variantId));
-                    if (sizeId) params.set('size', String(sizeId));
-                    window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-                  }} 
-                  selectedCollectionFilter={selectedCollectionFilter}
-                  onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
-                  onOpenCart={() => setCartOpen(true)}
-                />
-              )
-            ) : (
-              <BuyerProductDetail 
-                key={selectedDesignCode}
-                designCode={selectedDesignCode} 
-                initialVariantId={initialVariantId}
-                initialSizeId={initialSizeId}
-                onRequireLogin={() => setBuyerLoginOpen(true)}
-                onSelectProduct={(code, variantId, sizeId) => {
-                  setSelectedDesignCode(code);
-                  setInitialVariantId(variantId);
-                  setInitialSizeId(sizeId);
-
-                  const params = new URLSearchParams();
-                  params.set('design', code);
-                  if (variantId) params.set('variant', String(variantId));
-                  if (sizeId) params.set('size', String(sizeId));
-                  window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-
-                  const scrollContainer = document.querySelector('.app-main');
-                  if (scrollContainer) {
-                    scrollContainer.scrollTop = 0;
-                  } else {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
-                onBack={() => {
-                  setSelectedDesignCode(null);
-                  setInitialVariantId(undefined);
-                  setInitialSizeId(undefined);
-
-                  // Clear URL parameters using pushState
-                  window.history.pushState(null, '', window.location.pathname);
-                }} 
-              />
-            )
-          )}
-
-          {mode === 'admin' && (
+          {activePublicCardId ? (
+            <PublicDigitalCardView
+              cardId={activePublicCardId}
+              urlData={new URLSearchParams(window.location.search).get('data')}
+              onGoToStorefront={() => {
+                setActivePublicCardId(null);
+                setActiveCardHubTab(null);
+                window.history.pushState(null, '', window.location.pathname);
+              }}
+            />
+          ) : activeCardHubTab ? (
+            <DigitalCardHub
+              initialTab={activeCardHubTab}
+              onGoToStorefront={() => {
+                setActiveCardHubTab(null);
+                window.history.pushState(null, '', window.location.pathname);
+              }}
+            />
+          ) : (
             <>
-              {adminTab === 'dashboard' && <Dashboard />}
+              {mode === 'buyer' && (
+                selectedDesignCode === null ? (
+                  buyerHomeView === 'home' ? (
+                    <BuyerHomePage
+                      onSelectProduct={(code, variantId, sizeId) => {
+                        setSelectedDesignCode(code);
+                        setInitialVariantId(variantId);
+                        setInitialSizeId(sizeId);
 
-              {adminTab === 'banner' && <AdminBannerManager />}
+                        const params = new URLSearchParams();
+                        params.set('design', code);
+                        if (variantId) params.set('variant', String(variantId));
+                        if (sizeId) params.set('size', String(sizeId));
+                        window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+                      }}
+                      onExploreAll={() => {
+                        setBuyerHomeView('catalog');
+                        const scrollContainer = document.querySelector('.app-main');
+                        if (scrollContainer) {
+                          scrollContainer.scrollTop = 0;
+                        } else {
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }
+                      }}
+                      onOpenCart={() => setCartOpen(true)}
+                    />
+                  ) : (
+                    <BuyerStorefront 
+                      key={storefrontResetKey}
+                      currentPage={buyerPage}
+                      onPageChange={setBuyerPage}
+                      onSelectProduct={(code, variantId, sizeId) => {
+                        setSelectedDesignCode(code);
+                        setInitialVariantId(variantId);
+                        setInitialSizeId(sizeId);
+
+                        // Update URL with query parameters using pushState
+                        const params = new URLSearchParams();
+                        params.set('design', code);
+                        if (variantId) params.set('variant', String(variantId));
+                        if (sizeId) params.set('size', String(sizeId));
+                        window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+                      }} 
+                      selectedCollectionFilter={selectedCollectionFilter}
+                      onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
+                      onOpenCart={() => setCartOpen(true)}
+                    />
+                  )
+                ) : (
+                  <BuyerProductDetail 
+                    key={selectedDesignCode}
+                    designCode={selectedDesignCode} 
+                    initialVariantId={initialVariantId}
+                    initialSizeId={initialSizeId}
+                    onRequireLogin={() => setBuyerLoginOpen(true)}
+                    onSelectProduct={(code, variantId, sizeId) => {
+                      setSelectedDesignCode(code);
+                      setInitialVariantId(variantId);
+                      setInitialSizeId(sizeId);
+
+                      const params = new URLSearchParams();
+                      params.set('design', code);
+                      if (variantId) params.set('variant', String(variantId));
+                      if (sizeId) params.set('size', String(sizeId));
+                      window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+
+                      const scrollContainer = document.querySelector('.app-main');
+                      if (scrollContainer) {
+                        scrollContainer.scrollTop = 0;
+                      } else {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    onBack={() => {
+                      setSelectedDesignCode(null);
+                      setInitialVariantId(undefined);
+                      setInitialSizeId(undefined);
+
+                      // Clear URL parameters using pushState
+                      window.history.pushState(null, '', window.location.pathname);
+                    }} 
+                  />
+                )
+              )}
+
+              {mode === 'admin' && (
+                <>
+                  {adminTab === 'dashboard' && <Dashboard />}
+
+                  {adminTab === 'banner' && <AdminBannerManager />}
+
+                  {adminTab === 'nfc-cards' && (
+                    <DigitalCardHub onGoToStorefront={() => setAdminTab('dashboard')} />
+                  )}
 
               {adminTab === 'reports' && <Reports orders={orders} loading={loadingOrders} />}
 
@@ -1491,6 +1576,8 @@ const MainLayout: React.FC = () => {
                 setAboutModalOpen(true);
               }}
             />
+          )}
+            </>
           )}
         </main>
       </div>
