@@ -21,28 +21,44 @@ export function buildVCard(card: DigitalCard): string {
   return lines.join('\n');
 }
 
-/** Opens native mobile contacts prompt directly without file download popups. */
+/** Directly opens native phone contacts app (Add Contact screen) with pre-filled name & phone number - 0% downloading. */
 export function saveContactToMobile(card: DigitalCard) {
   const isAndroid = /Android/i.test(navigator.userAgent);
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const name = card.name || 'Sr chains';
-  const phone = (card.phone || card.whatsapp || '').trim();
+  const rawPhone = (card.phone || card.whatsapp || '').trim();
+  const phone = rawPhone ? rawPhone : '7010674487';
   const company = [card.designation, card.company || 'SR Chains'].filter(Boolean).join(' at ');
-  const email = card.email || '';
+  const email = card.email || 'srchains19@gmail.com';
   const notes = card.bio || '';
 
   if (isAndroid) {
-    // 1. Android Chrome Native Intent: Directly launches Android Contacts app 'Add Contact' Activity
-    // Pre-fills Name, Mobile Number, Company, and Email with ZERO file download dialogs!
-    const androidIntent = `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};S.notes=${encodeURIComponent(notes)};end`;
+    // Android Intent format for Xiaomi HyperOS/MIUI, Samsung, Vivo, Oppo, OnePlus
+    // Triggers native 'Create New Contact' Activity directly with NO file downloading!
+    const androidIntent = `intent://com.android.contacts/contacts#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.item/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};S.notes=${encodeURIComponent(notes)};end`;
     
-    window.location.href = androidIntent;
+    // Trigger intent via link click
+    const link = document.createElement('a');
+    link.href = androidIntent;
+    link.rel = 'noreferrer';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Fallback: If Intent is intercepted, try direct window navigation to intent
+    setTimeout(() => {
+      if (document.hasFocus()) {
+        const altIntent = `intent:#Intent;action=android.intent.action.INSERT_OR_EDIT;type=vnd.android.cursor.item/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};end`;
+        window.location.href = altIntent;
+      }
+    }, 400);
+
     return;
   }
 
   if (isIOS) {
-    // 2. iOS Safari Native vCard Launch: Triggers iOS native Contact sheet directly
+    // iOS Safari Native Contact Sheet
     const vcard = buildVCard(card);
     const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
     const blobUrl = URL.createObjectURL(blob);
@@ -55,7 +71,7 @@ export function saveContactToMobile(card: DigitalCard) {
     return;
   }
 
-  // 3. Desktop / PC Fallback: Standard .vcf file download
+  // Desktop / PC Fallback
   const vcard = buildVCard(card);
   const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
   const url = URL.createObjectURL(blob);
