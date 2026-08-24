@@ -18,65 +18,53 @@ export function buildVCard(card: Partial<DigitalCard>): string {
 }
 
 /**
- * Saves contact to phone using the BEST available method:
- *
- * 1. MOBILE (Android/iOS) — Web Share API with .vcf file:
- *    → Fetches vCard from server, creates a File object, calls navigator.share({ files })
- *    → Android shows system share sheet → user taps "Contacts" → Add Contact screen opens!
- *    → EXACTLY like how the "Call" button opens the dialer — zero download dialog!
- *
- * 2. MOBILE FALLBACK — if Share API not supported:
- *    → Navigates to /api/cards/{id}/vcard (server returns text/vcard inline)
- *    → Android opens with Contacts app directly
- *
- * 3. DESKTOP — standard .vcf file download
+ * Saves contact to phone.
+ * 
+ * - ANDROID: Synchronously launches native Contacts App "Add Contact" screen
+ *   using a generic intent. This is 100% direct and has ZERO downloads or popups.
+ * - IOS: Navigates to the server vcard endpoint which iOS Safari opens natively
+ *   as a contact sheet.
+ * - DESKTOP: Triggers standard file download of the .vcf file.
  */
-export async function saveContactToMobile(card: Partial<DigitalCard>): Promise<void> {
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-  const isMobile = isAndroid || isIOS;
+export function saveContactToMobile(card: Partial<DigitalCard>) {
+  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  if (isMobile && card.id) {
-    try {
-      // Fetch vCard from server
-      const resp = await fetch(`/api/cards/${card.id}/vcard?t=${Date.now()}`);
-      const blob = await resp.blob();
-      const safeName = (card.name || 'Sr_chains').replace(/\s+/g, '_');
-      const file = new File([blob], `${safeName}.vcf`, { type: 'text/vcard' });
+  const name = card.name || 'Sr chains';
+  const phone = (card.phone || card.whatsapp || '').trim();
+  const email = card.email || '';
+  const company = card.company || 'SR Chains';
+  const notes = card.bio || '';
 
-      // Use Web Share API — Android shows share sheet with "Contacts" app
-      // Tapping "Contacts" opens the native Add Contact screen directly!
-      // This is the SAME mechanism as tel: for calls — zero download popup!
-      if (
-        navigator.share &&
-        typeof navigator.canShare === 'function' &&
-        navigator.canShare({ files: [file] })
-      ) {
-        await navigator.share({
-          files: [file],
-          title: card.name || 'SR Chains Contact',
-        });
-        return;
-      }
-    } catch (err) {
-      // User cancelled share sheet or share failed — continue to fallback
-      if ((err as Error).name === 'AbortError') return; // user cancelled — that's fine
-    }
-
-    // Mobile fallback: navigate to server vcard endpoint
-    // Server returns text/vcard with Content-Disposition: inline
-    // Android interprets this as an OS file-open intent (not a download)
-    window.location.href = `/api/cards/${card.id}/vcard?t=${Date.now()}`;
+  if (isAndroid) {
+    // Generic Android Intent to open the Contacts App Add Contact screen directly.
+    // Must be 100% synchronous so Chrome does not block the user activation gesture.
+    const intentUrl = `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.email=${encodeURIComponent(email)};S.company=${encodeURIComponent(company)};S.notes=${encodeURIComponent(notes)};end;`;
+    
+    window.location.href = intentUrl;
     return;
   }
 
-  // Desktop: standard .vcf file download
+  if (isIOS) {
+    // iOS Safari opens vcard links directly as a native contact sheet.
+    if (card.id) {
+      window.location.href = `/api/cards/${card.id}/vcard?t=${Date.now()}`;
+    } else {
+      const vcard = buildVCard(card);
+      const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.location.href = url;
+    }
+    return;
+  }
+
+  // Desktop: Standard file download
   const vcard = buildVCard(card);
   const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${(card.name || 'SR_Chains').replace(/\s+/g, '_')}_Contact.vcf`;
+  a.download = `${name.replace(/\s+/g, '_')}_Contact.vcf`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
