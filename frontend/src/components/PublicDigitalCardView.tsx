@@ -3,7 +3,6 @@ import axios from 'axios';
 import { ArrowLeft, AlertCircle, ShoppingBag } from 'lucide-react';
 import { DigitalCardPreview } from './DigitalCardPreview';
 import type { DigitalCard } from '../types/card';
-import { saveContactToMobile } from '../utils/vcard';
 
 interface PublicDigitalCardViewProps {
   cardId: string;

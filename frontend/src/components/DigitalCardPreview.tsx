@@ -15,7 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
-import { saveContactToMobile, getMobileContactData } from '../utils/vcard';
+import { getMobileContactData } from '../utils/vcard';
 
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
