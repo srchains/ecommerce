@@ -20,13 +20,11 @@ import { getContactHref } from '../utils/vcard';
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
   onShare?: () => void;
-  onSaveContact?: () => void;
 }
 
 export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({ 
   card, 
-  onShare, 
-  onSaveContact 
+  onShare
 }) => {
   const [copied, setCopied] = React.useState(false);
   const contactHref = getContactHref(card);
