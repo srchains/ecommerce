@@ -1,8 +1,8 @@
 import type { DigitalCard } from '../types/card';
 
 /** Builds a standard vCard (.vcf) string from a digital card profile. */
-export function buildVCard(card: DigitalCard): string {
-  const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${card.name}`];
+export function buildVCard(card: Partial<DigitalCard>): string {
+  const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${card.name || 'Sr chains'}`];
 
   if (card.company) lines.push(`ORG:${card.company}`);
   if (card.designation) lines.push(`TITLE:${card.designation}`);
@@ -21,68 +21,57 @@ export function buildVCard(card: DigitalCard): string {
   return lines.join('\n');
 }
 
-/** Directly opens native phone contacts app (Add Contact screen) with pre-filled name & phone number - 0% downloading. */
-export function saveContactToMobile(card: DigitalCard) {
-  const isAndroid = /Android/i.test(navigator.userAgent);
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+/** Generates direct mobile contact link data (Android Intent / iOS vCard / Desktop Download). */
+export function getMobileContactData(card: Partial<DigitalCard>): { 
+  href: string; 
+  download?: string; 
+  isAndroid: boolean;
+} {
+  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const name = card.name || 'Sr chains';
-  const rawPhone = (card.phone || card.whatsapp || '').trim();
-  const phone = rawPhone ? rawPhone : '7010674487';
+  const phone = (card.phone || card.whatsapp || '7010674487').replace(/[^\d+]/g, '');
   const company = [card.designation, card.company || 'SR Chains'].filter(Boolean).join(' at ');
-  const email = card.email || 'srchains19@gmail.com';
-  const notes = card.bio || '';
+  const email = card.email || '';
 
   if (isAndroid) {
-    // Android Intent format for Xiaomi HyperOS/MIUI, Samsung, Vivo, Oppo, OnePlus
-    // Triggers native 'Create New Contact' Activity directly with NO file downloading!
-    const androidIntent = `intent://com.android.contacts/contacts#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.item/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};S.notes=${encodeURIComponent(notes)};end`;
-    
-    // Trigger intent via link click
-    const link = document.createElement('a');
-    link.href = androidIntent;
-    link.rel = 'noreferrer';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    // Fallback: If Intent is intercepted, try direct window navigation to intent
-    setTimeout(() => {
-      if (document.hasFocus()) {
-        const altIntent = `intent:#Intent;action=android.intent.action.INSERT_OR_EDIT;type=vnd.android.cursor.item/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};end`;
-        window.location.href = altIntent;
-      }
-    }, 400);
-
-    return;
+    // Android Direct Intent URI: Directly opens native Android 'Create Contact' screen with ZERO file downloading!
+    const androidIntent = `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};end`;
+    return { href: androidIntent, isAndroid: true };
   }
 
   if (isIOS) {
-    // iOS Safari Native Contact Sheet
+    // iOS Safari vCard URI: Triggers native iOS contact sheet
     const vcard = buildVCard(card);
-    const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-    const blobUrl = URL.createObjectURL(blob);
-    
-    const link = document.createElement('a');
-    link.href = blobUrl;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    return;
+    const dataUri = `data:text/vcard;charset=utf-8,${encodeURIComponent(vcard)}`;
+    return { href: dataUri, isAndroid: false };
   }
 
   // Desktop / PC Fallback
   const vcard = buildVCard(card);
   const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `${name.replace(/\s+/g, '_')}_Contact.vcf`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  const blobUrl = URL.createObjectURL(blob);
+  return { 
+    href: blobUrl, 
+    download: `${name.replace(/\s+/g, '_')}_Contact.vcf`, 
+    isAndroid: false 
+  };
 }
 
-/** Legacy alias for backward compatibility */
+/** Direct trigger function fallback */
+export function saveContactToMobile(card: DigitalCard) {
+  const data = getMobileContactData(card);
+  if (data.isAndroid || data.download) {
+    window.location.href = data.href;
+  } else {
+    const link = document.createElement('a');
+    link.href = data.href;
+    if (data.download) link.download = data.download;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+}
+
 export const downloadVCard = saveContactToMobile;

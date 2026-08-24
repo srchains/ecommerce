@@ -15,7 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
-import { saveContactToMobile } from '../utils/vcard';
+import { saveContactToMobile, getMobileContactData } from '../utils/vcard';
 
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
@@ -29,6 +29,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
   onSaveContact 
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const contactData = getMobileContactData(card);
 
   const handleShareClick = () => {
     if (onShare) {
@@ -50,11 +51,10 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
     }
   };
 
-  const handleSave = () => {
+  const handleSave = (e: React.MouseEvent) => {
     if (onSaveContact) {
+      e.preventDefault();
       onSaveContact();
-    } else if (card.name) {
-      saveContactToMobile(card as DigitalCard);
     }
   };
 
@@ -192,14 +192,15 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
 
         {/* Primary Action Buttons */}
         <div className="mt-6 flex w-full gap-2.5">
-          <button
-            type="button"
-            onClick={handleSave}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer"
+          <a
+            href={contactData.href}
+            download={contactData.download}
+            onClick={onSaveContact ? handleSave : undefined}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer no-underline"
           >
             <UserPlus className="h-4 w-4" />
             <span>Save Contact</span>
-          </button>
+          </a>
 
           <button
             type="button"

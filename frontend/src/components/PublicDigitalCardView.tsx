@@ -113,10 +113,7 @@ export const PublicDigitalCardView: React.FC<PublicDigitalCardViewProps> = ({
 
       {/* Main Digital Card Preview */}
       <div className="w-full max-w-sm animate-in zoom-in-95 duration-300">
-        <DigitalCardPreview
-          card={card}
-          onSaveContact={() => saveContactToMobile(card)}
-        />
+        <DigitalCardPreview card={card} />
       </div>
 
       {/* Bottom Footer Action */}
