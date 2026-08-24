@@ -18,17 +18,12 @@ export function buildVCard(card: Partial<DigitalCard>): string {
 }
 
 /**
- * Saves contact to phone.
- * 
- * - ANDROID: Synchronously launches native Contacts App "Add Contact" screen
- *   using a generic intent. This is 100% direct and has ZERO downloads or popups.
- * - IOS: Navigates to the server vcard endpoint which iOS Safari opens natively
- *   as a contact sheet.
- * - DESKTOP: Triggers standard file download of the .vcf file.
+ * Returns the exact href URL for direct browser navigation.
+ * Using a direct <a> link is highly recommended as browsers (Chrome, Safari)
+ * require direct user gesture navigation on <a> tags to launch external intents.
  */
-export function saveContactToMobile(card: Partial<DigitalCard>) {
+export function getContactHref(card: Partial<DigitalCard>): string {
   const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   const name = card.name || 'Sr chains';
   const phone = (card.phone || card.whatsapp || '').trim();
@@ -38,38 +33,30 @@ export function saveContactToMobile(card: Partial<DigitalCard>) {
 
   if (isAndroid) {
     // Generic Android Intent to open the Contacts App Add Contact screen directly.
-    // Must be 100% synchronous so Chrome does not block the user activation gesture.
-    // Using the official intent://contacts/edit/#Intent scheme which is supported by Chrome.
-    const intentUrl = `intent://contacts/edit/#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.email=${encodeURIComponent(email)};S.company=${encodeURIComponent(company)};S.notes=${encodeURIComponent(notes)};end`;
-    
-    window.location.href = intentUrl;
-    return;
+    return `intent://contacts/edit/#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.email=${encodeURIComponent(email)};S.company=${encodeURIComponent(company)};S.notes=${encodeURIComponent(notes)};end`;
   }
 
-  if (isIOS) {
-    // iOS Safari opens vcard links directly as a native contact sheet.
-    if (card.id) {
-      window.location.href = `/api/cards/${card.id}/vcard?t=${Date.now()}`;
-    } else {
-      const vcard = buildVCard(card);
-      const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      window.location.href = url;
-    }
-    return;
+  if (card.id) {
+    // Serves inline/attachment from server, native contact sheet on iOS Safari
+    return `/api/cards/${card.id}/vcard?t=${Date.now()}`;
   }
 
-  // Desktop: Standard file download
+  // Fallback data URI for unsaved/local preview cards
   const vcard = buildVCard(card);
-  const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
+  return `data:text/vcard;charset=utf-8,${encodeURIComponent(vcard)}`;
+}
+
+/** Legacy fallback function */
+export function saveContactToMobile(card: Partial<DigitalCard>) {
+  const url = getContactHref(card);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `${name.replace(/\s+/g, '_')}_Contact.vcf`;
+  if (!url.startsWith('intent:')) {
+    a.download = `${(card.name || 'SR_Chains').replace(/\s+/g, '_')}_Contact.vcf`;
+  }
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
-  URL.revokeObjectURL(url);
 }
 
 export const downloadVCard = saveContactToMobile;

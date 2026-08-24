@@ -15,7 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
-import { saveContactToMobile } from '../utils/vcard';
+import { getContactHref } from '../utils/vcard';
 
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
@@ -29,14 +29,8 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
   onSaveContact 
 }) => {
   const [copied, setCopied] = React.useState(false);
+  const contactHref = getContactHref(card);
 
-  const handleSaveContact = () => {
-    if (onSaveContact) { onSaveContact(); return; }
-    // saveContactToMobile: uses Web Share API (.vcf file) on mobile
-    // → Android shows share sheet → user taps "Contacts" → Add Contact screen!
-    // Exactly like how "Call" button opens the dialer via tel: link
-    saveContactToMobile(card);
-  };
 
   const handleShareClick = () => {
     if (onShare) {
@@ -194,14 +188,13 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
 
         {/* Primary Action Buttons */}
         <div className="mt-6 flex w-full gap-2.5">
-          <button
-            type="button"
-            onClick={handleSaveContact}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer"
+          <a
+            href={contactHref}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer no-underline"
           >
             <UserPlus className="h-4 w-4" />
             <span>Save Contact</span>
-          </button>
+          </a>
 
           <button
             type="button"
