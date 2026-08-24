@@ -15,7 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
-import { getMobileContactData } from '../utils/vcard';
+import { buildVCard } from '../utils/vcard';
 
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
@@ -29,7 +29,30 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
   onSaveContact 
 }) => {
   const [copied, setCopied] = React.useState(false);
-  const contactData = getMobileContactData(card);
+
+  const handleSaveContact = () => {
+    if (onSaveContact) { onSaveContact(); return; }
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if ((isAndroid || isIOS) && card.id) {
+      // Navigate to server vCard endpoint — Android/iOS sees text/vcard MIME type
+      // and opens the native CONTACTS APP directly (no download dialog!)
+      // ?t= cache-buster ensures Chrome never shows "Download file again?"
+      window.open(`/api/cards/${card.id}/vcard?t=${Date.now()}`, '_blank');
+    } else {
+      // Desktop: download blob file
+      const vcard = buildVCard(card);
+      const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(card.name || 'SR_Chains').replace(/\s+/g, '_')}_Contact.vcf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
 
   const handleShareClick = () => {
     if (onShare) {
@@ -51,12 +74,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
     }
   };
 
-  const handleSave = (e: React.MouseEvent) => {
-    if (onSaveContact) {
-      e.preventDefault();
-      onSaveContact();
-    }
-  };
+
 
   const formattedPhone = card.phone ? card.phone.replace(/\D/g, '') : '';
   const formattedWhatsApp = card.whatsapp ? card.whatsapp.replace(/\D/g, '') : formattedPhone;
@@ -192,15 +210,14 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
 
         {/* Primary Action Buttons */}
         <div className="mt-6 flex w-full gap-2.5">
-          <a
-            href={contactData.href}
-            download={contactData.download}
-            onClick={onSaveContact ? handleSave : undefined}
-            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer no-underline"
+          <button
+            type="button"
+            onClick={handleSaveContact}
+            className="flex-1 flex items-center justify-center gap-2 py-3 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg transition-all cursor-pointer"
           >
             <UserPlus className="h-4 w-4" />
             <span>Save Contact</span>
-          </a>
+          </button>
 
           <button
             type="button"
