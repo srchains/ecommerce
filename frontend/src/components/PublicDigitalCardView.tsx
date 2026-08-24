@@ -3,7 +3,7 @@ import axios from 'axios';
 import { ArrowLeft, AlertCircle, ShoppingBag } from 'lucide-react';
 import { DigitalCardPreview } from './DigitalCardPreview';
 import type { DigitalCard } from '../types/card';
-import { downloadVCard } from '../utils/vcard';
+import { saveContactToMobile } from '../utils/vcard';
 
 interface PublicDigitalCardViewProps {
   cardId: string;
@@ -115,7 +115,7 @@ export const PublicDigitalCardView: React.FC<PublicDigitalCardViewProps> = ({
       <div className="w-full max-w-sm animate-in zoom-in-95 duration-300">
         <DigitalCardPreview
           card={card}
-          onSaveContact={() => downloadVCard(card)}
+          onSaveContact={() => saveContactToMobile(card)}
         />
       </div>
 

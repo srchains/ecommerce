@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
 import { DigitalCardPreview } from './DigitalCardPreview';
-import { downloadVCard } from '../utils/vcard';
+import { saveContactToMobile } from '../utils/vcard';
 
 interface DigitalCardHubProps {
   initialTab?: 'list' | 'create' | 'nfc';
@@ -433,9 +433,9 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
 
                         <button
                           type="button"
-                          onClick={() => downloadVCard(card)}
+                          onClick={() => saveContactToMobile(card)}
                           className="p-1.5 text-slate-400 hover:text-emerald-400 hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                          title="Download .vcf Contact"
+                          title="Save Contact to Phone"
                         >
                           <Download className="h-4 w-4" />
                         </button>
@@ -729,7 +729,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
 
             <DigitalCardPreview
               card={selectedCard}
-              onSaveContact={() => downloadVCard(selectedCard)}
+              onSaveContact={() => saveContactToMobile(selectedCard)}
             />
           </div>
         )}

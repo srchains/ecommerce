@@ -15,7 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
-import { downloadVCard } from '../utils/vcard';
+import { saveContactToMobile } from '../utils/vcard';
 
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
@@ -54,7 +54,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
     if (onSaveContact) {
       onSaveContact();
     } else if (card.name) {
-      downloadVCard(card as DigitalCard);
+      saveContactToMobile(card as DigitalCard);
     }
   };
 
