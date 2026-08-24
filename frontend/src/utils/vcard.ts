@@ -39,7 +39,8 @@ export function saveContactToMobile(card: Partial<DigitalCard>) {
   if (isAndroid) {
     // Generic Android Intent to open the Contacts App Add Contact screen directly.
     // Must be 100% synchronous so Chrome does not block the user activation gesture.
-    const intentUrl = `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.email=${encodeURIComponent(email)};S.company=${encodeURIComponent(company)};S.notes=${encodeURIComponent(notes)};end;`;
+    // Using the official intent://contacts/edit/#Intent scheme which is supported by Chrome.
+    const intentUrl = `intent://contacts/edit/#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.email=${encodeURIComponent(email)};S.company=${encodeURIComponent(company)};S.notes=${encodeURIComponent(notes)};end`;
     
     window.location.href = intentUrl;
     return;
