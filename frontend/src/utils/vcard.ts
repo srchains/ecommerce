@@ -11,67 +11,54 @@ export function buildVCard(card: Partial<DigitalCard>): string {
   if (card.email) lines.push(`EMAIL:${card.email}`);
   if (card.address) lines.push(`ADR;TYPE=WORK:;;${card.address.replace(/\n/g, ' ')}`);
   if (card.website) lines.push(`URL:${card.website}`);
-
-  const cardUrl = `${window.location.origin}/?card=${encodeURIComponent(card.id || '')}`;
-  lines.push(`URL:${cardUrl}`);
-
   if (card.bio) lines.push(`NOTE:${card.bio.replace(/\n/g, ' ')}`);
 
   lines.push('END:VCARD');
   return lines.join('\n');
 }
 
-/** Generates direct mobile contact link data (Android Intent / iOS vCard / Desktop Download). */
-export function getMobileContactData(card: Partial<DigitalCard>): { 
-  href: string; 
-  download?: string; 
-  isAndroid: boolean;
+/**
+ * Returns an href and optional download attribute for the Save Contact button.
+ *
+ * MOBILE (Android & iOS):
+ *   → Navigates to /api/cards/{id}/vcard which serves Content-Type: text/vcard
+ *     with Content-Disposition: inline.
+ *   → Android Chrome & iOS Safari treat this as a system intent and open the
+ *     NATIVE CONTACTS APP directly in "Add Contact" mode — NO file download popup!
+ *
+ * DESKTOP:
+ *   → Falls back to Blob download with a .vcf filename.
+ */
+export function getMobileContactData(card: Partial<DigitalCard>): {
+  href: string;
+  download?: string;
 } {
-  const isAndroid = typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
-  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isMobile = typeof navigator !== 'undefined' &&
+    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  const name = card.name || 'Sr chains';
-  const phone = (card.phone || card.whatsapp || '7010674487').replace(/[^\d+]/g, '');
-  const company = [card.designation, card.company || 'SR Chains'].filter(Boolean).join(' at ');
-  const email = card.email || '';
-
-  if (isAndroid) {
-    // Android Direct Intent URI: Directly opens native Android 'Create Contact' screen with ZERO file downloading!
-    const androidIntent = `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};end`;
-    return { href: androidIntent, isAndroid: true };
+  if (isMobile && card.id) {
+    // Server endpoint — returns text/vcard with Content-Disposition: inline
+    // This is the ONLY reliable way to open native contacts on Android Chrome without a download popup.
+    return { href: `/api/cards/${card.id}/vcard` };
   }
 
-  if (isIOS) {
-    // iOS Safari vCard URI: Triggers native iOS contact sheet
-    const vcard = buildVCard(card);
-    const dataUri = `data:text/vcard;charset=utf-8,${encodeURIComponent(vcard)}`;
-    return { href: dataUri, isAndroid: false };
-  }
-
-  // Desktop / PC Fallback
+  // Desktop fallback — blob download
   const vcard = buildVCard(card);
   const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
   const blobUrl = URL.createObjectURL(blob);
-  return { 
-    href: blobUrl, 
-    download: `${name.replace(/\s+/g, '_')}_Contact.vcf`, 
-    isAndroid: false 
-  };
+  const name = (card.name || 'SR_Chains').replace(/\s+/g, '_');
+  return { href: blobUrl, download: `${name}_Contact.vcf` };
 }
 
-/** Direct trigger function fallback */
+/** Legacy direct-call fallback (used by desktop admin panel, etc.) */
 export function saveContactToMobile(card: DigitalCard) {
   const data = getMobileContactData(card);
-  if (data.isAndroid || data.download) {
-    window.location.href = data.href;
-  } else {
-    const link = document.createElement('a');
-    link.href = data.href;
-    if (data.download) link.download = data.download;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }
+  const link = document.createElement('a');
+  link.href = data.href;
+  if (data.download) link.download = data.download;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
 }
 
 export const downloadVCard = saveContactToMobile;

@@ -68,6 +68,60 @@ def get_card(card_id: str):
             return card
     raise HTTPException(status_code=404, detail="Digital card not found")
 
+@router.get("/{card_id}/vcard")
+def get_card_vcard(card_id: str):
+    """
+    Serves the vCard (.vcf) file for a card with Content-Disposition: inline.
+    On Android Chrome & iOS Safari, this triggers the native Contacts app to open
+    directly in 'Add Contact' mode — NO download popup!
+    """
+    from fastapi.responses import Response
+    cards = load_cards()
+    card = None
+    for c in cards:
+        if c.get("id") == card_id:
+            card = c
+            break
+    if not card:
+        raise HTTPException(status_code=404, detail="Card not found")
+
+    name = card.get("name", "SR Chains")
+    lines = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        f"FN:{name}",
+    ]
+    if card.get("company"):
+        lines.append(f"ORG:{card['company']}")
+    if card.get("designation"):
+        lines.append(f"TITLE:{card['designation']}")
+    if card.get("phone"):
+        lines.append(f"TEL;TYPE=CELL:{card['phone']}")
+    if card.get("whatsapp") and card.get("whatsapp") != card.get("phone"):
+        lines.append(f"TEL;TYPE=WhatsApp:{card['whatsapp']}")
+    if card.get("email"):
+        lines.append(f"EMAIL:{card['email']}")
+    if card.get("address"):
+        lines.append(f"ADR;TYPE=WORK:;;{card['address'].replace(chr(10), ' ')}")
+    if card.get("website"):
+        lines.append(f"URL:{card['website']}")
+    if card.get("bio"):
+        lines.append(f"NOTE:{card['bio'].replace(chr(10), ' ')}")
+    lines.append("END:VCARD")
+    vcard_content = "\r\n".join(lines) + "\r\n"
+
+    safe_name = name.replace(" ", "_")
+    return Response(
+        content=vcard_content,
+        media_type="text/vcard; charset=utf-8",
+        headers={
+            # 'inline' tells the browser to OPEN the file, not download it.
+            # Android Chrome sees text/vcard + inline → opens native Contacts app directly!
+            "Content-Disposition": f'inline; filename="{safe_name}.vcf"',
+            "Cache-Control": "no-cache",
+        }
+    )
+
 @router.post("", response_model=dict)
 def save_or_update_card(card: dict):
     cards = load_cards()
