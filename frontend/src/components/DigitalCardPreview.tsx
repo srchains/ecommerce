@@ -15,7 +15,7 @@ import {
   Check
 } from 'lucide-react';
 import type { DigitalCard } from '../types/card';
-import { buildVCard } from '../utils/vcard';
+import { saveContactToMobile } from '../utils/vcard';
 
 interface DigitalCardPreviewProps {
   card: Partial<DigitalCard>;
@@ -32,26 +32,10 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
 
   const handleSaveContact = () => {
     if (onSaveContact) { onSaveContact(); return; }
-    const isAndroid = /Android/i.test(navigator.userAgent);
-    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
-    if ((isAndroid || isIOS) && card.id) {
-      // Navigate to server vCard endpoint — Android/iOS sees text/vcard MIME type
-      // and opens the native CONTACTS APP directly (no download dialog!)
-      // ?t= cache-buster ensures Chrome never shows "Download file again?"
-      window.open(`/api/cards/${card.id}/vcard?t=${Date.now()}`, '_blank');
-    } else {
-      // Desktop: download blob file
-      const vcard = buildVCard(card);
-      const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${(card.name || 'SR_Chains').replace(/\s+/g, '_')}_Contact.vcf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
+    // saveContactToMobile: uses Web Share API (.vcf file) on mobile
+    // → Android shows share sheet → user taps "Contacts" → Add Contact screen!
+    // Exactly like how "Call" button opens the dialer via tel: link
+    saveContactToMobile(card);
   };
 
   const handleShareClick = () => {

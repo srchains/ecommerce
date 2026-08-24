@@ -14,51 +14,73 @@ export function buildVCard(card: Partial<DigitalCard>): string {
   if (card.bio) lines.push(`NOTE:${card.bio.replace(/\n/g, ' ')}`);
 
   lines.push('END:VCARD');
-  return lines.join('\n');
+  return lines.join('\r\n');
 }
 
 /**
- * Returns an href and optional download attribute for the Save Contact button.
+ * Saves contact to phone using the BEST available method:
  *
- * MOBILE (Android & iOS):
- *   → Navigates to /api/cards/{id}/vcard which serves Content-Type: text/vcard
- *     with Content-Disposition: inline.
- *   → Android Chrome & iOS Safari treat this as a system intent and open the
- *     NATIVE CONTACTS APP directly in "Add Contact" mode — NO file download popup!
+ * 1. MOBILE (Android/iOS) — Web Share API with .vcf file:
+ *    → Fetches vCard from server, creates a File object, calls navigator.share({ files })
+ *    → Android shows system share sheet → user taps "Contacts" → Add Contact screen opens!
+ *    → EXACTLY like how the "Call" button opens the dialer — zero download dialog!
  *
- * DESKTOP:
- *   → Falls back to Blob download with a .vcf filename.
+ * 2. MOBILE FALLBACK — if Share API not supported:
+ *    → Navigates to /api/cards/{id}/vcard (server returns text/vcard inline)
+ *    → Android opens with Contacts app directly
+ *
+ * 3. DESKTOP — standard .vcf file download
  */
-export function getMobileContactData(card: Partial<DigitalCard>): {
-  href: string;
-  download?: string;
-} {
-  const isMobile = typeof navigator !== 'undefined' &&
-    /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+export async function saveContactToMobile(card: Partial<DigitalCard>): Promise<void> {
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isMobile = isAndroid || isIOS;
 
   if (isMobile && card.id) {
-    // Server endpoint — returns text/vcard with Content-Disposition: inline
-    // This is the ONLY reliable way to open native contacts on Android Chrome without a download popup.
-    return { href: `/api/cards/${card.id}/vcard` };
+    try {
+      // Fetch vCard from server
+      const resp = await fetch(`/api/cards/${card.id}/vcard?t=${Date.now()}`);
+      const blob = await resp.blob();
+      const safeName = (card.name || 'Sr_chains').replace(/\s+/g, '_');
+      const file = new File([blob], `${safeName}.vcf`, { type: 'text/vcard' });
+
+      // Use Web Share API — Android shows share sheet with "Contacts" app
+      // Tapping "Contacts" opens the native Add Contact screen directly!
+      // This is the SAME mechanism as tel: for calls — zero download popup!
+      if (
+        navigator.share &&
+        typeof navigator.canShare === 'function' &&
+        navigator.canShare({ files: [file] })
+      ) {
+        await navigator.share({
+          files: [file],
+          title: card.name || 'SR Chains Contact',
+        });
+        return;
+      }
+    } catch (err) {
+      // User cancelled share sheet or share failed — continue to fallback
+      if ((err as Error).name === 'AbortError') return; // user cancelled — that's fine
+    }
+
+    // Mobile fallback: navigate to server vcard endpoint
+    // Server returns text/vcard with Content-Disposition: inline
+    // Android interprets this as an OS file-open intent (not a download)
+    window.location.href = `/api/cards/${card.id}/vcard?t=${Date.now()}`;
+    return;
   }
 
-  // Desktop fallback — blob download
+  // Desktop: standard .vcf file download
   const vcard = buildVCard(card);
   const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-  const blobUrl = URL.createObjectURL(blob);
-  const name = (card.name || 'SR_Chains').replace(/\s+/g, '_');
-  return { href: blobUrl, download: `${name}_Contact.vcf` };
-}
-
-/** Legacy direct-call fallback (used by desktop admin panel, etc.) */
-export function saveContactToMobile(card: DigitalCard) {
-  const data = getMobileContactData(card);
-  const link = document.createElement('a');
-  link.href = data.href;
-  if (data.download) link.download = data.download;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${(card.name || 'SR_Chains').replace(/\s+/g, '_')}_Contact.vcf`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 export const downloadVCard = saveContactToMobile;
