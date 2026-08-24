@@ -21,44 +21,51 @@ export function buildVCard(card: DigitalCard): string {
   return lines.join('\n');
 }
 
-/** Opens native mobile contacts prompt or triggers vCard file download. */
+/** Opens native mobile contacts prompt directly without file download popups. */
 export function saveContactToMobile(card: DigitalCard) {
-  const vcard = buildVCard(card);
-  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  const isAndroid = /Android/i.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
 
-  if (isMobile) {
-    // 1. Mobile Direct Launch: Open data URI text/vcard without 'download' attribute
-    // so mobile browsers (iOS Safari & Android Chrome) trigger the native "Create Contact" / Contacts app!
-    const dataUri = `data:text/vcard;charset=utf-8,${encodeURIComponent(vcard)}`;
+  const name = card.name || 'Sr chains';
+  const phone = (card.phone || card.whatsapp || '').trim();
+  const company = [card.designation, card.company || 'SR Chains'].filter(Boolean).join(' at ');
+  const email = card.email || '';
+  const notes = card.bio || '';
+
+  if (isAndroid) {
+    // 1. Android Chrome Native Intent: Directly launches Android Contacts app 'Add Contact' Activity
+    // Pre-fills Name, Mobile Number, Company, and Email with ZERO file download dialogs!
+    const androidIntent = `intent:#Intent;action=android.intent.action.INSERT;type=vnd.android.cursor.dir/contact;S.name=${encodeURIComponent(name)};S.phone=${encodeURIComponent(phone)};S.company=${encodeURIComponent(company)};S.email=${encodeURIComponent(email)};S.notes=${encodeURIComponent(notes)};end`;
+    
+    window.location.href = androidIntent;
+    return;
+  }
+
+  if (isIOS) {
+    // 2. iOS Safari Native vCard Launch: Triggers iOS native Contact sheet directly
+    const vcard = buildVCard(card);
+    const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+    const blobUrl = URL.createObjectURL(blob);
     
     const link = document.createElement('a');
-    link.href = dataUri;
+    link.href = blobUrl;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-
-    // Fallback: If data URI doesn't launch contacts app within 300ms, use Blob location
-    setTimeout(() => {
-      try {
-        const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-        const blobUrl = URL.createObjectURL(blob);
-        window.location.href = blobUrl;
-      } catch (e) {
-        console.warn('Fallback contact launch warning:', e);
-      }
-    }, 350);
-  } else {
-    // 2. Desktop Browser: Standard file download
-    const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(card.name || 'SR_Chains').replace(/\s+/g, '_')}_Contact.vcf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    return;
   }
+
+  // 3. Desktop / PC Fallback: Standard .vcf file download
+  const vcard = buildVCard(card);
+  const blob = new Blob([vcard], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `${name.replace(/\s+/g, '_')}_Contact.vcf`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
 }
 
 /** Legacy alias for backward compatibility */
