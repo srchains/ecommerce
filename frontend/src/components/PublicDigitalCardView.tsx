@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { ArrowLeft, AlertCircle, ShoppingBag } from 'lucide-react';
+import { AlertCircle, ShoppingBag } from 'lucide-react';
 import { DigitalCardPreview } from './DigitalCardPreview';
 import type { DigitalCard } from '../types/card';
 
@@ -92,16 +92,7 @@ export const PublicDigitalCardView: React.FC<PublicDigitalCardViewProps> = ({
   return (
     <div className="min-h-screen bg-slate-950 text-white py-8 px-4 flex flex-col items-center justify-between space-y-6">
       {/* Top Header */}
-      <div className="w-full max-w-sm flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onGoToStorefront}
-          className="flex items-center gap-2 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white text-xs font-bold rounded-xl border border-slate-800 transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          <span>Catalog Storefront</span>
-        </button>
-
+      <div className="w-full max-w-sm flex items-center justify-center">
         <div className="flex items-center gap-2 select-none" onClick={onGoToStorefront}>
           <div className="h-8 w-8 rounded-lg overflow-hidden border border-amber-500/40">
             <img src="/logo.jpg" alt="SR Chains Logo" className="h-full w-full object-cover" />
