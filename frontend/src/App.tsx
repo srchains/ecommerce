@@ -739,25 +739,6 @@ const MainLayout: React.FC = () => {
                 <span>About Us</span>
               </button>
 
-              {/* NFC Cards Open Button */}
-              <button
-                onClick={() => {
-                  setSelectedDesignCode(null);
-                  setSelectedCollectionFilter(null);
-                  setAboutModalOpen(false);
-                  setCatalogDropdownOpen(false);
-                  setActiveCardHubTab('list');
-                  window.history.pushState(null, '', '?view=cards');
-                }}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
-                  activeCardHubTab
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200'
-                }`}
-              >
-                <CreditCard className="h-4 w-4 text-amber-600" />
-                <span>NFC Cards</span>
-              </button>
 
               {/* Download Catalog PDF Button & Dropdown */}
               <div className="relative" ref={pdfDropdownRef}>

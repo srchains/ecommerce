@@ -136,7 +136,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
           )}
 
           {card.website && (
-            <a href={card.website.startsWith('http') ? card.website : `https://${card.website}`} target="_blank" rel="noreferrer" className="w-full">
+            <a href={window.location.origin} className="w-full">
               <button
                 type="button"
                 className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-colors cursor-pointer"
