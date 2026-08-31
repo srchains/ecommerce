@@ -729,7 +729,6 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
 
             <DigitalCardPreview
               card={selectedCard}
-              onSaveContact={() => saveContactToMobile(selectedCard)}
             />
           </div>
         )}
