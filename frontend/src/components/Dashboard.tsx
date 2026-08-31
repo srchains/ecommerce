@@ -59,8 +59,8 @@ export const Dashboard: React.FC = () => {
   const metrics = [
     {
       name: "Today's Silver Rate",
-      value: livePrice ? `₹${livePrice.silver_gram_rate.toFixed(2)}/g` : '₹95.50/g',
-      subtext: livePrice ? `Kg Rate: ₹${(livePrice.silver_kg_rate).toLocaleString('en-IN')}` : 'Kg Rate: ₹95,500',
+      value: livePrice?.silver_gram_rate ? `₹${livePrice.silver_gram_rate.toFixed(2)}/g` : '₹222.00/g',
+      subtext: livePrice ? `Kg Rate: ₹${(livePrice.silver_kg_rate).toLocaleString('en-IN')}` : 'Kg Rate: ₹2,22,000',
       icon: TrendingUp
     },
     {
@@ -157,7 +157,7 @@ export const Dashboard: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Silver Gram Rate</p>
-              <p className="text-2xl font-bold font-mono mt-2">₹{livePrice?.silver_gram_rate.toFixed(2)}</p>
+              <p className="text-2xl font-bold font-mono mt-2">₹{livePrice?.silver_gram_rate?.toFixed(2) || '222.00'}</p>
             </div>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Silver Kilogram Rate</p>

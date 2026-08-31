@@ -29,7 +29,7 @@ async def start_polling():
     """Start the background polling task on app startup."""
     global polling_task
     try:
-        polling_task = asyncio.create_task(live_price.poll_metals_api())
+        polling_task = asyncio.create_task(live_price.poll_vijay_bullion())
         logger.info("Background metal price polling started successfully.")
     except Exception as e:
         logger.error(f"Failed to start metal price polling: {e}")

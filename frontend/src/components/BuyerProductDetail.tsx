@@ -985,7 +985,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                   Silver Cost
                   <span className="inline-flex items-center gap-1 text-[10px] font-bold text-green-700 bg-green-50 border border-green-200 px-1.5 py-0.5 rounded-full">
                     <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse inline-block"></span>
-                    ₹{livePrice?.silver_gram_rate.toFixed(2)}/g
+                    ₹{livePrice?.silver_gram_rate?.toFixed(2) || '222.00'}/g
                   </span>
                 </span>
                 <span className="font-mono">₹{priceBreakdown.basePrice.toLocaleString('en-IN')}</span>
