@@ -181,13 +181,16 @@ const MainLayout: React.FC = () => {
   const [activePublicCardId, setActivePublicCardId] = useState<string | null>(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const qCard = searchParams.get('cards') || searchParams.get('card');
-    if (qCard) return qCard;
+    if (qCard && qCard.trim() !== '') return qCard;
     const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
     return match ? match[1] : null;
   });
 
   const [activeCardHubTab, setActiveCardHubTab] = useState<'list' | 'create' | 'nfc' | null>(() => {
     const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.has('cards') && (!searchParams.get('cards') || searchParams.get('cards')?.trim() === '')) {
+      return 'list';
+    }
     const view = searchParams.get('view');
     if (view === 'cards' || view === 'digital-cards') return 'list';
     if (view === 'create-card') return 'create';
@@ -201,10 +204,14 @@ const MainLayout: React.FC = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const qCard = searchParams.get('cards') || searchParams.get('card');
       const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
-      setActivePublicCardId(qCard || (match ? match[1] : null));
+      
+      const hasSpecificCard = qCard && qCard.trim() !== '';
+      setActivePublicCardId(hasSpecificCard ? qCard : (match ? match[1] : null));
 
+      const isHubMode = searchParams.has('cards') && (!qCard || qCard.trim() === '');
       const view = searchParams.get('view');
-      if (view === 'cards' || view === 'digital-cards') setActiveCardHubTab('list');
+      
+      if (isHubMode || view === 'cards' || view === 'digital-cards') setActiveCardHubTab('list');
       else if (view === 'create-card') setActiveCardHubTab('create');
       else if (view === 'read-nfc') setActiveCardHubTab('nfc');
       else if (window.location.pathname.startsWith('/cards') || window.location.pathname.startsWith('/digital-cards')) setActiveCardHubTab('list');
