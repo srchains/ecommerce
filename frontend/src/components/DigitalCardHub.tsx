@@ -186,10 +186,10 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
             const text = textDecoder.decode(record.data);
             
             // Extract Card ID if URL or text
-            const match = text.match(/(?:cards?=|\/card\/)([A-Z0-9]{6})/i);
+            const match = text.match(/(?:cards?=|\/(?:digitalcards|card)\/)([A-Z0-9]{6})/i);
             if (match && match[1]) {
               const cardId = match[1].toUpperCase();
-              window.location.href = `/?cards=${cardId}`;
+              window.location.href = `/digitalcards/${cardId}`;
               return;
             }
           }
@@ -211,7 +211,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
       setSelectedCard(found);
       setActiveTab('preview');
     } else {
-      window.location.href = `/?cards=${encodeURIComponent(cleanId)}`;
+      window.location.href = `/digitalcards/${encodeURIComponent(cleanId)}`;
     }
   };
 
@@ -753,7 +753,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
 
             <div className="bg-white p-6 rounded-2xl border-4 border-amber-500/80 shadow-xl inline-block mx-auto text-slate-950">
               <img
-                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`${window.location.origin}/?cards=${selectedCard.id}`)}`}
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(`${window.location.origin}/digitalcards/${selectedCard.id}`)}`}
                 alt={`QR Code for ${selectedCard.name}`}
                 className="h-48 w-48 mx-auto object-contain"
               />
@@ -774,7 +774,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
               </button>
 
               <a
-                href={`${window.location.origin}/?cards=${selectedCard.id}`}
+                href={`${window.location.origin}/digitalcards/${selectedCard.id}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex-1 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 cursor-pointer flex items-center justify-center gap-1.5"

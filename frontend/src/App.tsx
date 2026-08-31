@@ -182,7 +182,9 @@ const MainLayout: React.FC = () => {
     const searchParams = new URLSearchParams(window.location.search);
     const qCard = searchParams.get('cards') || searchParams.get('card');
     if (qCard && qCard.trim() !== '') return qCard;
-    const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
+    
+    // Match /digitalcards/SQMYRF or /card/SQMYRF
+    const match = window.location.pathname.match(/^\/(?:digitalcards|card)\/([A-Za-z0-9_-]+)/i);
     return match ? match[1] : null;
   });
 
@@ -195,7 +197,11 @@ const MainLayout: React.FC = () => {
     if (view === 'cards' || view === 'digital-cards') return 'list';
     if (view === 'create-card') return 'create';
     if (view === 'read-nfc') return 'nfc';
-    if (window.location.pathname.startsWith('/cards') || window.location.pathname.startsWith('/digital-cards')) return 'list';
+    
+    const path = window.location.pathname.toLowerCase();
+    if (path === '/digitalcards' || path === '/digitalcards/' || path === '/cards' || path === '/digital-cards') {
+      return 'list';
+    }
     return null;
   });
 
@@ -203,18 +209,19 @@ const MainLayout: React.FC = () => {
     const handleCardPopState = () => {
       const searchParams = new URLSearchParams(window.location.search);
       const qCard = searchParams.get('cards') || searchParams.get('card');
-      const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
+      const match = window.location.pathname.match(/^\/(?:digitalcards|card)\/([A-Za-z0-9_-]+)/i);
       
       const hasSpecificCard = qCard && qCard.trim() !== '';
       setActivePublicCardId(hasSpecificCard ? qCard : (match ? match[1] : null));
 
       const isHubMode = searchParams.has('cards') && (!qCard || qCard.trim() === '');
       const view = searchParams.get('view');
+      const path = window.location.pathname.toLowerCase();
+      const isPathHubMode = path === '/digitalcards' || path === '/digitalcards/' || path === '/cards' || path === '/digital-cards';
       
-      if (isHubMode || view === 'cards' || view === 'digital-cards') setActiveCardHubTab('list');
+      if (isHubMode || isPathHubMode || view === 'cards' || view === 'digital-cards') setActiveCardHubTab('list');
       else if (view === 'create-card') setActiveCardHubTab('create');
       else if (view === 'read-nfc') setActiveCardHubTab('nfc');
-      else if (window.location.pathname.startsWith('/cards') || window.location.pathname.startsWith('/digital-cards')) setActiveCardHubTab('list');
       else setActiveCardHubTab(null);
     };
 
