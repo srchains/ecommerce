@@ -65,6 +65,10 @@ origins = [
     "http://localhost:3000",
     "http://localhost:80",
     "http://138.252.201.239",
+    "https://srchains.com",
+    "http://srchains.com",
+    "https://www.srchains.com",
+    "http://www.srchains.com",
     "https://srchains.ddns.net",
     "http://srchains.ddns.net",
     "*"

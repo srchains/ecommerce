@@ -51,7 +51,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
     phone: '',
     whatsapp: '',
     email: '',
-    website: 'srchains.ddns.net',
+    website: 'www.srchains.com',
     instagram: '',
     linkedin: '',
     address: '64, Arumuga Pillayar Koil St, Salem - 636 005',
@@ -278,7 +278,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
                   phone: '',
                   whatsapp: '',
                   email: '',
-                  website: 'srchains.ddns.net',
+                  website: 'www.srchains.com',
                   instagram: '',
                   linkedin: '',
                   address: '64, Arumuga Pillayar Koil St, Salem - 636 005',
@@ -595,7 +595,7 @@ export const DigitalCardHub: React.FC<DigitalCardHubProps> = ({
                 <label className="block text-xs font-bold text-slate-400 mb-1">Website URL</label>
                 <input
                   type="text"
-                  placeholder="e.g. srchains.ddns.net"
+                  placeholder="e.g. www.srchains.com"
                   value={formData.website || ''}
                   onChange={e => setFormData(prev => ({ ...prev, website: e.target.value }))}
                   className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none focus:border-amber-500"
