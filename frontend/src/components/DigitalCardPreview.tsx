@@ -36,7 +36,7 @@ export const DigitalCardPreview: React.FC<DigitalCardPreviewProps> = ({
       return;
     }
 
-    const shareUrl = `${window.location.origin}/?card=${encodeURIComponent(card.id || '')}`;
+    const shareUrl = `${window.location.origin}/?cards=${encodeURIComponent(card.id || '')}`;
     if (navigator.share) {
       navigator.share({
         title: `${card.name || 'SR Chains'} - Digital Card`,

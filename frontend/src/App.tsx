@@ -180,7 +180,7 @@ const MainLayout: React.FC = () => {
   // Open Card Route States
   const [activePublicCardId, setActivePublicCardId] = useState<string | null>(() => {
     const searchParams = new URLSearchParams(window.location.search);
-    const qCard = searchParams.get('card');
+    const qCard = searchParams.get('cards') || searchParams.get('card');
     if (qCard) return qCard;
     const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
     return match ? match[1] : null;
@@ -199,7 +199,7 @@ const MainLayout: React.FC = () => {
   useEffect(() => {
     const handleCardPopState = () => {
       const searchParams = new URLSearchParams(window.location.search);
-      const qCard = searchParams.get('card');
+      const qCard = searchParams.get('cards') || searchParams.get('card');
       const match = window.location.pathname.match(/^\/card\/([A-Za-z0-9_-]+)/);
       setActivePublicCardId(qCard || (match ? match[1] : null));
 
@@ -1062,6 +1062,7 @@ const MainLayout: React.FC = () => {
               onGoToStorefront={() => {
                 setActivePublicCardId(null);
                 setActiveCardHubTab(null);
+                setBuyerHomeView('catalog');
                 window.history.pushState(null, '', window.location.pathname);
               }}
             />
