@@ -43,8 +43,7 @@ import {
   UserCircle,
   ChevronUp,
   Download,
-  FileText,
-  CreditCard
+  FileText
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
