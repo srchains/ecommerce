@@ -3,9 +3,9 @@ import axios from 'axios';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
-// Automatically attach admin token header to all outbound API requests
+// Attach the admin/employee token (when present) to outbound API requests
 axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('admin_token') || 'demo-admin-token-srchains195757';
+  const token = localStorage.getItem('admin_token');
   if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -155,10 +155,15 @@ interface AppContextType {
     total: number;
   };
 
-  // Admin auth
+  // Admin / employee auth
   token: string | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  adminRole: 'admin' | 'employee' | null;
+  /** Step 1: validate credentials, trigger an OTP email. */
+  login: (email: string, password: string) => Promise<{ otpRequired: boolean; email: string; devOtp?: string }>;
+  /** Step 2: exchange the emailed OTP for a session. */
+  verifyAdminOtp: (email: string, otp: string) => Promise<void>;
+  resendAdminOtp: (email: string) => Promise<string>;
   logout: () => void;
   navigateTo: (path: string) => void;
 
@@ -188,6 +193,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [token, setToken] = useState<string | null>(localStorage.getItem('admin_token'));
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [adminRole, setAdminRole] = useState<'admin' | 'employee' | null>(
+    (localStorage.getItem('admin_role') as 'admin' | 'employee' | null) || null
+  );
   
   const [livePrice, setLivePrice] = useState<LivePrice | null>({
     silver_gram_rate: 222.00,
@@ -504,24 +512,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
-  // Axios request & response interceptors to attach bearer token & auto-recover sessions
+  // Axios interceptors: attach the bearer token, and drop the admin session on 401
   useEffect(() => {
     const reqInterceptor = axios.interceptors.request.use((config) => {
-      const activeToken = token || localStorage.getItem('admin_token') || 'demo-admin-token-srchains195757';
-      config.headers.Authorization = `Bearer ${activeToken}`;
+      const activeToken = token || localStorage.getItem('admin_token');
+      if (activeToken) {
+        config.headers.Authorization = `Bearer ${activeToken}`;
+      } else {
+        delete config.headers.Authorization;
+      }
       return config;
     });
 
     const resInterceptor = axios.interceptors.response.use(
       (res) => res,
       async (error) => {
-        if (error.response?.status === 401 && error.config && !error.config._retry) {
-          error.config._retry = true;
-          const fallbackToken = 'demo-admin-token-srchains195757';
-          localStorage.setItem('admin_token', fallbackToken);
-          setToken(fallbackToken);
-          error.config.headers.Authorization = `Bearer ${fallbackToken}`;
-          return axios(error.config);
+        const url: string = error.config?.url || '';
+        if (error.response?.status === 401 && url.includes('/api/') && localStorage.getItem('admin_token')) {
+          // Session is no longer valid — clear it and force a fresh login.
+          localStorage.removeItem('admin_token');
+          localStorage.removeItem('admin_role');
+          localStorage.removeItem('admin_name');
+          setToken(null);
+          setIsAuthenticated(false);
+          setAdminRole(null);
         }
         return Promise.reject(error);
       }
@@ -533,52 +547,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [token]);
 
-  // Admin login
+  // Admin/employee login — step 1: verify credentials, server e-mails a 6-digit code
   const login = async (email: string, password: string) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
-
-    // Check if password or email matches srchains195757 or srchains:
-    if (
-      cleanPass === 'srchains195757' || 
-      cleanEmail === 'srchains195757' || 
-      cleanPass === 'srchains' ||
-      ((cleanEmail === 'srchains19@gmail.com' || cleanEmail === 'admin' || cleanEmail === 'admin@srchains.com') && (cleanPass === 'srchains195757' || cleanPass === 'srchains'))
-    ) {
-      const fallbackToken = 'demo-admin-token-srchains195757';
-      localStorage.setItem('admin_token', fallbackToken);
-      setToken(fallbackToken);
-      setIsAuthenticated(true);
-      setMode('admin');
-      window.history.pushState({}, '', '/admin');
-      return;
-    }
-
     try {
       const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email: cleanEmail, password: cleanPass });
-      const receivedToken = res.data.token;
+      return {
+        otpRequired: !!res.data.otp_required,
+        email: res.data.email as string,
+        devOtp: res.data.dev_otp as string | undefined,
+      };
+    } catch (err: any) {
+      throw new Error(err.response?.data?.detail || 'Login failed. Invalid email or password.');
+    }
+  };
+
+  // Admin/employee login — step 2: exchange the emailed code for a session
+  const verifyAdminOtp = async (email: string, otp: string) => {
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/auth/verify-otp`, {
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+      });
+      const { token: receivedToken, role, name } = res.data;
       localStorage.setItem('admin_token', receivedToken);
+      localStorage.setItem('admin_role', role || 'employee');
+      localStorage.setItem('admin_name', name || '');
       setToken(receivedToken);
+      setAdminRole(role || 'employee');
       setIsAuthenticated(true);
       setMode('admin');
       window.history.pushState({}, '', '/admin');
     } catch (err: any) {
-      if (cleanPass === 'srchains195757' || cleanEmail === 'srchains195757') {
-        const fallbackToken = 'demo-admin-token-srchains195757';
-        localStorage.setItem('admin_token', fallbackToken);
-        setToken(fallbackToken);
-        setIsAuthenticated(true);
-        setMode('admin');
-        window.history.pushState({}, '', '/admin');
-        return;
-      }
-      throw new Error(err.response?.data?.detail || 'Login failed. Invalid email or password.');
+      throw new Error(err.response?.data?.detail || 'Verification failed. Check the code and try again.');
+    }
+  };
+
+  const resendAdminOtp = async (email: string) => {
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/auth/resend-otp`, { email: email.trim().toLowerCase() });
+      return (res.data.message as string) || 'A new code has been sent.';
+    } catch (err: any) {
+      throw new Error(err.response?.data?.detail || 'Could not resend the code.');
     }
   };
 
   const logout = () => {
     localStorage.removeItem('admin_token');
+    localStorage.removeItem('admin_role');
+    localStorage.removeItem('admin_name');
     setToken(null);
+    setAdminRole(null);
     setIsAuthenticated(false);
     setMode('buyer');
     window.history.pushState({}, '', '/');
@@ -642,26 +662,24 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     const verifyToken = async () => {
       const storedToken = localStorage.getItem('admin_token');
-      if (storedToken) {
-        if (storedToken.startsWith('demo-admin-token')) {
-          setIsAuthenticated(true);
-          return;
+      if (!storedToken) return;
+      try {
+        const res = await axios.get(`${API_BASE_URL}/api/auth/verify`, {
+          headers: { Authorization: `Bearer ${storedToken}` }
+        });
+        setIsAuthenticated(true);
+        if (res.data?.role) {
+          setAdminRole(res.data.role);
+          localStorage.setItem('admin_role', res.data.role);
         }
-        try {
-          await axios.get(`${API_BASE_URL}/api/auth/verify`, {
-            headers: { Authorization: `Bearer ${storedToken}` }
-          });
-          setIsAuthenticated(true);
-        } catch (err) {
-          if (storedToken.length > 5) {
-            setIsAuthenticated(true);
-          } else {
-            console.error("Token verification failed, logging out", err);
-            localStorage.removeItem('admin_token');
-            setToken(null);
-            setIsAuthenticated(false);
-          }
-        }
+      } catch (err) {
+        console.error("Token verification failed, logging out", err);
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('admin_role');
+        localStorage.removeItem('admin_name');
+        setToken(null);
+        setAdminRole(null);
+        setIsAuthenticated(false);
       }
     };
     verifyToken();
@@ -704,7 +722,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       calculatePriceBreakdown,
       token,
       isAuthenticated,
+      adminRole,
       login,
+      verifyAdminOtp,
+      resendAdminOtp,
       logout,
       navigateTo,
       // Customer auth

@@ -13,8 +13,9 @@ import {
   Settings, 
   Sparkles,
   CreditCard,
-  ChevronDown, 
-  ChevronUp, 
+  ShieldCheck,
+  ChevronDown,
+  ChevronUp,
   LogOut
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -24,13 +25,14 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
-  const { setAdminTab, adminTab, setSelectedDesignCode, logout } = useApp();
+  const { setAdminTab, adminTab, setSelectedDesignCode, logout, adminRole } = useApp();
   const [designsOpen, setDesignsOpen] = React.useState(true);
 
   const navItems = [
     { id: 'dashboard', name: 'Dashboard', icon: LayoutDashboard },
     { id: 'banner', name: 'Banner & Hero', icon: Sparkles },
     { id: 'nfc-cards', name: 'NFC & Cards', icon: CreditCard },
+    ...(adminRole === 'admin' ? [{ id: 'staff', name: 'Staff', icon: ShieldCheck }] : []),
     { 
       id: 'designs-group', 
       name: 'Designs', 

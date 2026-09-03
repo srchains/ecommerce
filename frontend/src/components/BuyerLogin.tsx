@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Lock, User, Mail, Phone, AlertCircle, X, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Lock, User, Mail, Phone, AlertCircle, X, Eye, EyeOff, ShieldCheck, RotateCcw } from 'lucide-react';
 import { API_BASE_URL } from '../context/AppContext';
 
 interface BuyerLoginProps {
@@ -26,6 +26,71 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
   const [regPassword, setRegPassword] = useState('');
   const [regConfirmPassword, setRegConfirmPassword] = useState('');
 
+  // Email verification step
+  const [otpMode, setOtpMode] = useState(false);
+  const [otpEmail, setOtpEmail] = useState('');    // real address for the verify call
+  const [otpMasked, setOtpMasked] = useState('');
+  const [otpCode, setOtpCode] = useState('');
+  const [info, setInfo] = useState<string | null>(null);
+  const [resendIn, setResendIn] = useState(0);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => (s <= 1 ? 0 : s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendIn]);
+
+  const startOtp = (realEmail: string, data: any) => {
+    setOtpEmail(realEmail);
+    setOtpMasked(data?.email || realEmail);
+    setOtpMode(true);
+    setResendIn(30);
+    setError(null);
+    setInfo(data?.dev_otp ? `Dev mode code: ${data.dev_otp}` : (data?.message || 'We sent you a 6-digit code.'));
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otpCode.trim().length !== 6) { setError('Enter the 6-digit code from your email.'); return; }
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/api/customers/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail, otp: otpCode.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || 'Verification failed');
+      onLoginSuccess(data.token, data.name, data.email, data.mobile_number);
+    } catch (err: any) {
+      setError(err.message || 'Verification failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendIn > 0) return;
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await fetch(`${API_BASE_URL}/api/customers/resend-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: otpEmail }),
+      });
+      const data = await res.json();
+      setInfo(data?.dev_otp ? `Dev mode code: ${data.dev_otp}` : (data?.message || 'A new code has been sent.'));
+      setResendIn(30);
+      setOtpCode('');
+    } catch (err: any) {
+      setError(err.message || 'Could not resend the code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!loginEmail || !loginPassword) {
@@ -41,6 +106,12 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
         body: JSON.stringify({ email: loginEmail, password: loginPassword })
       });
       const data = await res.json();
+      if (res.status === 403) {
+        // Account exists but email not verified yet — go to the code step.
+        startOtp(loginEmail, data);
+        await handleResendOtp();
+        return;
+      }
       if (!res.ok) throw new Error(data.detail || 'Login failed');
       onLoginSuccess(data.token, data.name, data.email, data.mobile_number);
     } catch (err: any) {
@@ -83,7 +154,8 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Registration failed');
-      onLoginSuccess(data.token, data.name, data.email, data.mobile_number);
+      // Account created (unverified) — move to the email verification step.
+      startOtp(regEmail, data);
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -119,6 +191,66 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
             <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest mt-1">Customer Portal</p>
           </div>
 
+          {/* ── EMAIL VERIFICATION STEP ── */}
+          {otpMode ? (
+            <div className="px-8 pb-8">
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs flex items-start gap-2.5">
+                  <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p className="text-red-600/90">{error}</p>
+                </div>
+              )}
+              {info && !error && (
+                <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs flex items-start gap-2.5">
+                  <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
+                  <p>{info}</p>
+                </div>
+              )}
+              <form onSubmit={handleVerifyOtp} className="space-y-4" autoComplete="off">
+                <div className="space-y-1.5">
+                  <label className="field-label">Verification Code</label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    required
+                    autoFocus
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="000000"
+                    className="input tracking-[0.5em] font-bold text-center text-lg"
+                    autoComplete="one-time-code"
+                  />
+                  <p className="text-[11px] text-gray-400 mt-1">Sent to {otpMasked || 'your email'}.</p>
+                </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-primary w-full py-3 tracking-wider uppercase font-bold text-xs cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {loading ? <span className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <span>Verify &amp; Continue</span>}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResendOtp}
+                  disabled={loading || resendIn > 0}
+                  className="w-full flex items-center justify-center gap-2 text-xs font-semibold text-gray-500 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed uppercase tracking-wider cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setOtpMode(false); setOtpCode(''); setError(null); setInfo(null); }}
+                  className="w-full text-center text-[11px] text-gray-400 hover:text-gray-700 cursor-pointer"
+                >
+                  Back
+                </button>
+              </form>
+            </div>
+          ) : (
+          <>
           {/* Tab Switcher */}
           <div className="mx-8 mb-6 flex rounded-xl border border-gray-200 p-1 bg-gray-50">
             <button
@@ -339,6 +471,8 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
               Your data is secure and encrypted. SR Chains respects your privacy.
             </div>
           </div>
+          </>
+          )}
         </div>
       </div>
     </div>

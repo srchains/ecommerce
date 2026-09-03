@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app.routers import products, orders, media, auth, customers, live_price, banner, cards
-from app.database import Base, engine
+from app.database import Base, engine, SessionLocal, run_light_migrations
 
 # Ensure uploads directory exists
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "uploads")
@@ -41,6 +41,12 @@ async def lifespan(app: FastAPI):
     logger.info("Starting SR Chains E-Commerce Backend...")
     # Create DB tables
     Base.metadata.create_all(bind=engine)
+    # Additive schema tweaks + seed the primary admin staff account
+    try:
+        run_light_migrations()
+        auth.seed_primary_admin(SessionLocal)
+    except Exception as e:
+        logger.error(f"Startup migration/seed failed: {e}")
     # Start price polling loop
     await start_polling()
     yield

@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { BuyerStorefront } from './components/BuyerStorefront';
 import { BuyerHomePage } from './components/BuyerHomePage';
 import { AdminBannerManager } from './components/AdminBannerManager';
+import { AdminStaffManager } from './components/AdminStaffManager';
 import { PublicDigitalCardView } from './components/PublicDigitalCardView';
 import { DigitalCardHub } from './components/DigitalCardHub';
 import { AdminLogin } from './components/AdminLogin';
@@ -1180,6 +1181,8 @@ const MainLayout: React.FC = () => {
                   {adminTab === 'dashboard' && <Dashboard />}
 
                   {adminTab === 'banner' && <AdminBannerManager />}
+
+                  {adminTab === 'staff' && <AdminStaffManager />}
 
                   {adminTab === 'nfc-cards' && (
                     <DigitalCardHub onGoToStorefront={() => setAdminTab('dashboard')} />

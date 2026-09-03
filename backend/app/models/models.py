@@ -145,7 +145,36 @@ class Customer(Base):
     mobile_number = Column(String, nullable=False)
     email = Column(String, unique=True, index=True, nullable=True)
     password_hash = Column(String, nullable=True)
+    email_verified = Column(Boolean, default=False, nullable=False)  # set true after e-mail OTP
     order_number = Column(String, nullable=True)  # null for sign-up only customers
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class StaffUser(Base):
+    """Admin / employee accounts for the wholesale ERP panel."""
+    __tablename__ = "staff_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    email = Column(String, unique=True, index=True, nullable=False)
+    password_hash = Column(String, nullable=False)
+    role = Column(String, default="employee", nullable=False)  # admin | employee
+    active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class EmailOTP(Base):
+    """Short-lived e-mail verification codes for staff login and customer sign-up."""
+    __tablename__ = "email_otps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    email = Column(String, index=True, nullable=False)
+    purpose = Column(String, nullable=False)  # staff_login | customer_signup
+    otp_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    consumed = Column(Boolean, default=False, nullable=False)
+    last_sent_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
