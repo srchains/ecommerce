@@ -15,8 +15,9 @@ import {
   Film, 
   Layers
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, API_BASE_URL } from '../context/AppContext';
 import { CinematicHeroBanner } from './CinematicHeroBanner';
+import { resolveDesignByCode } from '../utils/resolveDesign';
 import type { BannerConfig, BannerSlide, BackgroundPreset } from '../types/banner';
 import { 
   SCENE_EFFECT_LABELS, 
@@ -45,9 +46,19 @@ export const AdminBannerManager: React.FC = () => {
   const fetchConfig = async () => {
     try {
       setLoading(true);
-      const res = await axios.get('/api/banner');
-      if (res.data) {
-        setConfig(res.data);
+      const res = await axios.get(`${API_BASE_URL}/api/banner`);
+      const data = res.data;
+      // Guard against a non-JSON response (e.g. an HTML error page from a
+      // misconfigured proxy) which would otherwise crash the whole panel.
+      if (data && typeof data === 'object' && Array.isArray(data.slides)) {
+        setConfig({
+          ...data,
+          slides: data.slides,
+          featured_design_codes: data.featured_design_codes ?? [],
+          featured_design_ids: data.featured_design_ids ?? [],
+        });
+      } else {
+        setError('Received an unexpected banner config from the server. Showing defaults.');
       }
     } catch (err: any) {
       console.error('Failed to load banner config', err);
@@ -66,7 +77,7 @@ export const AdminBannerManager: React.FC = () => {
     try {
       setSaving(true);
       setError(null);
-      await axios.post('/api/banner', config);
+      await axios.post(`${API_BASE_URL}/api/banner`, config);
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err: any) {
@@ -87,7 +98,7 @@ export const AdminBannerManager: React.FC = () => {
 
     try {
       setSaving(true);
-      const res = await axios.post('/api/banner/upload', formData, {
+      const res = await axios.post(`${API_BASE_URL}/api/banner/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -97,7 +108,7 @@ export const AdminBannerManager: React.FC = () => {
           image_url: res.data.url,
           title: file.name.replace(/\.[^/.]+$/, ''),
           subtitle: 'Pure 92.5 Silver Craftsmanship',
-          design_code: designs[0]?.design_code || '',
+          design_code: '', // admin picks the target product via the per-slide dropdown
           effect: config.global_effect,
           background: 'burgundy',
         };
@@ -124,7 +135,7 @@ export const AdminBannerManager: React.FC = () => {
       image_url: mediaUrl,
       title: `${design.name} Collection`,
       subtitle: `${design.collection || 'Signature'} Pure 92.5 Silver`,
-      design_code: design.design_code,
+      design_code: design.name, // unique per-design identifier used to open the product
       effect: config.global_effect,
       background: 'royalPurple',
     };
@@ -132,9 +143,9 @@ export const AdminBannerManager: React.FC = () => {
     setConfig((prev) => ({
       ...prev,
       slides: [...prev.slides, newSlide],
-      featured_design_codes: prev.featured_design_codes.includes(design.design_code)
+      featured_design_codes: prev.featured_design_codes.includes(design.name)
         ? prev.featured_design_codes
-        : [...prev.featured_design_codes, design.design_code],
+        : [...prev.featured_design_codes, design.name],
     }));
   };
 
@@ -413,34 +424,60 @@ export const AdminBannerManager: React.FC = () => {
                 </div>
 
                 {/* Edit Fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 w-full md:w-auto flex-1 max-w-2xl">
-                  <input
-                    type="text"
-                    placeholder="Slide Title"
-                    value={slide.title || ''}
-                    onChange={(e) => handleUpdateSlide(slide.id, { title: e.target.value })}
-                    className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Slide Subtitle"
-                    value={slide.subtitle || ''}
-                    onChange={(e) => handleUpdateSlide(slide.id, { subtitle: e.target.value })}
-                    className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
-                  />
-                  {/* Background atmosphere picker */}
-                  <select
-                    value={slide.background || 'burgundy'}
-                    onChange={(e) => handleUpdateSlide(slide.id, { background: e.target.value as BackgroundPreset })}
-                    className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
-                  >
-                    <option value="burgundy">Burgundy Dark</option>
-                    <option value="royalPurple">Royal Purple</option>
-                    <option value="midnightBlue">Midnight Blue</option>
-                    <option value="emerald">Emerald Green</option>
-                    <option value="crimson">Crimson Red</option>
-                    <option value="blackStudio">Black Studio</option>
-                  </select>
+                <div className="w-full md:w-auto flex-1 max-w-2xl space-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <input
+                      type="text"
+                      placeholder="Slide Title"
+                      value={slide.title || ''}
+                      onChange={(e) => handleUpdateSlide(slide.id, { title: e.target.value })}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Slide Subtitle"
+                      value={slide.subtitle || ''}
+                      onChange={(e) => handleUpdateSlide(slide.id, { subtitle: e.target.value })}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
+                    />
+                    {/* Background atmosphere picker */}
+                    <select
+                      value={slide.background || 'burgundy'}
+                      onChange={(e) => handleUpdateSlide(slide.id, { background: e.target.value as BackgroundPreset })}
+                      className="px-2.5 py-1.5 text-xs bg-white border border-gray-300 rounded-lg"
+                    >
+                      <option value="burgundy">Burgundy Dark</option>
+                      <option value="royalPurple">Royal Purple</option>
+                      <option value="midnightBlue">Midnight Blue</option>
+                      <option value="emerald">Emerald Green</option>
+                      <option value="crimson">Crimson Red</option>
+                      <option value="blackStudio">Black Studio</option>
+                    </select>
+                  </div>
+
+                  {/* Links-to product picker — where a click on this slide navigates */}
+                  {(() => {
+                    const linked = resolveDesignByCode(designs, slide.design_code);
+                    return (
+                      <label className="flex items-center gap-2 text-[11px] font-bold text-gray-600">
+                        <span className="shrink-0">Links to product:</span>
+                        <select
+                          value={linked?.name ?? ''}
+                          onChange={(e) => handleUpdateSlide(slide.id, { design_code: e.target.value })}
+                          className={`flex-1 px-2.5 py-1.5 text-xs bg-white border rounded-lg font-semibold ${
+                            linked ? 'border-gray-300 text-gray-900' : 'border-amber-300 text-amber-700'
+                          }`}
+                        >
+                          <option value="">— None (opens full catalogue) —</option>
+                          {designs.map((d) => (
+                            <option key={d.id} value={d.name}>
+                              {d.name}{d.design_code && d.design_code !== d.name ? ` — ${d.design_code}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    );
+                  })()}
                 </div>
 
                 {/* Delete Button */}
@@ -460,8 +497,8 @@ export const AdminBannerManager: React.FC = () => {
         {/* Quick Add from Existing Catalog Designs */}
         <div className="pt-3 border-t border-gray-100">
           <p className="text-xs font-bold text-gray-700 mb-2">Quick Add from Catalog Designs:</p>
-          <div className="flex flex-wrap gap-2">
-            {designs.slice(0, 12).map((d) => (
+          <div className="flex flex-wrap gap-2 max-h-52 overflow-y-auto pr-1">
+            {designs.map((d) => (
               <button
                 key={d.id}
                 type="button"

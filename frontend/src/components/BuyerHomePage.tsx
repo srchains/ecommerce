@@ -5,8 +5,9 @@ import {
   ArrowRight, 
   Heart
 } from 'lucide-react';
-import { useApp } from '../context/AppContext';
+import { useApp, API_BASE_URL } from '../context/AppContext';
 import { CinematicHeroBanner } from './CinematicHeroBanner';
+import { resolveDesignByCode } from '../utils/resolveDesign';
 import type { BannerConfig, BannerSlide } from '../types/banner';
 
 interface BuyerHomePageProps {
@@ -27,8 +28,8 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
   useEffect(() => {
     const loadBanner = async () => {
       try {
-        const res = await axios.get('/api/banner');
-        if (res.data) setBannerConfig(res.data);
+        const res = await axios.get(`${API_BASE_URL}/api/banner`);
+        if (res.data && typeof res.data === 'object') setBannerConfig(res.data);
       } catch (err) {
         console.warn('Using default banner config', err);
       }
@@ -53,9 +54,20 @@ export const BuyerHomePage: React.FC<BuyerHomePageProps> = ({
   }, [designs, bannerConfig]);
 
   const handleSlideClick = (slide: BannerSlide) => {
-    if (slide.design_code) {
-      onSelectProduct(slide.design_code);
+    // Resolve the slide's stored identifier against the real catalog so
+    // near-misses (e.g. "DKUS01" vs "DKUS-01") still open the product.
+    const target =
+      resolveDesignByCode(designs, slide.design_code) ||
+      resolveDesignByCode(designs, slide.title);
+
+    if (target) {
+      const firstVariant = target.variants?.[0];
+      const firstSize = firstVariant?.sizes?.[0];
+      // `name` is the unique per-design identifier in this catalog; `design_code`
+      // is a shared family label, so prefer `name` to open the exact design.
+      onSelectProduct(target.name || target.design_code, firstVariant?.id, firstSize?.id);
     } else {
+      // No product linked / not found — fall back to the full catalogue.
       onExploreAll();
     }
   };

@@ -49,43 +49,43 @@ def get_default_config() -> dict:
                 "image_url": "/uploads/media/PAKU1.jpg",
                 "title": "Double Kushboo Collection",
                 "subtitle": "Signature 92.5 Pure Silver Anklets",
-                "design_code": "DKUS01",
+                "design_code": "DKUS-01",
                 "effect": "hero",
                 "background": "burgundy"
             },
             {
                 "id": "slide-2",
                 "image_url": "/uploads/media/DSC_1416.jpg",
-                "title": "Battani & Disco Series",
+                "title": "Disco Series",
                 "subtitle": "High Polish Daily & Bridal Wear",
-                "design_code": "BAT01",
+                "design_code": "DIS-01-V2",
                 "effect": "pan",
                 "background": "royalPurple"
             },
             {
                 "id": "slide-3",
                 "image_url": "/uploads/media/DBLARU.jpg",
-                "title": "Varisu & Titanic Elegance",
+                "title": "Titanic Elegance",
                 "subtitle": "Intricate Link Work & Traditional Bells",
-                "design_code": "TIT01",
+                "design_code": "TITA-VAR",
                 "effect": "zoom",
                 "background": "emerald"
             },
             {
                 "id": "slide-4",
                 "image_url": "/uploads/media/DSC_1417.jpg",
-                "title": "Jalar & Pakija Collection",
+                "title": "Pakija Collection",
                 "subtitle": "Bridal Grace & Heavy Silver Finish",
-                "design_code": "PAK01",
+                "design_code": "PAK-01",
                 "effect": "reversePan",
                 "background": "midnightBlue"
             },
             {
                 "id": "slide-5",
                 "image_url": "/uploads/media/DSC_1418.jpg",
-                "title": "Flower & Rasakulla Designs",
+                "title": "Flower Designs",
                 "subtitle": "Modern Micro-Craftsmanship",
-                "design_code": "FLO01",
+                "design_code": "FLR-8293",
                 "effect": "macro",
                 "background": "crimson"
             }
@@ -97,9 +97,16 @@ def load_config() -> dict:
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                raw = f.read().strip()
+            if not raw:
+                # Empty/blank file — treat as unconfigured, use defaults.
+                return get_default_config()
+            cfg = json.loads(raw)
+            if not isinstance(cfg, dict):
+                raise ValueError("banner config is not a JSON object")
+            return cfg
         except Exception as e:
-            print(f"Error loading banner config: {e}")
+            print(f"Error loading banner config, falling back to defaults: {e}")
     return get_default_config()
 
 def save_config(cfg: dict):
