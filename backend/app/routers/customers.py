@@ -14,9 +14,14 @@ from app.schemas.schemas import (
 from app.utils.otp import issue_otp, resend_otp, verify_otp
 from datetime import datetime, timedelta
 
+import os
+
 router = APIRouter(prefix="/api/customers", tags=["Customers"])
 
 SIGNUP_PURPOSE = "customer_signup"
+# When false, sign-up completes immediately (no e-mail code). Flip
+# AUTH_OTP_ENABLED=true (and configure SMTP) to require verification.
+OTP_ENABLED = os.getenv("AUTH_OTP_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
 
 
 class CustomerOtpChallenge(BaseModel):
@@ -102,9 +107,10 @@ def _issue_customer_token(customer: Customer) -> str:
     })
 
 
-@router.post("/register", response_model=CustomerOtpChallenge)
+@router.post("/register")
 def register_customer(data: CustomerRegister, db: Session = Depends(get_db)):
-    """Create the account (unverified) and e-mail a 6-digit verification code."""
+    """Create the account. With OTP on, e-mail a code and wait for /verify-otp.
+    With OTP off, the account is active immediately and a token is returned."""
     email = data.email.lower().strip()
     existing = db.query(Customer).filter(Customer.email == email).first()
     if existing and existing.email_verified:
@@ -125,12 +131,23 @@ def register_customer(data: CustomerRegister, db: Session = Depends(get_db)):
             mobile_number=data.mobile_number,
             email=email,
             password_hash=hash_customer_password(data.password),
-            email_verified=False,
+            email_verified=not OTP_ENABLED,
             order_number=None,
         )
         db.add(customer)
-    db.commit()
 
+    if not OTP_ENABLED:
+        customer.email_verified = True
+        db.commit()
+        db.refresh(customer)
+        return CustomerLoginResponse(
+            token=_issue_customer_token(customer),
+            name=customer.name,
+            email=customer.email,
+            mobile_number=customer.mobile_number,
+        )
+
+    db.commit()
     sent = issue_otp(db, email, SIGNUP_PURPOSE)
     return CustomerOtpChallenge(
         email=sent["masked"],
@@ -184,7 +201,7 @@ def login_customer(data: CustomerLoginRequest, db: Session = Depends(get_db)):
     if hash_customer_password(data.password) != customer.password_hash:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
 
-    if not customer.email_verified:
+    if OTP_ENABLED and not customer.email_verified:
         # Frontend catches this and shows the verification step, then calls /resend-otp.
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

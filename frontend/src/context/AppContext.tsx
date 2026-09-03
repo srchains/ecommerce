@@ -547,14 +547,30 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
   }, [token]);
 
-  // Admin/employee login — step 1: verify credentials, server e-mails a 6-digit code
+  const applyAdminSession = (data: any) => {
+    localStorage.setItem('admin_token', data.token);
+    localStorage.setItem('admin_role', data.role || 'employee');
+    localStorage.setItem('admin_name', data.name || '');
+    setToken(data.token);
+    setAdminRole(data.role || 'employee');
+    setIsAuthenticated(true);
+    setMode('admin');
+    window.history.pushState({}, '', '/admin');
+  };
+
+  // Admin/employee login. With OTP off the server returns a token here and we're
+  // done; with OTP on it returns { otp_required } and the caller shows the code step.
   const login = async (email: string, password: string) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPass = password.trim();
     try {
       const res = await axios.post(`${API_BASE_URL}/api/auth/login`, { email: cleanEmail, password: cleanPass });
+      if (res.data.token) {
+        applyAdminSession(res.data);
+        return { otpRequired: false, email: res.data.email as string };
+      }
       return {
-        otpRequired: !!res.data.otp_required,
+        otpRequired: true,
         email: res.data.email as string,
         devOtp: res.data.dev_otp as string | undefined,
       };
@@ -570,15 +586,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         email: email.trim().toLowerCase(),
         otp: otp.trim(),
       });
-      const { token: receivedToken, role, name } = res.data;
-      localStorage.setItem('admin_token', receivedToken);
-      localStorage.setItem('admin_role', role || 'employee');
-      localStorage.setItem('admin_name', name || '');
-      setToken(receivedToken);
-      setAdminRole(role || 'employee');
-      setIsAuthenticated(true);
-      setMode('admin');
-      window.history.pushState({}, '', '/admin');
+      applyAdminSession(res.data);
     } catch (err: any) {
       throw new Error(err.response?.data?.detail || 'Verification failed. Check the code and try again.');
     }

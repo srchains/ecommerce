@@ -154,8 +154,13 @@ export const BuyerLogin: React.FC<BuyerLoginProps> = ({ onClose, onLoginSuccess 
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || 'Registration failed');
-      // Account created (unverified) — move to the email verification step.
-      startOtp(regEmail, data);
+      if (data.token) {
+        // OTP disabled — account is active immediately.
+        onLoginSuccess(data.token, data.name, data.email, data.mobile_number);
+      } else {
+        // OTP enabled — move to the email verification step.
+        startOtp(regEmail, data);
+      }
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {

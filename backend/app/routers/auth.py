@@ -39,6 +39,10 @@ PBKDF2_ROUNDS = 100_000
 SESSION_TTL_HOURS = int(os.getenv("AUTH_SESSION_TTL_HOURS", "24"))
 STAFF_LOGIN_PURPOSE = "staff_login"
 
+# When false, staff log in with email + password only (no e-mailed code).
+# Flip AUTH_OTP_ENABLED=true (and configure SMTP) to turn the code step back on.
+OTP_ENABLED = os.getenv("AUTH_OTP_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+
 
 def get_admin_email() -> str:
     return os.getenv("ADMIN_EMAIL", "srchains19@gmail.com").strip().lower()
@@ -171,14 +175,19 @@ class StaffResponse(BaseModel):
 
 
 # ─── Login flow ───────────────────────────────────────────────────────────────
-@router.post("/login", response_model=LoginChallengeResponse)
+@router.post("/login")
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Step 1: validate credentials, then e-mail a 6-digit code."""
+    """Validate credentials. With OTP on, e-mail a code (client then calls
+    /verify-otp). With OTP off, return the session token directly."""
     email = request.email.strip().lower()
     user = db.query(StaffUser).filter(StaffUser.email == email).first()
 
     if not user or not user.active or not verify_password(request.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Incorrect email or password")
+
+    if not OTP_ENABLED:
+        return LoginResponse(token=_issue_session_token(user), email=user.email,
+                             role=user.role, name=user.name)
 
     sent = issue_otp(db, email, STAFF_LOGIN_PURPOSE)
     return LoginChallengeResponse(
