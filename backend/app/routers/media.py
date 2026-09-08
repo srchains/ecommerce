@@ -14,8 +14,6 @@ from pydantic import BaseModel
 UPLOADS_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "uploads")
 os.makedirs(UPLOADS_DIR, exist_ok=True)
 
-BACKEND_BASE_URL = "http://localhost:8000"
-
 router = APIRouter(prefix="/api/media", tags=["Media Library"])
 
 @router.get("", response_model=List[MediaItemResponse])
@@ -87,52 +85,51 @@ async def upload_file(
 
     # Read file contents
     contents = await file.read()
-    file_size_bytes = len(contents)
 
-    # Format size string
-    if file_size_bytes < 1024:
-        size_str = f"{file_size_bytes} B"
-    elif file_size_bytes < 1024 * 1024:
-        size_str = f"{round(file_size_bytes / 1024, 1)} KB"
-    else:
-        size_str = f"{round(file_size_bytes / (1024 * 1024), 1)} MB"
-
-    # Save file to disk locally as backup
-    ext = os.path.splitext(file.filename or "")[1] or ".jpg"
-    unique_name = f"{uuid.uuid4().hex}{ext}"
-    save_path = os.path.join(UPLOADS_DIR, unique_name)
-    with open(save_path, "wb") as f_out:
-        f_out.write(contents)
-
-    # Convert images to Base64 Data URL so they are stored 100% inside Supabase
-    # Automatically resize and compress image to ~80KB for instant 0.1s upload speed!
     content_type = file.content_type or "image/jpeg"
+    orig_ext = os.path.splitext(file.filename or "")[1].lower()
+
+    def _fmt_size(n: int) -> str:
+        if n < 1024:
+            return f"{n} B"
+        if n < 1024 * 1024:
+            return f"{round(n / 1024, 1)} KB"
+        return f"{round(n / (1024 * 1024), 1)} MB"
+
+    # ── Images: strip EXIF rotation, cap the longest side at 2400px (only if
+    #    larger), re-encode as high-quality JPEG, and serve as a real file so
+    #    the storefront zoom stays sharp. Non-images (video) are saved as-is.
+    MAX_DIM = 2400
+    JPEG_QUALITY = 90
+
     if content_type.startswith("image/"):
-        import base64
         from io import BytesIO
         from PIL import Image, ImageOps
 
+        unique_name = f"{uuid.uuid4().hex}.jpg"
+        save_path = os.path.join(UPLOADS_DIR, unique_name)
         try:
             img = Image.open(BytesIO(contents))
-            img = ImageOps.exif_transpose(img) # Maintain correct EXIF orientation
-            if img.mode in ("RGBA", "P"):
+            img = ImageOps.exif_transpose(img)  # honour EXIF orientation
+            if img.mode not in ("RGB",):
                 img = img.convert("RGB")
-            
-            # Resize image to max 1000px resolution for high quality + ultra fast uploads
-            img.thumbnail((1000, 1000), Image.Resampling.LANCZOS)
-            
-            output_buffer = BytesIO()
-            img.save(output_buffer, format="JPEG", quality=80, optimize=True)
-            compressed_bytes = output_buffer.getvalue()
-            
-            encoded = base64.b64encode(compressed_bytes).decode("utf-8")
-            file_url = f"data:image/jpeg;base64,{encoded}"
-            size_str = f"{round(len(compressed_bytes) / 1024, 1)} KB"
+            if max(img.size) > MAX_DIM:
+                img.thumbnail((MAX_DIM, MAX_DIM), Image.Resampling.LANCZOS)
+            img.save(save_path, format="JPEG", quality=JPEG_QUALITY, optimize=True, progressive=True)
         except Exception:
-            encoded = base64.b64encode(contents).decode("utf-8")
-            file_url = f"data:{content_type};base64,{encoded}"
+            # Unreadable by PIL — keep the raw bytes under the original extension.
+            unique_name = f"{uuid.uuid4().hex}{orig_ext or '.jpg'}"
+            save_path = os.path.join(UPLOADS_DIR, unique_name)
+            with open(save_path, "wb") as f_out:
+                f_out.write(contents)
     else:
-        file_url = f"{BACKEND_BASE_URL}/uploads/{unique_name}"
+        unique_name = f"{uuid.uuid4().hex}{orig_ext or '.bin'}"
+        save_path = os.path.join(UPLOADS_DIR, unique_name)
+        with open(save_path, "wb") as f_out:
+            f_out.write(contents)
+
+    file_url = f"/uploads/{unique_name}"
+    size_str = _fmt_size(os.path.getsize(save_path))
 
 
 
