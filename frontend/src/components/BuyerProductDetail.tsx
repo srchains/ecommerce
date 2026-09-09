@@ -112,17 +112,20 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   const pinchDistRef = useRef<number | null>(null);
   const pinchStartScaleRef = useRef<number>(1);
 
-  // Inline (non-lightbox) image zoom: click to pin the zoom, move to pan, click to release.
+  // Inline (non-lightbox) image zoom: single-click pins a 2.5x zoom (move to pan,
+  // click again to release); double-click opens the fullscreen lightbox.
   const imgRef = useRef<HTMLImageElement>(null);
   const pinnedRef = useRef(false);
   const wasTouchRef = useRef(false);
+  const clickTimerRef = useRef<number | null>(null);
   const [imgPinned, setImgPinned] = useState(false);
 
   useEffect(() => {
     setZoomScale(1);
     setZoomPosition({ x: 0, y: 0 });
     pinchDistRef.current = null;
-    // Also drop any pinned inline zoom when switching images.
+    // Also drop any pinned inline zoom / pending single-click when switching images.
+    if (clickTimerRef.current) { window.clearTimeout(clickTimerRef.current); clickTimerRef.current = null; }
     pinnedRef.current = false;
     setImgPinned(false);
     if (imgRef.current) {
@@ -311,10 +314,35 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     };
   }, []);
 
-  // Click on the image area:
+  const resetInlineZoom = () => {
+    pinnedRef.current = false;
+    setImgPinned(false);
+    if (imgRef.current) {
+      imgRef.current.style.transform = 'scale(1)';
+      imgRef.current.style.transformOrigin = 'center center';
+    }
+  };
+
+  const togglePinZoom = (clientX: number, clientY: number) => {
+    if (pinnedRef.current) {
+      resetInlineZoom();
+      return;
+    }
+    pinnedRef.current = true;
+    setImgPinned(true);
+    const el = imageContainerRef.current;
+    if (el && imgRef.current) {
+      const r = el.getBoundingClientRect();
+      const x = Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100));
+      const y = Math.max(0, Math.min(100, ((clientY - r.top) / r.height) * 100));
+      imgRef.current.style.transformOrigin = `${x}% ${y}%`;
+      imgRef.current.style.transform = 'scale(2.5)';
+    }
+  };
+
+  // Single click on the image area:
   //  • touch device → open the fullscreen lightbox (unless it was a drag)
-  //  • desktop      → toggle the pinned zoom at the click point
-  // (React onClick so child buttons' stopPropagation still works.)
+  //  • desktop      → toggle the pinned zoom (deferred so a double-click can win)
   const handleImageContainerClick = (e: React.MouseEvent) => {
     if (wasTouchRef.current) {
       wasTouchRef.current = false;
@@ -322,25 +350,22 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       setIsLightboxOpen(true);
       return;
     }
-    if (pinnedRef.current) {
-      pinnedRef.current = false;
-      setImgPinned(false);
-      if (imgRef.current) {
-        imgRef.current.style.transform = 'scale(1)';
-        imgRef.current.style.transformOrigin = 'center center';
-      }
-    } else {
-      pinnedRef.current = true;
-      setImgPinned(true);
-      const el = imageContainerRef.current;
-      if (el && imgRef.current) {
-        const r = el.getBoundingClientRect();
-        const x = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
-        const y = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
-        imgRef.current.style.transformOrigin = `${x}% ${y}%`;
-        imgRef.current.style.transform = 'scale(2.5)';
-      }
+    const { clientX, clientY } = e;
+    if (clickTimerRef.current) window.clearTimeout(clickTimerRef.current);
+    clickTimerRef.current = window.setTimeout(() => {
+      clickTimerRef.current = null;
+      togglePinZoom(clientX, clientY);
+    }, 220);
+  };
+
+  // Double click → open the fullscreen ("full image") view.
+  const handleImageContainerDoubleClick = () => {
+    if (clickTimerRef.current) {
+      window.clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
     }
+    resetInlineZoom();
+    setIsLightboxOpen(true);
   };
 
   // Price flash animation state
@@ -611,6 +636,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
             <div
               ref={imageContainerRef}
               onClick={handleImageContainerClick}
+              onDoubleClick={handleImageContainerDoubleClick}
               className={`image-frame relative overflow-hidden select-none w-full bg-white rounded-xl border border-gray-200 ${imgPinned ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
               style={{ aspectRatio: '16 / 9', touchAction: 'none' }}
             >
@@ -679,7 +705,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
               {/* Zoom hint */}
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-black/45 text-white text-[10px] font-medium tracking-wide pointer-events-none backdrop-blur-sm">
-                {imgPinned ? 'Move to pan · click to reset' : 'Click to zoom'}
+                {imgPinned ? 'Move to pan · click to reset' : 'Click to zoom · double-click for full screen'}
               </div>
             </div>
           </div>
