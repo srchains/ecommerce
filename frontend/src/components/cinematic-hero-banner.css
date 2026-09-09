@@ -87,14 +87,14 @@
 }
 @keyframes chbKeyframesPan {
   0% {
-    transform: scale(1.04) translateX(-40px);
+    transform: scale(1.03) translateX(-16px);
     opacity: 0.95;
   }
   50% {
     opacity: 1;
   }
   100% {
-    transform: scale(1.04) translateX(40px);
+    transform: scale(1.03) translateX(16px);
     opacity: 0.95;
   }
 }
@@ -108,7 +108,7 @@
     transform: scale(1.0);
   }
   100% {
-    transform: scale(1.14);
+    transform: scale(1.06);
   }
 }
 
@@ -118,10 +118,10 @@
 }
 @keyframes chbKeyframesReversePan {
   0% {
-    transform: scale(1.05) translateX(45px);
+    transform: scale(1.03) translateX(16px);
   }
   100% {
-    transform: scale(1.05) translateX(-45px);
+    transform: scale(1.03) translateX(-16px);
   }
 }
 
@@ -131,10 +131,10 @@
 }
 @keyframes chbKeyframesMacro {
   0% {
-    transform: scale(1.2) translateX(-50px);
+    transform: scale(1.05) translateX(-16px);
   }
   100% {
-    transform: scale(1.42) translateX(50px);
+    transform: scale(1.12) translateX(16px);
   }
 }
 
@@ -144,7 +144,7 @@
 }
 @keyframes chbKeyframesReveal {
   0% {
-    transform: scale(1.15);
+    transform: scale(1.08);
     opacity: 0.85;
   }
   100% {
@@ -159,26 +159,26 @@
 }
 @keyframes chbKeyframesHero {
   0% {
-    transform: scale(1.0) translateX(-25px);
+    transform: scale(1.02) translateX(-12px);
   }
   100% {
-    transform: scale(1.06) translateX(15px);
+    transform: scale(1.05) translateX(12px);
   }
 }
 
 /* Mobile Reduced Motion distance dampening */
 @media (max-width: 640px) {
   @keyframes chbKeyframesPan {
-    0% { transform: scale(1.03) translateX(-20px); }
-    100% { transform: scale(1.03) translateX(20px); }
+    0% { transform: scale(1.03) translateX(-10px); }
+    100% { transform: scale(1.03) translateX(10px); }
   }
   @keyframes chbKeyframesReversePan {
-    0% { transform: scale(1.03) translateX(20px); }
-    100% { transform: scale(1.03) translateX(-20px); }
+    0% { transform: scale(1.03) translateX(10px); }
+    100% { transform: scale(1.03) translateX(-10px); }
   }
   @keyframes chbKeyframesMacro {
-    0% { transform: scale(1.15) translateX(-25px); }
-    100% { transform: scale(1.28) translateX(25px); }
+    0% { transform: scale(1.04) translateX(-10px); }
+    100% { transform: scale(1.1) translateX(10px); }
   }
 }
 

@@ -336,6 +336,40 @@ const MainLayout: React.FC = () => {
 
   const prevDesignCodeRef = useRef<string | null>(null);
 
+  // ── Product open/close that preserves the list view's scroll & filters ──
+  // The list (home/catalog) stays mounted (just hidden) while a product is open,
+  // so its state survives; we only need to save/restore the scroll offset.
+  const listScrollRef = useRef(0);
+
+  const openProduct = (code: string, variantId?: number, sizeId?: number) => {
+    const sc = document.querySelector('.app-main');
+    if (selectedDesignCode === null && sc) listScrollRef.current = sc.scrollTop;
+
+    setSelectedDesignCode(code);
+    setInitialVariantId(variantId);
+    setInitialSizeId(sizeId);
+
+    const params = new URLSearchParams();
+    params.set('design', code);
+    if (variantId) params.set('variant', String(variantId));
+    if (sizeId) params.set('size', String(sizeId));
+    window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
+
+    if (sc) sc.scrollTop = 0;
+  };
+
+  const closeProduct = () => {
+    setSelectedDesignCode(null);
+    setInitialVariantId(undefined);
+    setInitialSizeId(undefined);
+    window.history.pushState(null, '', window.location.pathname);
+    // Restore the list scroll position after the list is shown again.
+    requestAnimationFrame(() => {
+      const sc = document.querySelector('.app-main');
+      if (sc) sc.scrollTop = listScrollRef.current;
+    });
+  };
+
   // Clear URL parameters when returning to storefront (selectedDesignCode is null)
   useEffect(() => {
     if (mode === 'buyer') {
@@ -1092,88 +1126,45 @@ const MainLayout: React.FC = () => {
           ) : (
             <>
               {mode === 'buyer' && (
-                selectedDesignCode === null ? (
-                  buyerHomeView === 'home' ? (
-                    <BuyerHomePage
-                      onSelectProduct={(code, variantId, sizeId) => {
-                        setSelectedDesignCode(code);
-                        setInitialVariantId(variantId);
-                        setInitialSizeId(sizeId);
+                <div className="mx-auto w-full max-w-[1500px]">
+                  {/* List view stays mounted (only hidden) while a product is open,
+                      so category filters, search and scroll survive "Back". */}
+                  <div className={selectedDesignCode !== null ? 'hidden' : ''}>
+                    {buyerHomeView === 'home' ? (
+                      <BuyerHomePage
+                        onSelectProduct={openProduct}
+                        onExploreAll={() => {
+                          setBuyerHomeView('catalog');
+                          const scrollContainer = document.querySelector('.app-main');
+                          if (scrollContainer) scrollContainer.scrollTop = 0;
+                        }}
+                        onOpenCart={() => setCartOpen(true)}
+                      />
+                    ) : (
+                      <BuyerStorefront
+                        key={storefrontResetKey}
+                        currentPage={buyerPage}
+                        onPageChange={setBuyerPage}
+                        onSelectProduct={openProduct}
+                        selectedCollectionFilter={selectedCollectionFilter}
+                        onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
+                        onOpenCart={() => setCartOpen(true)}
+                      />
+                    )}
+                  </div>
 
-                        const params = new URLSearchParams();
-                        params.set('design', code);
-                        if (variantId) params.set('variant', String(variantId));
-                        if (sizeId) params.set('size', String(sizeId));
-                        window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-                      }}
-                      onExploreAll={() => {
-                        setBuyerHomeView('catalog');
-                        const scrollContainer = document.querySelector('.app-main');
-                        if (scrollContainer) {
-                          scrollContainer.scrollTop = 0;
-                        } else {
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
-                        }
-                      }}
-                      onOpenCart={() => setCartOpen(true)}
+                  {selectedDesignCode !== null && (
+                    <BuyerProductDetail
+                      key={selectedDesignCode}
+                      designCode={selectedDesignCode}
+                      initialVariantId={initialVariantId}
+                      initialSizeId={initialSizeId}
+                      onRequireLogin={() => setBuyerLoginOpen(true)}
+                      onSelectProduct={openProduct}
+                      onBack={closeProduct}
                     />
-                  ) : (
-                    <BuyerStorefront 
-                      key={storefrontResetKey}
-                      currentPage={buyerPage}
-                      onPageChange={setBuyerPage}
-                      onSelectProduct={(code, variantId, sizeId) => {
-                        setSelectedDesignCode(code);
-                        setInitialVariantId(variantId);
-                        setInitialSizeId(sizeId);
-
-                        // Update URL with query parameters using pushState
-                        const params = new URLSearchParams();
-                        params.set('design', code);
-                        if (variantId) params.set('variant', String(variantId));
-                        if (sizeId) params.set('size', String(sizeId));
-                        window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-                      }} 
-                      selectedCollectionFilter={selectedCollectionFilter}
-                      onClearCollectionFilter={() => setSelectedCollectionFilter(null)}
-                      onOpenCart={() => setCartOpen(true)}
-                    />
-                  )
-                ) : (
-                  <BuyerProductDetail 
-                    key={selectedDesignCode}
-                    designCode={selectedDesignCode} 
-                    initialVariantId={initialVariantId}
-                    initialSizeId={initialSizeId}
-                    onRequireLogin={() => setBuyerLoginOpen(true)}
-                    onSelectProduct={(code, variantId, sizeId) => {
-                      setSelectedDesignCode(code);
-                      setInitialVariantId(variantId);
-                      setInitialSizeId(sizeId);
-
-                      const params = new URLSearchParams();
-                      params.set('design', code);
-                      if (variantId) params.set('variant', String(variantId));
-                      if (sizeId) params.set('size', String(sizeId));
-                      window.history.pushState({ design: code, variant: variantId, size: sizeId }, '', `?${params.toString()}`);
-
-                      const scrollContainer = document.querySelector('.app-main');
-                      if (scrollContainer) {
-                        scrollContainer.scrollTop = 0;
-                      } else {
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }
-                    }}
-                    onBack={() => {
-                      setSelectedDesignCode(null);
-                      setInitialVariantId(undefined);
-                      setInitialSizeId(undefined);
-
-                      // Clear URL parameters using pushState
-                      window.history.pushState(null, '', window.location.pathname);
-                    }} 
-                  />
-                )
+                  )}
+                </div>
               )}
 
               {mode === 'admin' && (

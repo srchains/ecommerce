@@ -436,10 +436,10 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         const desNamePrefix = design.name?.split('-')[0]?.trim()?.toLowerCase() || '';
 
         const isIdMatch = allowedIds.has(design.category_id || -1);
+        // Exact match only — substring matching made "Kushboo" also select
+        // "Double Kushboo" ("double kushboo".includes("kushboo")).
         const isNameMatch = Array.from(selectedCatNames).some(sc =>
-          (desCatName && desCatName.includes(sc)) ||
-          (desCollName && desCollName.includes(sc)) ||
-          (desNamePrefix && desNamePrefix.includes(sc))
+          desCatName === sc || desCollName === sc || desNamePrefix === sc
         );
 
         matchesCategory = isIdMatch || isNameMatch;

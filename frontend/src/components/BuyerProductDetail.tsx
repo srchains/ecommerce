@@ -14,7 +14,8 @@ import {
   ChevronRight,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  Maximize2
 } from 'lucide-react';
 
 interface BuyerProductDetailProps {
@@ -111,10 +112,23 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
   const pinchDistRef = useRef<number | null>(null);
   const pinchStartScaleRef = useRef<number>(1);
 
+  // Inline (non-lightbox) image zoom: click to pin the zoom, move to pan, click to release.
+  const imgRef = useRef<HTMLImageElement>(null);
+  const pinnedRef = useRef(false);
+  const wasTouchRef = useRef(false);
+  const [imgPinned, setImgPinned] = useState(false);
+
   useEffect(() => {
     setZoomScale(1);
     setZoomPosition({ x: 0, y: 0 });
     pinchDistRef.current = null;
+    // Also drop any pinned inline zoom when switching images.
+    pinnedRef.current = false;
+    setImgPinned(false);
+    if (imgRef.current) {
+      imgRef.current.style.transform = 'scale(1)';
+      imgRef.current.style.transformOrigin = 'center center';
+    }
   }, [activeMediaIdx, isLightboxOpen]);
 
   const handleShare = async () => {
@@ -221,9 +235,12 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
 
   // Automatically switch active input mode / handle initial values
 
-  // ── Image Zoom (pure DOM, no React state, works on desktop + mobile) ──
+  // ── Inline image zoom ──────────────────────────────────────────────────────
+  //  Desktop: click the photo to PIN a 2.5x zoom, move the mouse to pan around,
+  //           click again to release. Moving off the image no longer resets it.
+  //  Mobile:  touch-drag magnifies while held (unchanged); a plain tap opens the
+  //           fullscreen lightbox.
   const imageContainerRef = useRef<HTMLDivElement>(null);
-  const imgRef = useRef<HTMLImageElement>(null);
   const touchMovedRef = useRef(false);
   const touchStartRef = useRef({ x: 0, y: 0 });
 
@@ -231,7 +248,6 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
     const container = imageContainerRef.current;
     if (!container) return;
 
-    // Always read imgRef.current fresh — img may not exist at mount time
     const getPct = (clientX: number, clientY: number) => {
       const rect = container.getBoundingClientRect();
       return {
@@ -240,7 +256,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       };
     };
 
-    const zoomIn = (clientX: number, clientY: number) => {
+    const zoomTo = (clientX: number, clientY: number) => {
       const img = imgRef.current;
       if (!img) return;
       const { x, y } = getPct(clientX, clientY);
@@ -248,68 +264,83 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
       img.style.transform = 'scale(2.5)';
     };
 
-    const zoomOut = () => {
+    const zoomReset = () => {
       const img = imgRef.current;
       if (!img) return;
       img.style.transform = 'scale(1)';
       img.style.transformOrigin = 'center center';
     };
 
-    // ── Desktop Mouse Events ──
-    const onMouseMove  = (e: MouseEvent) => zoomIn(e.clientX, e.clientY);
-    const onMouseEnter = (e: MouseEvent) => zoomIn(e.clientX, e.clientY);
-    const onMouseLeave = () => zoomOut();
+    // Desktop: pan only while pinned; do NOT reset on mouse-leave.
+    const onMouseMove = (e: MouseEvent) => {
+      if (pinnedRef.current) zoomTo(e.clientX, e.clientY);
+    };
 
-    // ── Mobile Touch Events (non-passive so preventDefault works) ──
+    // Mobile: press-and-hold magnifier (temporary, unchanged behaviour).
     const onTouchStart = (e: TouchEvent) => {
       if (!e.touches.length) return;
       const t = e.touches[0];
+      wasTouchRef.current = true;
       touchMovedRef.current = false;
       touchStartRef.current = { x: t.clientX, y: t.clientY };
-      zoomIn(t.clientX, t.clientY);
+      zoomTo(t.clientX, t.clientY);
     };
-
     const onTouchMove = (e: TouchEvent) => {
       if (!e.touches.length) return;
       const t = e.touches[0];
       const dx = Math.abs(t.clientX - touchStartRef.current.x);
       const dy = Math.abs(t.clientY - touchStartRef.current.y);
       if (dx > 4 || dy > 4) touchMovedRef.current = true;
-      zoomIn(t.clientX, t.clientY);
-      e.preventDefault(); // blocks page scroll — works because listener is non-passive
+      zoomTo(t.clientX, t.clientY);
+      e.preventDefault();
     };
+    const onTouchEnd = () => zoomReset();
 
-    const onTouchEnd = () => zoomOut();
-
-    // ── Click: open lightbox only if not a zoom-drag ──
-    // NOTE: click is handled via React onClick prop on the container div
-    // (NOT via addEventListener) so that e.stopPropagation() from child
-    // buttons (Like, Share) correctly prevents the lightbox from opening.
-
-    container.addEventListener('mousemove',   onMouseMove);
-    container.addEventListener('mouseenter',  onMouseEnter);
-    container.addEventListener('mouseleave',  onMouseLeave);
-    container.addEventListener('touchstart',  onTouchStart,  { passive: false });
-    container.addEventListener('touchmove',   onTouchMove,   { passive: false });
-    container.addEventListener('touchend',    onTouchEnd);
+    container.addEventListener('mousemove', onMouseMove);
+    container.addEventListener('touchstart', onTouchStart, { passive: false });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd);
     container.addEventListener('touchcancel', onTouchEnd);
 
     return () => {
-      container.removeEventListener('mousemove',   onMouseMove);
-      container.removeEventListener('mouseenter',  onMouseEnter);
-      container.removeEventListener('mouseleave',  onMouseLeave);
-      container.removeEventListener('touchstart',  onTouchStart);
-      container.removeEventListener('touchmove',   onTouchMove);
-      container.removeEventListener('touchend',    onTouchEnd);
+      container.removeEventListener('mousemove', onMouseMove);
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
       container.removeEventListener('touchcancel', onTouchEnd);
     };
   }, []);
 
-  // Handler for clicking the image area to open lightbox
-  // (used as React onClick so child stopPropagation() works correctly)
-  const handleImageContainerClick = () => {
-    if (touchMovedRef.current) { touchMovedRef.current = false; return; }
-    setIsLightboxOpen(true);
+  // Click on the image area:
+  //  • touch device → open the fullscreen lightbox (unless it was a drag)
+  //  • desktop      → toggle the pinned zoom at the click point
+  // (React onClick so child buttons' stopPropagation still works.)
+  const handleImageContainerClick = (e: React.MouseEvent) => {
+    if (wasTouchRef.current) {
+      wasTouchRef.current = false;
+      if (touchMovedRef.current) { touchMovedRef.current = false; return; }
+      setIsLightboxOpen(true);
+      return;
+    }
+    if (pinnedRef.current) {
+      pinnedRef.current = false;
+      setImgPinned(false);
+      if (imgRef.current) {
+        imgRef.current.style.transform = 'scale(1)';
+        imgRef.current.style.transformOrigin = 'center center';
+      }
+    } else {
+      pinnedRef.current = true;
+      setImgPinned(true);
+      const el = imageContainerRef.current;
+      if (el && imgRef.current) {
+        const r = el.getBoundingClientRect();
+        const x = Math.max(0, Math.min(100, ((e.clientX - r.left) / r.width) * 100));
+        const y = Math.max(0, Math.min(100, ((e.clientY - r.top) / r.height) * 100));
+        imgRef.current.style.transformOrigin = `${x}% ${y}%`;
+        imgRef.current.style.transform = 'scale(2.5)';
+      }
+    }
   };
 
   // Price flash animation state
@@ -580,7 +611,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
             <div
               ref={imageContainerRef}
               onClick={handleImageContainerClick}
-              className="image-frame relative overflow-hidden cursor-zoom-in select-none w-full bg-white rounded-xl border border-gray-200"
+              className={`image-frame relative overflow-hidden select-none w-full bg-white rounded-xl border border-gray-200 ${imgPinned ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
               style={{ aspectRatio: '16 / 9', touchAction: 'none' }}
             >
               {currentMedia?.file_type?.startsWith('video') ? (
@@ -608,6 +639,7 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                     objectFit: 'contain',
                     display: 'block',
                     userSelect: 'none',
+                    transition: 'transform 0.12s ease-out',
                   }}
                 />
               )}
@@ -635,6 +667,19 @@ export const BuyerProductDetail: React.FC<BuyerProductDetailProps> = ({
                 >
                   <Share2 className="h-4.5 w-4.5" />
                 </button>
+
+                <button
+                  onClick={(e) => { e.stopPropagation(); setIsLightboxOpen(true); }}
+                  title="Open fullscreen"
+                  className="p-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:text-gray-900 shadow-sm cursor-pointer transition-colors"
+                >
+                  <Maximize2 className="h-4.5 w-4.5" />
+                </button>
+              </div>
+
+              {/* Zoom hint */}
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full bg-black/45 text-white text-[10px] font-medium tracking-wide pointer-events-none backdrop-blur-sm">
+                {imgPinned ? 'Move to pan · click to reset' : 'Click to zoom'}
               </div>
             </div>
           </div>
