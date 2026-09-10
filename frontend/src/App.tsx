@@ -907,6 +907,16 @@ const MainLayout: React.FC = () => {
                   )}
                 </button>
 
+                {/* Compact Download-Catalog button (mobile / small tablet only) */}
+                <button
+                  onClick={() => downloadCatalogPDFForCollection('All', designs, categories)}
+                  className="flex md:hidden items-center px-3 py-2 bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
+                  title="Download catalog PDF"
+                  aria-label="Download catalog PDF"
+                >
+                  <Download className="h-4 w-4" />
+                </button>
+
                 {/* Login / Profile Button */}
                 <div className="relative" ref={profileMenuRef}>
                   {isCustomerAuthenticated && currentCustomer ? (

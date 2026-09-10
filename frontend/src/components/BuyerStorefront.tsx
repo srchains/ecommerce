@@ -705,26 +705,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
         {renderRefinementSidebar()}
       </aside>
 
-      {/* ── Mobile Top Bar Buttons: DOWNLOAD CATALOG PDF & CATALOG GROUPS ── */}
+      {/* ── Mobile Top Bar Button: CATALOG GROUPS & FILTERS ──
+           (PDF download moved to a compact icon button in the header) */}
       <div id="pdf-download-section" className="lg:hidden w-full mb-3 space-y-2">
-        {/* PDF Download Button */}
-        <button
-          id="open-mobile-pdf-btn"
-          type="button"
-          onClick={() => setIsMobilePdfDrawerOpen(true)}
-          className="w-full flex items-center justify-between px-4 py-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white rounded-xl font-extrabold text-xs shadow-md cursor-pointer hover:from-amber-700 hover:to-amber-800 transition-all border border-amber-500/30"
-        >
-          <div className="flex items-center gap-2.5">
-            <Download className="h-4.5 w-4.5 text-amber-200" />
-            <span className="uppercase tracking-wider">DOWNLOAD CATALOG PDF</span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="bg-amber-800/60 text-amber-100 text-[10px] font-mono px-2.5 py-0.5 rounded-full font-bold border border-amber-400/30">
-              A4 TAGS PDF ↓
-            </span>
-          </div>
-        </button>
-
         {/* Catalog Groups & Checkbox Filters Button */}
         <button
           id="open-mobile-filters-btn"
