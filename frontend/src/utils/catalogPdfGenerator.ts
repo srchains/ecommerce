@@ -463,14 +463,43 @@ export const generateCatalogPDF = (
   printWindow.document.close();
 };
 
+/** Key used by the Catalogue Manager for the "All Collections" PDF. */
+export const ALL_COLLECTIONS_KEY = '__all__';
+
+/** Which Download Catalogue group a design belongs to (mirrors backend/app/routers/catalogue.py). */
+export const getCatalogueCollectionName = (design: any, categories: any[] = []): string | null => {
+  const catName = categories.find(c => c.id === design.category_id)?.name;
+  if (catName) return catName;
+  if (design.collection && design.collection.trim()) return design.collection.trim();
+  if (design.name && design.name.trim()) return design.name.split('-')[0].trim();
+  return null;
+};
+
+/** Sorted, de-duplicated collection names shown in the Download Catalogue menus. */
+export const getCatalogueCollections = (designs: any[], categories: any[] = []): string[] =>
+  Array.from(
+    new Set(
+      designs
+        .filter(d => d.status === 'Active' || !d.status)
+        .map(d => getCatalogueCollectionName(d, categories))
+        .filter(Boolean) as string[]
+    )
+  ).sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }));
+
 export const downloadCatalogPDFForCollection = (
   collectionName: string,
   designs: any[],
-  categories: any[] = []
+  categories: any[] = [],
+  /** For the "All" PDF: only include designs from these collections. */
+  allowedCollections?: string[]
 ) => {
   const items: PdfCatalogItem[] = [];
 
-  const activeDesigns = designs.filter(d => d.status === 'Active' || !d.status);
+  const allowed = allowedCollections ? new Set(allowedCollections) : null;
+  const activeDesigns = designs.filter(d =>
+    (d.status === 'Active' || !d.status) &&
+    (!allowed || allowed.has(getCatalogueCollectionName(d, categories) || ''))
+  );
 
   activeDesigns.forEach(design => {
     const catName = categories.find(c => c.id === design.category_id)?.name || '';

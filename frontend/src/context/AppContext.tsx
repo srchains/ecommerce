@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
+import { getCatalogueCollections } from '../utils/catalogPdfGenerator';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -179,6 +180,11 @@ interface AppContextType {
   addToWishlist: (design: ProductDesign, variantId?: number) => void;
   removeFromWishlist: (designId: number, variantId?: number) => void;
   isInWishlist: (designId: number, variantId?: number) => boolean;
+
+  // Download Catalogue (what the admin lets buyers download)
+  /** Collections buyers may download, and whether the "All Collections" PDF is offered. */
+  buyerCatalogue: { showAll: boolean; collections: string[] };
+  refreshBuyerCatalogue: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -205,6 +211,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
   const [categories, setCategories] = useState<Category[]>([]);
   const [designs, setDesigns] = useState<ProductDesign[]>([]);
+  // null = not loaded yet (or request failed) -> fall back to showing everything
+  const [catalogueVisibility, setCatalogueVisibility] = useState<{ all_collections: boolean; collections: string[] } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   
   const [loadingPrice, setLoadingPrice] = useState(false);
@@ -379,6 +387,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       console.error("Error fetching categories:", err);
     }
   };
+
+  // Fetch which Download Catalogue PDFs the admin made visible to buyers
+  const refreshBuyerCatalogue = async () => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/api/catalogue/visible`);
+      if (res.data && Array.isArray(res.data.collections)) {
+        setCatalogueVisibility(res.data);
+      }
+    } catch (err) {
+      console.error("Error fetching catalogue visibility:", err);
+    }
+  };
+
+  const buyerCatalogue = useMemo(() => {
+    const all = getCatalogueCollections(designs, categories);
+    if (!catalogueVisibility) return { showAll: all.length > 0, collections: all };
+    const allowed = new Set(catalogueVisibility.collections);
+    const collections = all.filter(name => allowed.has(name));
+    // The "All" PDF only contains visible collections, so hide it when none are visible.
+    return { showAll: catalogueVisibility.all_collections && collections.length > 0, collections };
+  }, [designs, categories, catalogueVisibility]);
 
 
   // Calculate Price Breakdown
@@ -667,6 +696,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     fetchCategories();
     fetchDesigns();
+    refreshBuyerCatalogue();
 
     const verifyToken = async () => {
       const storedToken = localStorage.getItem('admin_token');
@@ -747,6 +777,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToWishlist,
       removeFromWishlist,
       isInWishlist,
+      buyerCatalogue,
+      refreshBuyerCatalogue,
     }}>
       {children}
     </AppContext.Provider>

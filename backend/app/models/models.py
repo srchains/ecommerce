@@ -190,3 +190,15 @@ class WorkerOrder(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
     variant_size = relationship("VariantSize")
+
+
+class CatalogueVisibility(Base):
+    """Admin choice of which Download Catalogue PDFs buyers can see.
+    Keyed by collection name; the special key "__all__" is the "All Collections" PDF.
+    A collection with no row is visible (so new collections show up by default)."""
+    __tablename__ = "catalogue_visibility"
+
+    id = Column(Integer, primary_key=True, index=True)
+    collection_name = Column(String, unique=True, index=True, nullable=False)
+    is_visible_to_buyer = Column(Boolean, default=True, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

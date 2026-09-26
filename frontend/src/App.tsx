@@ -6,6 +6,8 @@ import { BuyerStorefront } from './components/BuyerStorefront';
 import { BuyerHomePage } from './components/BuyerHomePage';
 import { AdminBannerManager } from './components/AdminBannerManager';
 import { AdminStaffManager } from './components/AdminStaffManager';
+import { AdminCatalogueManager } from './components/AdminCatalogueManager';
+import { BuyerCatalogueDrawer } from './components/BuyerCatalogueDrawer';
 import { PublicDigitalCardView } from './components/PublicDigitalCardView';
 import { DigitalCardHub } from './components/DigitalCardHub';
 import { AdminLogin } from './components/AdminLogin';
@@ -146,6 +148,9 @@ const MainLayout: React.FC = () => {
     // Wishlist
     wishlist,
     removeFromWishlist,
+    // Download Catalogue visibility (set in admin Catalogue Manager)
+    buyerCatalogue,
+    refreshBuyerCatalogue,
   } = useApp();
 
   const [cartOpen, setCartOpen] = useState(false);
@@ -794,6 +799,7 @@ const MainLayout: React.FC = () => {
                   onClick={() => {
                     setAboutModalOpen(false);
                     setCatalogDropdownOpen(false);
+                    if (!pdfDropdownOpen) refreshBuyerCatalogue();
                     setPdfDropdownOpen(!pdfDropdownOpen);
                   }}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer flex items-center gap-1.5 ${
@@ -818,10 +824,17 @@ const MainLayout: React.FC = () => {
                       <span className="text-[9px] bg-amber-100 text-amber-800 px-1.5 py-0.5 rounded font-bold">A4 TAGS</span>
                     </div>
 
+                    {buyerCatalogue.collections.length === 0 && (
+                      <div className="px-3 py-5 text-center text-xs font-semibold text-gray-500">
+                        No catalogues available right now.
+                      </div>
+                    )}
+
                     {/* Download Full Catalog */}
+                    {buyerCatalogue.showAll && (
                     <button
                       onClick={() => {
-                        downloadCatalogPDFForCollection('All', designs, categories);
+                        downloadCatalogPDFForCollection('All', designs, categories, buyerCatalogue.collections);
                         setPdfDropdownOpen(false);
                       }}
                       className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-950 flex items-center justify-between transition-all border border-amber-200/80 my-1 cursor-pointer"
@@ -832,32 +845,20 @@ const MainLayout: React.FC = () => {
                       </span>
                       <span className="text-[10px] font-mono text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded font-bold">PDF →</span>
                     </button>
+                    )}
 
+                    {buyerCatalogue.collections.length > 0 && (
                     <div className="text-[9px] font-bold text-gray-400 uppercase tracking-widest px-3 py-1.5 mt-1 border-t border-gray-100">
-                      Or Choose Collection
+                      {buyerCatalogue.showAll ? 'Or Choose Collection' : 'Choose Collection'}
                     </div>
+                    )}
 
                     <div className="max-h-60 overflow-y-auto space-y-0.5 pr-0.5 scrollbar-thin">
-                      {Array.from(
-                        new Set(
-                          designs
-                            .filter(d => d.status === 'Active' || !d.status)
-                            .map(d => {
-                              const catName = categories.find(c => c.id === d.category_id)?.name;
-                              if (catName) return catName;
-                              if (d.collection && d.collection.trim()) return d.collection.trim();
-                              if (d.name && d.name.trim()) return d.name.split('-')[0].trim();
-                              return null;
-                            })
-                            .filter(Boolean) as string[]
-                        )
-                      )
-                      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' }))
-                      .map((collName) => (
+                      {buyerCatalogue.collections.map((collName) => (
                         <button
                           key={collName}
                           onClick={() => {
-                            downloadCatalogPDFForCollection(collName, designs, categories);
+                            downloadCatalogPDFForCollection(collName, designs, categories, buyerCatalogue.collections);
                             setPdfDropdownOpen(false);
                           }}
                           className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 hover:bg-amber-50 hover:text-amber-900 flex items-center justify-between transition-colors cursor-pointer"
@@ -909,7 +910,7 @@ const MainLayout: React.FC = () => {
 
                 {/* Compact Download-Catalog button (mobile / small tablet only) */}
                 <button
-                  onClick={() => downloadCatalogPDFForCollection('All', designs, categories)}
+                  onClick={() => window.dispatchEvent(new Event('open-pdf-download-drawer'))}
                   className="flex md:hidden items-center px-3 py-2 bg-amber-50 border border-amber-300 text-amber-800 hover:bg-amber-100 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs"
                   title="Download catalog PDF"
                   aria-label="Download catalog PDF"
@@ -1099,7 +1100,7 @@ const MainLayout: React.FC = () => {
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
-                  downloadCatalogPDFForCollection('All', designs, categories);
+                  window.dispatchEvent(new Event('open-pdf-download-drawer'));
                 }}
                 className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider text-amber-950 bg-amber-50 border border-amber-300 transition-all cursor-pointer shadow-xs"
               >
@@ -1112,6 +1113,8 @@ const MainLayout: React.FC = () => {
             </div>
           </div>
         )}
+
+        {mode === 'buyer' && <BuyerCatalogueDrawer />}
 
         <main className="app-main flex-1 overflow-y-auto px-4 sm:px-8 py-4 sm:py-8 pb-20 md:pb-8 scrollbar-thin">
           {activePublicCardId ? (
@@ -1190,6 +1193,8 @@ const MainLayout: React.FC = () => {
                   )}
 
               {adminTab === 'reports' && <Reports orders={orders} loading={loadingOrders} />}
+
+              {adminTab === 'catalogue-manager' && <AdminCatalogueManager />}
 
               {adminTab === 'all-designs' && (
                 selectedDesignCode === null ? (

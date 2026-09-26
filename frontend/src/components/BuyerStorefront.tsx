@@ -12,10 +12,7 @@ import {
   Info,
   Heart,
   ShoppingBag,
-  Download,
-  FileText
 } from 'lucide-react';
-import { downloadCatalogPDFForCollection } from '../utils/catalogPdfGenerator';
 
 interface BuyerStorefrontProps {
   onSelectProduct: (code: string, variantId?: number, sizeId?: number) => void;
@@ -50,26 +47,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
   // Mobile Filter Drawer state
   const [isMobileFilterDrawerOpen, setIsMobileFilterDrawerOpen] = useState(false);
 
-  // Mobile PDF Download Drawer state
-  const [isMobilePdfDrawerOpen, setIsMobilePdfDrawerOpen] = useState(false);
-
-  const pdfCollections = useMemo(() => {
-    return Array.from(
-      new Set(
-        designs
-          .filter(d => d.status === 'Active' || !d.status)
-          .map(d => {
-            const catName = categories.find(c => c.id === d.category_id)?.name;
-            if (catName) return catName;
-            if (d.collection && d.collection.trim()) return d.collection.trim();
-            if (d.name && d.name.trim()) return d.name.split('-')[0].trim();
-            return null;
-          })
-          .filter(Boolean) as string[]
-      )
-    ).sort();
-  }, [categories, designs]);
-
   // Track which root categories are expanded in the sidebar
   const [expandedRoots, setExpandedRoots] = useState<Set<number>>(new Set());
 
@@ -97,14 +74,9 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
     const handleOpenGroups = () => {
       setIsMobileFilterDrawerOpen(true);
     };
-    const handleOpenPdf = () => {
-      setIsMobilePdfDrawerOpen(true);
-    };
     window.addEventListener('open-catalog-groups-drawer', handleOpenGroups);
-    window.addEventListener('open-pdf-download-drawer', handleOpenPdf);
     return () => {
       window.removeEventListener('open-catalog-groups-drawer', handleOpenGroups);
-      window.removeEventListener('open-pdf-download-drawer', handleOpenPdf);
     };
   }, []);
 
@@ -727,72 +699,6 @@ export const BuyerStorefront: React.FC<BuyerStorefrontProps> = ({
           </div>
         </button>
       </div>
-
-      {/* ── Mobile PDF Download Drawer Modal ── */}
-      {isMobilePdfDrawerOpen && (
-        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-xs z-50 flex justify-center items-end sm:items-center lg:hidden">
-          <div
-            className="fixed inset-0"
-            onClick={() => setIsMobilePdfDrawerOpen(false)}
-          />
-          <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[85vh] overflow-y-auto p-4 shadow-2xl space-y-4 z-10 animate-in slide-in-from-bottom duration-200">
-            <div className="flex items-center justify-between border-b pb-3 sticky top-0 bg-white z-10">
-              <div className="flex items-center gap-2 font-extrabold text-gray-900 text-sm">
-                <Download className="h-4.5 w-4.5 text-amber-600" />
-                <span>DOWNLOAD CATALOG PDF</span>
-              </div>
-              <button
-                onClick={() => setIsMobilePdfDrawerOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-700 rounded-full cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* All Collections Button */}
-            <button
-              onClick={() => {
-                setIsMobilePdfDrawerOpen(false);
-                downloadCatalogPDFForCollection('All', designs, categories);
-              }}
-              className="w-full flex items-center justify-between p-3.5 bg-amber-50 border-2 border-amber-300 rounded-xl hover:bg-amber-100 transition-all text-amber-950 font-extrabold text-xs cursor-pointer shadow-xs"
-            >
-              <div className="flex items-center gap-2.5">
-                <Download className="h-4.5 w-4.5 text-amber-700" />
-                <span>All Collections Catalog</span>
-              </div>
-              <span className="bg-amber-200 text-amber-900 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded">
-                PDF →
-              </span>
-            </button>
-
-            <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wider pt-2 border-t">
-              Or Choose Collection:
-            </div>
-
-            <div className="space-y-2 max-h-[50vh] overflow-y-auto pr-1 scrollbar-thin">
-              {pdfCollections.map((collName) => (
-                <button
-                  key={collName}
-                  onClick={() => {
-                    setIsMobilePdfDrawerOpen(false);
-                    downloadCatalogPDFForCollection(collName, designs, categories);
-                  }}
-                  className="w-full flex items-center justify-between p-3 bg-gray-50 border border-gray-200 hover:border-amber-400 hover:bg-amber-50/50 rounded-xl transition-all text-gray-800 font-semibold text-xs cursor-pointer"
-                >
-                  <div className="flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-amber-600" />
-                    <span>{collName} PDF</span>
-                  </div>
-                  <span className="text-amber-700 text-[11px] font-bold flex items-center gap-1">
-                    Download <Download className="h-3 w-3" />
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Mobile Filter Drawer Modal ── */}
       {isMobileFilterDrawerOpen && (
