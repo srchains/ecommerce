@@ -834,7 +834,7 @@ const MainLayout: React.FC = () => {
                     {buyerCatalogue.showAll && (
                     <button
                       onClick={() => {
-                        downloadCatalogPDFForCollection('All', designs, categories, buyerCatalogue.collections);
+                        downloadCatalogPDFForCollection('All', designs, categories, buyerCatalogue);
                         setPdfDropdownOpen(false);
                       }}
                       className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-extrabold bg-amber-50 hover:bg-amber-100 text-amber-950 flex items-center justify-between transition-all border border-amber-200/80 my-1 cursor-pointer"
@@ -858,7 +858,7 @@ const MainLayout: React.FC = () => {
                         <button
                           key={collName}
                           onClick={() => {
-                            downloadCatalogPDFForCollection(collName, designs, categories, buyerCatalogue.collections);
+                            downloadCatalogPDFForCollection(collName, designs, categories, buyerCatalogue);
                             setPdfDropdownOpen(false);
                           }}
                           className="w-full text-left px-3 py-2 rounded-lg text-xs font-semibold text-gray-700 hover:bg-amber-50 hover:text-amber-900 flex items-center justify-between transition-colors cursor-pointer"

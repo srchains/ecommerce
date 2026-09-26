@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Table
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, Table, UniqueConstraint
 from sqlalchemy.orm import relationship, backref
 from datetime import datetime
 from app.database import Base
@@ -200,5 +200,18 @@ class CatalogueVisibility(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     collection_name = Column(String, unique=True, index=True, nullable=False)
+    is_visible_to_buyer = Column(Boolean, default=True, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CatalogueItemVisibility(Base):
+    """Per-design / per-variant choice of what goes into the buyer's catalogue PDFs.
+    A design or variant with no row is included (new products show up by default)."""
+    __tablename__ = "catalogue_item_visibility"
+    __table_args__ = (UniqueConstraint("item_type", "item_id", name="uq_catalogue_item"),)
+
+    id = Column(Integer, primary_key=True, index=True)
+    item_type = Column(String, nullable=False)  # design | variant
+    item_id = Column(Integer, nullable=False, index=True)
     is_visible_to_buyer = Column(Boolean, default=True, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

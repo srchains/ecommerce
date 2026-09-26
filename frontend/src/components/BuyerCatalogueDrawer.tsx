@@ -25,7 +25,7 @@ export const BuyerCatalogueDrawer: React.FC = () => {
 
   const download = (collectionName: string) => {
     setOpen(false);
-    downloadCatalogPDFForCollection(collectionName, designs, categories, buyerCatalogue.collections);
+    downloadCatalogPDFForCollection(collectionName, designs, categories, buyerCatalogue);
   };
 
   return (

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
-import { getCatalogueCollections } from '../utils/catalogPdfGenerator';
+import { getCatalogueCollections, type CatalogueFilter } from '../utils/catalogPdfGenerator';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -183,7 +183,7 @@ interface AppContextType {
 
   // Download Catalogue (what the admin lets buyers download)
   /** Collections buyers may download, and whether the "All Collections" PDF is offered. */
-  buyerCatalogue: { showAll: boolean; collections: string[] };
+  buyerCatalogue: CatalogueFilter & { showAll: boolean };
   refreshBuyerCatalogue: () => Promise<void>;
 }
 
@@ -212,7 +212,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [categories, setCategories] = useState<Category[]>([]);
   const [designs, setDesigns] = useState<ProductDesign[]>([]);
   // null = not loaded yet (or request failed) -> fall back to showing everything
-  const [catalogueVisibility, setCatalogueVisibility] = useState<{ all_collections: boolean; collections: string[] } | null>(null);
+  const [catalogueVisibility, setCatalogueVisibility] = useState<{
+    all_collections: boolean; collections: string[]; hidden_design_ids?: number[]; hidden_variant_ids?: number[];
+  } | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   
   const [loadingPrice, setLoadingPrice] = useState(false);
@@ -402,11 +404,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const buyerCatalogue = useMemo(() => {
     const all = getCatalogueCollections(designs, categories);
-    if (!catalogueVisibility) return { showAll: all.length > 0, collections: all };
+    if (!catalogueVisibility) {
+      return { showAll: all.length > 0, collections: all, hiddenDesignIds: [], hiddenVariantIds: [] };
+    }
     const allowed = new Set(catalogueVisibility.collections);
     const collections = all.filter(name => allowed.has(name));
     // The "All" PDF only contains visible collections, so hide it when none are visible.
-    return { showAll: catalogueVisibility.all_collections && collections.length > 0, collections };
+    return {
+      showAll: catalogueVisibility.all_collections && collections.length > 0,
+      collections,
+      hiddenDesignIds: catalogueVisibility.hidden_design_ids || [],
+      hiddenVariantIds: catalogueVisibility.hidden_variant_ids || [],
+    };
   }, [designs, categories, catalogueVisibility]);
 
 

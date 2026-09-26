@@ -127,13 +127,15 @@ export const generateCatalogPDF = (
           <td style="width: 33.33%; vertical-align: top; padding: 4px; box-sizing: border-box;">
             <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; background: #ffffff; text-align: center; height: 100%; box-sizing: border-box;">
               <a href="${productUrl}" target="_blank" style="text-decoration: none; color: inherit; display: block;">
-                <div style="width: 100%; height: 140px; background-color: #f8fafc; border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; margin-bottom: 6px; border: 1px solid #f1f5f9;">
-                  <img src="${zoomUrl}" alt="${tagLabelCode}" style="width: 100%; height: 100%; object-fit: contain; background: #fafafa;" crossorigin="anonymous" loading="eager" />
-                </div>
+                <!-- Background image (not <img object-fit>): html2canvas renders background-size: contain correctly -->
+                <div class="card-img" data-src="${zoomUrl}" style="width: 100%; height: 140px; background-color: #fafafa; background-image: url('${zoomUrl}'); background-size: contain; background-position: center; background-repeat: no-repeat; border-radius: 6px; margin-bottom: 6px; border: 1px solid #f1f5f9;"></div>
               </a>
               <a href="${productUrl}" target="_blank" style="text-decoration: none; color: inherit;">
-                <div style="font-size: 12px; font-weight: 900; color: #1e3a8a; text-transform: uppercase; margin-bottom: 3px; line-height: 1.2; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                <div style="font-size: 12px; font-weight: 900; color: #1e3a8a; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${titleText}
+                </div>
+                <div style="font-size: 9.5px; font-weight: 700; color: #64748b; margin: 1px 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${tagLabelCode !== titleText ? `${tagLabelCode}${variant?.variant_name ? ` • ${variant.variant_name}` : ''}` : (variant?.variant_name || '&nbsp;')}
                 </div>
               </a>
               <div style="font-size: 10px; color: #0f172a; font-weight: 700; line-height: 1.45; background: #f8fafc; border-radius: 4px; padding: 4px; border: 1px solid #e2e8f0;">
@@ -214,7 +216,8 @@ export const generateCatalogPDF = (
       <title>${safeFileName.replace('.pdf', '')}</title>
       <meta charset="utf-8" />
       <base href="${window.location.origin}/" />
-      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
       <style>
         @page {
           size: A4 portrait;
@@ -337,6 +340,17 @@ export const generateCatalogPDF = (
           position: relative;
         }
 
+        /* While saving the PDF: each .a4-page is captured on its own at exact A4 size */
+        body.pdf-capture .a4-page {
+          width: 210mm !important;
+          height: 297mm !important;
+          min-height: 297mm !important;
+          max-height: 297mm !important;
+          margin: 0 auto !important;
+          box-shadow: none !important;
+          border-radius: 0 !important;
+        }
+
         @media print {
           html, body {
             background: #ffffff !important;
@@ -398,62 +412,69 @@ export const generateCatalogPDF = (
       </div>
 
       <script>
-        // Wait for all images to complete loading before enabling PDF export
+        var statusEl = document.getElementById('status-indicator');
+        function setStatus(text, color) {
+          if (!statusEl) return;
+          statusEl.innerText = text;
+          if (color) statusEl.style.color = color;
+        }
+
+        // Load every image (logo <img> + card background images) before capturing
         function preloadImages() {
-          const images = Array.from(document.querySelectorAll('img'));
-          let loadedCount = 0;
-          const totalCount = images.length;
-          const statusEl = document.getElementById('status-indicator');
-
-          if (totalCount === 0) {
-            if (statusEl) statusEl.innerText = '✅ Ready (A4 Print Ready)';
-            return;
-          }
-
-          function onItemDone() {
-            loadedCount++;
-            if (statusEl) {
-              if (loadedCount >= totalCount) {
-                statusEl.innerText = '✅ Ready (100% Loaded • A4 Verified)';
-                statusEl.style.color = '#34d399';
-              } else {
-                statusEl.innerText = '⏳ Loading images (' + loadedCount + '/' + totalCount + ')...';
-              }
-            }
-          }
-
-          images.forEach(img => {
-            if (img.complete && img.naturalHeight !== 0) {
-              onItemDone();
-            } else {
-              img.addEventListener('load', onItemDone);
-              img.addEventListener('error', function() {
-                img.src = '${logoUrl}';
-                onItemDone();
-              });
-            }
-          });
+          var urls = Array.from(document.querySelectorAll('img')).map(function (img) { return img.src; })
+            .concat(Array.from(document.querySelectorAll('.card-img')).map(function (el) { return el.getAttribute('data-src'); }))
+            .filter(Boolean);
+          var done = 0;
+          return Promise.all(urls.map(function (url) {
+            return new Promise(function (resolve) {
+              var probe = new Image();
+              probe.onload = probe.onerror = function () {
+                if (!probe.naturalWidth) {
+                  // Broken image: fall back to the logo so the card is not empty
+                  document.querySelectorAll('.card-img[data-src="' + url + '"]').forEach(function (el) {
+                    el.style.backgroundImage = "url('${logoUrl}')";
+                  });
+                }
+                done++;
+                setStatus('⏳ Loading images (' + done + '/' + urls.length + ')...');
+                resolve();
+              };
+              probe.src = url;
+            });
+          }));
         }
 
-        function savePdfFile() {
-          const element = document.getElementById('pdf-root');
-          if (window.html2pdf) {
-            const opt = {
-              margin:       [0, 0, 0, 0],
-              filename:     '${safeFileName}',
-              image:        { type: 'jpeg', quality: 0.98 },
-              html2canvas:  { scale: 2, useCORS: true, allowTaint: true, logging: false },
-              jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' },
-              pagebreak:    { mode: ['avoid-all', 'css', 'legacy'] }
-            };
-            html2pdf().set(opt).from(element).save();
-          } else {
-            window.print();
+        var saving = false;
+        // One catalogue page -> exactly one A4 PDF page (no slicing across pages)
+        async function savePdfFile() {
+          if (saving) return;
+          if (!window.html2canvas || !window.jspdf) { window.print(); return; }
+          saving = true;
+          try {
+            await imagesReady;
+            document.body.classList.add('pdf-capture');
+            var pdf = new window.jspdf.jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait', compress: true });
+            var pages = Array.from(document.querySelectorAll('.a4-page'));
+            for (var i = 0; i < pages.length; i++) {
+              setStatus('⏳ Creating PDF page ' + (i + 1) + ' of ' + pages.length + '...', '#fbbf24');
+              var canvas = await html2canvas(pages[i], { scale: 2, useCORS: true, backgroundColor: '#ffffff', logging: false });
+              if (i > 0) pdf.addPage();
+              pdf.addImage(canvas.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 210, 297);
+            }
+            pdf.save('${safeFileName}');
+            setStatus('✅ PDF downloaded • click "Save A4 PDF" to download again', '#34d399');
+          } catch (err) {
+            console.error(err);
+            setStatus('⚠️ Could not create the PDF. Use Print → Save as PDF.', '#f87171');
+          } finally {
+            document.body.classList.remove('pdf-capture');
+            saving = false;
           }
         }
 
-        window.addEventListener('DOMContentLoaded', preloadImages);
-        window.addEventListener('load', preloadImages);
+        var imagesReady = preloadImages();
+        // Download the PDF straight away once everything has loaded
+        window.addEventListener('load', function () { imagesReady.then(savePdfFile); });
       </script>
     </body>
     </html>
@@ -465,6 +486,13 @@ export const generateCatalogPDF = (
 
 /** Key used by the Catalogue Manager for the "All Collections" PDF. */
 export const ALL_COLLECTIONS_KEY = '__all__';
+
+/** What the admin lets buyers download (see backend/app/routers/catalogue.py). */
+export interface CatalogueFilter {
+  collections: string[];
+  hiddenDesignIds: number[];
+  hiddenVariantIds: number[];
+}
 
 /** Which Download Catalogue group a design belongs to (mirrors backend/app/routers/catalogue.py). */
 export const getCatalogueCollectionName = (design: any, categories: any[] = []): string | null => {
@@ -490,14 +518,17 @@ export const downloadCatalogPDFForCollection = (
   collectionName: string,
   designs: any[],
   categories: any[] = [],
-  /** For the "All" PDF: only include designs from these collections. */
-  allowedCollections?: string[]
+  /** Buyer selection from Catalogue Manager: only these collections, minus hidden designs/variants. */
+  filter?: CatalogueFilter
 ) => {
   const items: PdfCatalogItem[] = [];
 
-  const allowed = allowedCollections ? new Set(allowedCollections) : null;
+  const allowed = filter ? new Set(filter.collections) : null;
+  const hiddenDesigns = new Set(filter?.hiddenDesignIds || []);
+  const hiddenVariants = new Set(filter?.hiddenVariantIds || []);
   const activeDesigns = designs.filter(d =>
     (d.status === 'Active' || !d.status) &&
+    !hiddenDesigns.has(d.id) &&
     (!allowed || allowed.has(getCatalogueCollectionName(d, categories) || ''))
   );
 
@@ -523,6 +554,7 @@ export const downloadCatalogPDFForCollection = (
 
     if (matches && design.variants && design.variants.length > 0) {
       design.variants.forEach((variant: any) => {
+        if (hiddenVariants.has(variant.id)) return;
         let variantWeight = 0;
         if (variant.sizes && variant.sizes.length > 0) {
           variantWeight = variant.sizes.reduce((acc: number, s: any) => acc + ((Number(s.stock_available) || 0) * (Number(s.weight) || 0)), 0);
