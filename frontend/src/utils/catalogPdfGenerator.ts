@@ -64,9 +64,12 @@ export const getZoomImageUrl = (design?: any, variant?: any): string => {
 };
 
 export const generateCatalogPDF = (
-  title: string, 
-  itemsList: PdfCatalogItem[]
+  title: string,
+  itemsList: PdfCatalogItem[],
+  /** compact: continuous 4-column grid of image + name cards, no header/footer (combined "Download All" PDF). */
+  options: { compact?: boolean } = {}
 ) => {
+  const compact = !!options.compact;
   if (!itemsList || itemsList.length === 0) {
     alert('No catalog items to export.');
     return;
@@ -96,7 +99,7 @@ export const generateCatalogPDF = (
   const totalPages = pageChunks.length;
   const pagesHtml: string[] = [];
 
-  for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+  for (let pageIdx = 0; !compact && pageIdx < totalPages; pageIdx++) {
     const pageItems = pageChunks[pageIdx].items;
     const pageSection = pageChunks[pageIdx].section;
     const sectionLabel = pageSection ? ` • <span style="color: #1e3a8a;">${pageSection}</span>` : '';
@@ -221,6 +224,44 @@ export const generateCatalogPDF = (
         ${footerHtml}
       </div>
     `);
+  }
+
+  if (compact) {
+    // Products flow continuously in one grid (collection order kept, no break per collection).
+    // Fixed rows per page, so a card is never split across two A4 pages.
+    const COLUMNS = 4;
+    const ROWS_PER_PAGE = 7;
+    const perPage = COLUMNS * ROWS_PER_PAGE;
+    for (let start = 0; start < itemsList.length; start += perPage) {
+      const pageItems = itemsList.slice(start, start + perPage);
+      const rows: string[] = [];
+      for (let r = 0; r < pageItems.length; r += COLUMNS) {
+        const cells = pageItems.slice(r, r + COLUMNS).map(({ design, variant }) => {
+          const zoomUrl = getZoomImageUrl(design, variant);
+          const rawCode = (variant?.variant_code || design?.design_code || 'SR-01').trim();
+          const name = design?.name || rawCode.replace(/\s*Z\s*$/i, '').trim();
+          const productUrl = `${window.location.origin}/?design=${encodeURIComponent(design?.name || design?.design_code || rawCode)}${variant?.id ? `&variant=${variant.id}` : ''}`;
+          return `
+            <td style="width: ${100 / COLUMNS}%; vertical-align: top; padding: 3px;">
+              <a href="${productUrl}" target="_blank" style="display: block; text-decoration: none; color: inherit; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px; background: #ffffff; text-align: center;">
+                <!-- Background image (not <img object-fit>): html2canvas renders background-size: contain correctly -->
+                <div class="card-img" data-src="${zoomUrl}" style="width: 100%; height: 100px; background-color: #fafafa; background-image: url('${zoomUrl}'); background-size: contain; background-position: center; background-repeat: no-repeat; border-radius: 4px;"></div>
+                <div style="font-size: 11px; font-weight: 900; color: #1e3a8a; text-transform: uppercase; letter-spacing: 0.3px; line-height: 1.2; margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${name}</div>
+              </a>
+            </td>
+          `;
+        });
+        while (cells.length < COLUMNS) cells.push(`<td style="width: ${100 / COLUMNS}%; padding: 3px;"></td>`);
+        rows.push(`<tr>${cells.join('')}</tr>`);
+      }
+      pagesHtml.push(`
+        <div class="a4-page" style="justify-content: flex-start;">
+          <div class="grid-container">
+            <table style="width: 100%; border-collapse: separate; border-spacing: 2px 4px; table-layout: fixed;">${rows.join('')}</table>
+          </div>
+        </div>
+      `);
+    }
   }
 
   const htmlContent = `
@@ -587,12 +628,12 @@ export const downloadCatalogPDFForCollection = (
   const displayTitle = isAll ? 'All Collections' : `${collectionName}`;
 
   if (isAll) {
-    // Combined PDF = the collection PDFs back to back, in the same order as the dropdown.
+    // Combined PDF: collections in the same order as the dropdown, flowing continuously.
     const order = getCatalogueCollections(designs, categories);
-    items.forEach(item => { item.section = getCatalogueCollectionName(item.design, categories) || 'Other'; });
-    const rank = (s?: string) => { const i = order.indexOf(s || ''); return i === -1 ? order.length : i; };
-    items.sort((a, b) => rank(a.section) - rank(b.section)); // stable: keeps design order inside a collection
+    const collectionOf = (item: PdfCatalogItem) => getCatalogueCollectionName(item.design, categories) || '';
+    const rank = (item: PdfCatalogItem) => { const i = order.indexOf(collectionOf(item)); return i === -1 ? order.length : i; };
+    items.sort((a, b) => rank(a) - rank(b)); // stable: keeps design order inside a collection
   }
 
-  generateCatalogPDF(displayTitle, items);
+  generateCatalogPDF(displayTitle, items, { compact: isAll });
 };
