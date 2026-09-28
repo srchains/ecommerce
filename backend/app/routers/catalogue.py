@@ -141,7 +141,7 @@ def _catalogue_items(db: Session) -> List[CatalogueItem]:
     collections = sorted(groups.values(), key=lambda i: i.name.lower())
     all_item = CatalogueItem(
         key=ALL_COLLECTIONS_KEY,
-        name="All Collections Catalog",
+        name="Download All Catalogs",
         design_count=sum(i.design_count for i in collections),
         thumbnail_url=next((i.thumbnail_url for i in collections if i.thumbnail_url), None),
         is_visible_to_buyer=visibility.get(ALL_COLLECTIONS_KEY, True),

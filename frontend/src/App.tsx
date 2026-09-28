@@ -841,7 +841,7 @@ const MainLayout: React.FC = () => {
                     >
                       <span className="flex items-center gap-2">
                         <Download className="h-4 w-4 text-amber-700" />
-                        <span>All Collections Catalog</span>
+                        <span>Download All Catalogs</span>
                       </span>
                       <span className="text-[10px] font-mono text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded font-bold">PDF →</span>
                     </button>

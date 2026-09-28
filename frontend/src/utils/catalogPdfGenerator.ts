@@ -6,6 +6,8 @@ export interface PdfCatalogItem {
   variant: any;
   sizes?: any[];
   variantWeight?: number;
+  /** Collection name; in the combined "All" PDF each section starts on a new page. */
+  section?: string;
 }
 
 export const toAbsoluteUrl = (url?: string): string => {
@@ -80,12 +82,24 @@ export const generateCatalogPDF = (
   const safeFileName = `SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog.pdf`;
 
   // Paginate items: 9 items per page (3 columns x 3 rows) ensures 0% card slicing on A4 portrait
+  // A new section (collection) always starts on a fresh page.
   const ITEMS_PER_PAGE = 9;
-  const totalPages = Math.ceil(itemsList.length / ITEMS_PER_PAGE);
+  const pageChunks: { section?: string; items: PdfCatalogItem[] }[] = [];
+  itemsList.forEach(item => {
+    const last = pageChunks[pageChunks.length - 1];
+    if (last && last.section === item.section && last.items.length < ITEMS_PER_PAGE) {
+      last.items.push(item);
+    } else {
+      pageChunks.push({ section: item.section, items: [item] });
+    }
+  });
+  const totalPages = pageChunks.length;
   const pagesHtml: string[] = [];
 
   for (let pageIdx = 0; pageIdx < totalPages; pageIdx++) {
-    const pageItems = itemsList.slice(pageIdx * ITEMS_PER_PAGE, (pageIdx + 1) * ITEMS_PER_PAGE);
+    const pageItems = pageChunks[pageIdx].items;
+    const pageSection = pageChunks[pageIdx].section;
+    const sectionLabel = pageSection ? ` • <span style="color: #1e3a8a;">${pageSection}</span>` : '';
     const pageNum = pageIdx + 1;
 
     // Group pageItems into rows of 3
@@ -166,7 +180,7 @@ export const generateCatalogPDF = (
               <div>
                 <h1 style="font-size: 20px; font-weight: 900; color: #b45309; letter-spacing: 0.5px; margin: 0; line-height: 1; text-transform: uppercase;">SR CHAINS</h1>
                 <div style="font-size: 10px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px;">
-                  B2B Silver Jewelry • <span style="color: #d97706;">${title}</span>
+                  B2B Silver Jewelry • <span style="color: #d97706;">${title}</span>${sectionLabel}
                 </div>
               </div>
             </div>
@@ -181,7 +195,7 @@ export const generateCatalogPDF = (
       <table style="width: 100%; border-bottom: 1.5px solid #d97706; padding-bottom: 4px; margin-bottom: 8px;">
         <tr>
           <td style="vertical-align: middle; font-size: 11px; font-weight: 900; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">
-            SR CHAINS • ${title}
+            SR CHAINS • ${title}${sectionLabel}
           </td>
           <td style="vertical-align: middle; text-align: right; font-size: 9.5px; color: #64748b; font-weight: 700;">
             Ph: 70106 74487 • Page ${pageNum} of ${totalPages}
@@ -569,9 +583,16 @@ export const downloadCatalogPDFForCollection = (
     }
   });
 
-  const displayTitle = collectionName === 'All' || collectionName === 'All Collections' || !collectionName
-    ? 'All Collections'
-    : `${collectionName}`;
+  const isAll = collectionName === 'All' || collectionName === 'All Collections' || !collectionName;
+  const displayTitle = isAll ? 'All Collections' : `${collectionName}`;
+
+  if (isAll) {
+    // Combined PDF = the collection PDFs back to back, in the same order as the dropdown.
+    const order = getCatalogueCollections(designs, categories);
+    items.forEach(item => { item.section = getCatalogueCollectionName(item.design, categories) || 'Other'; });
+    const rank = (s?: string) => { const i = order.indexOf(s || ''); return i === -1 ? order.length : i; };
+    items.sort((a, b) => rank(a.section) - rank(b.section)); // stable: keeps design order inside a collection
+  }
 
   generateCatalogPDF(displayTitle, items);
 };

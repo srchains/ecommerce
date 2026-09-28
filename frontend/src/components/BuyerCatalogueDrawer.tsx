@@ -62,7 +62,7 @@ export const BuyerCatalogueDrawer: React.FC = () => {
           >
             <div className="flex items-center gap-2.5">
               <Download className="h-4.5 w-4.5 text-amber-700" />
-              <span>All Collections Catalog</span>
+              <span>Download All Catalogs</span>
             </div>
             <span className="bg-amber-200 text-amber-900 text-[10px] font-mono font-extrabold px-2.5 py-1 rounded">
               PDF →
