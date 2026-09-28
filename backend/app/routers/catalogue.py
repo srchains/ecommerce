@@ -170,7 +170,8 @@ def _save_item_rows(db: Session, item_type: str, selections: List[CatalogueIdSel
 @router.get("/admin", response_model=List[CatalogueItem])
 def list_catalogue_items(db: Session = Depends(get_db), admin: dict = Depends(get_current_admin)):
     """All Download Catalogue items (with their designs and variants) and buyer visibility (admin only)."""
-    return _catalogue_items(db)
+    # "Download All Catalogs" is always offered to buyers, so it is not listed here.
+    return _catalogue_items(db)[1:]
 
 
 @router.put("/admin", response_model=List[CatalogueItem])
@@ -196,7 +197,7 @@ def update_catalogue_selection(
     _save_item_rows(db, "design", payload.designs)
     _save_item_rows(db, "variant", payload.variants)
     db.commit()
-    return _catalogue_items(db)
+    return _catalogue_items(db)[1:]
 
 
 @router.get("/visible", response_model=VisibleCatalogues)
@@ -220,7 +221,7 @@ def list_visible_catalogues(db: Session = Depends(get_db)):
         )
 
     return VisibleCatalogues(
-        all_collections=items[0].is_visible_to_buyer,
+        all_collections=True,  # "Download All Catalogs" is always shown (holds only visible collections)
         collections=[i.name for i in items[1:] if i.is_visible_to_buyer and has_content(i)],
         hidden_design_ids=hidden_designs,
         hidden_variant_ids=hidden_variants,

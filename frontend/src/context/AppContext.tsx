@@ -411,7 +411,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const collections = all.filter(name => allowed.has(name));
     // The "All" PDF only contains visible collections, so hide it when none are visible.
     return {
-      showAll: catalogueVisibility.all_collections && collections.length > 0,
+      showAll: collections.length > 0, // "Download All Catalogs" is always offered
       collections,
       hiddenDesignIds: catalogueVisibility.hidden_design_ids || [],
       hiddenVariantIds: catalogueVisibility.hidden_variant_ids || [],
