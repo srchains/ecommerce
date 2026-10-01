@@ -66,9 +66,10 @@ export const getZoomImageUrl = (design?: any, variant?: any): string => {
 export const generateCatalogPDF = (
   title: string,
   itemsList: PdfCatalogItem[],
-  // Kept for backward compatibility with callers; every catalogue now uses the same image-only layout.
-  _options: { compact?: boolean } = {}
+  /** compact: continuous 4-column grid of image + name cards, no header/footer (combined "Download All" PDF). */
+  options: { compact?: boolean } = {}
 ) => {
+  const compact = !!options.compact;
   if (!itemsList || itemsList.length === 0) {
     alert('No catalog items to export.');
     return;
@@ -83,18 +84,161 @@ export const generateCatalogPDF = (
   const logoUrl = toAbsoluteUrl('/logo.jpg');
   const safeFileName = `SR_CHAINS_${title.replace(/[^a-zA-Z0-9_\-]/g, '_')}_Catalog.pdf`;
 
-  // Image-only catalogue: exactly 3 full-width images per A4 page, no names/codes/captions.
-  // Fixed 3 slots per page, so an image is never split across two pages.
-  const IMAGES_PER_PAGE = 3;
+  // Paginate items: 9 items per page (3 columns x 3 rows) ensures 0% card slicing on A4 portrait
+  // A new section (collection) always starts on a fresh page.
+  const ITEMS_PER_PAGE = 9;
+  const pageChunks: { section?: string; items: PdfCatalogItem[] }[] = [];
+  itemsList.forEach(item => {
+    const last = pageChunks[pageChunks.length - 1];
+    if (last && last.section === item.section && last.items.length < ITEMS_PER_PAGE) {
+      last.items.push(item);
+    } else {
+      pageChunks.push({ section: item.section, items: [item] });
+    }
+  });
+  const totalPages = pageChunks.length;
   const pagesHtml: string[] = [];
-  for (let start = 0; start < itemsList.length; start += IMAGES_PER_PAGE) {
-    const slots = itemsList.slice(start, start + IMAGES_PER_PAGE).map(({ design, variant }) => {
-      const zoomUrl = getZoomImageUrl(design, variant);
-      // Background image (not <img object-fit>): html2canvas renders background-size: contain correctly
-      return `<div class="card-img" data-src="${zoomUrl}" style="background-image: url('${zoomUrl}');"></div>`;
-    });
-    while (slots.length < IMAGES_PER_PAGE) slots.push('<div class="card-img card-empty"></div>');
-    pagesHtml.push(`<div class="a4-page">${slots.join('')}</div>`);
+
+  for (let pageIdx = 0; !compact && pageIdx < totalPages; pageIdx++) {
+    const pageItems = pageChunks[pageIdx].items;
+    const pageSection = pageChunks[pageIdx].section;
+    const sectionLabel = pageSection ? ` • <span style="color: #1e3a8a;">${pageSection}</span>` : '';
+    const pageNum = pageIdx + 1;
+
+    // Group pageItems into rows of 3
+    const rowsHtml: string[] = [];
+    for (let r = 0; r < pageItems.length; r += 3) {
+      const rowChunk = pageItems.slice(r, r + 3);
+      const cells = rowChunk.map(({ design, variant, sizes }) => {
+        const zoomUrl = getZoomImageUrl(design, variant);
+        const rawCode = (variant?.variant_code || design?.design_code || 'SR-01').trim();
+        const tagLabelCode = rawCode.replace(/\s*Z\s*$/i, '').trim();
+        const purity = design?.purity || 70;
+        const titleText = `${design?.name || tagLabelCode}`;
+        const targetDesignName = design?.name || design?.design_code || rawCode;
+        const productUrl = `${window.location.origin}/?design=${encodeURIComponent(targetDesignName)}${variant?.id ? `&variant=${variant.id}` : ''}`;
+
+        const sizesArr = sizes || variant?.sizes || [];
+        const sortedSizes = [...sizesArr].sort((a: any, b: any) => Number(a.size || 0) - Number(b.size || 0));
+        const validSizes = sortedSizes.filter((s: any) => s && s.weight !== undefined && s.weight !== null && Number(s.weight) > 0);
+
+        let weightText = '';
+        if (validSizes.length > 0) {
+          const startSizeWeight = Number(validSizes[0].weight);
+          const endSizeWeight = Number(validSizes[validSizes.length - 1].weight);
+          if (startSizeWeight === endSizeWeight || validSizes.length === 1) {
+            weightText = `${startSizeWeight.toFixed(2)}g`;
+          } else {
+            weightText = `${startSizeWeight.toFixed(2)}g – ${endSizeWeight.toFixed(2)}g`;
+          }
+        } else {
+          weightText = '18.50g – 24.30g';
+        }
+
+        const sizeValues = sortedSizes.map((s: any) => Number(s.size)).filter((n: number) => !isNaN(n) && n > 0);
+        const minSz = sizeValues.length ? Math.min(...sizeValues).toFixed(1) : '5.0';
+        const maxSz = sizeValues.length ? Math.max(...sizeValues).toFixed(1) : '11.0';
+        const sizeText = sizeValues.length <= 1 ? `${minSz}"` : `${minSz}" - ${maxSz}"`;
+
+        return `
+          <td style="width: 33.33%; vertical-align: top; padding: 4px; box-sizing: border-box;">
+            <div style="border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 6px 8px; background: #ffffff; text-align: center; height: 100%; box-sizing: border-box;">
+              <a href="${productUrl}" target="_blank" style="text-decoration: none; color: inherit; display: block;">
+                <!-- Background image (not <img object-fit>): html2canvas renders background-size: contain correctly -->
+                <div class="card-img" data-src="${zoomUrl}" style="width: 100%; height: 140px; background-color: #fafafa; background-image: url('${zoomUrl}'); background-size: contain; background-position: center; background-repeat: no-repeat; border-radius: 6px; margin-bottom: 6px; border: 1px solid #f1f5f9;"></div>
+              </a>
+              <a href="${productUrl}" target="_blank" style="text-decoration: none; color: inherit;">
+                <div style="font-size: 12px; font-weight: 900; color: #1e3a8a; text-transform: uppercase; line-height: 1.2; letter-spacing: 0.3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${titleText}
+                </div>
+                <div style="font-size: 9.5px; font-weight: 700; color: #64748b; margin: 1px 0 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                  ${tagLabelCode !== titleText ? `${tagLabelCode}${variant?.variant_name ? ` • ${variant.variant_name}` : ''}` : (variant?.variant_name || '&nbsp;')}
+                </div>
+              </a>
+              <div style="font-size: 10px; color: #0f172a; font-weight: 700; line-height: 1.45; background: #f8fafc; border-radius: 4px; padding: 4px; border: 1px solid #e2e8f0;">
+                <div><span style="color: #64748b;">Weight:</span> <strong style="color: #0f172a;">${weightText}</strong></div>
+                <div><span style="color: #64748b;">Size:</span> <strong style="color: #0f172a;">${sizeText}</strong> • <span style="color: #b45309;">Touch: <strong>${purity}%</strong></span></div>
+              </div>
+            </div>
+          </td>
+        `;
+      });
+
+      while (cells.length < 3) {
+        cells.push('<td style="width: 33.33%; padding: 4px;"></td>');
+      }
+
+      rowsHtml.push(`<tr>${cells.join('')}</tr>`);
+    }
+
+    const tableGridHtml = `<table style="width: 100%; border-collapse: separate; border-spacing: 4px 6px; table-layout: fixed; margin: 0; padding: 0;">${rowsHtml.join('')}</table>`;
+
+    // Header HTML (Full header for page 1, slim header for subsequent pages)
+    const headerHtml = pageNum === 1 ? `
+      <table style="width: 100%; border-bottom: 2px solid #b45309; padding-bottom: 8px; margin-bottom: 10px;">
+        <tr>
+          <td style="vertical-align: middle; width: 60%;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <img src="${logoUrl}" alt="SR Chains" style="height: 42px; width: 42px; object-fit: cover; border-radius: 6px; border: 1px solid #cbd5e1;" crossorigin="anonymous" />
+              <div>
+                <h1 style="font-size: 20px; font-weight: 900; color: #b45309; letter-spacing: 0.5px; margin: 0; line-height: 1; text-transform: uppercase;">SR CHAINS</h1>
+                <div style="font-size: 10px; font-weight: 800; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 3px;">
+                  B2B Silver Jewelry • <span style="color: #d97706;">${title}</span>${sectionLabel}
+                </div>
+              </div>
+            </div>
+          </td>
+          <td style="vertical-align: middle; text-align: right; width: 40%; font-size: 9.5px; color: #334155; line-height: 1.35;">
+            <div style="font-weight: 800; color: #0f172a; font-size: 11px;">64, Arumuga Pillayar Koil St, Salem - 5</div>
+            <div>Ph: <strong>70106 74487</strong> • srchains19@gmail.com</div>
+          </td>
+        </tr>
+      </table>
+    ` : `
+      <table style="width: 100%; border-bottom: 1.5px solid #d97706; padding-bottom: 4px; margin-bottom: 8px;">
+        <tr>
+          <td style="vertical-align: middle; font-size: 11px; font-weight: 900; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px;">
+            SR CHAINS • ${title}${sectionLabel}
+          </td>
+          <td style="vertical-align: middle; text-align: right; font-size: 9.5px; color: #64748b; font-weight: 700;">
+            Ph: 70106 74487 • Page ${pageNum} of ${totalPages}
+          </td>
+        </tr>
+      </table>
+    `;
+
+    // Footer HTML
+    const footerHtml = `
+      <div style="border-top: 1px solid #e2e8f0; margin-top: 8px; padding-top: 4px; display: flex; justify-content: space-between; align-items: center; font-size: 9px; color: #64748b; font-weight: 600;">
+        <span>© SR Chains • Pure 92.5 & 70% Silver Jewelry Manufacturer</span>
+        <span>Page ${pageNum} of ${totalPages}</span>
+      </div>
+    `;
+
+    pagesHtml.push(`
+      <div class="a4-page" id="page-${pageNum}">
+        ${headerHtml}
+        <div class="grid-container" style="flex: 1;">
+          ${tableGridHtml}
+        </div>
+        ${footerHtml}
+      </div>
+    `);
+  }
+
+  if (compact) {
+    // Image-only catalogue: exactly 3 full-width images per A4 page, no names/codes/captions,
+    // in collection order. Fixed 3 slots per page, so an image is never split across two pages.
+    const IMAGES_PER_PAGE = 3;
+    for (let start = 0; start < itemsList.length; start += IMAGES_PER_PAGE) {
+      const slots = itemsList.slice(start, start + IMAGES_PER_PAGE).map(({ design, variant }) => {
+        const zoomUrl = getZoomImageUrl(design, variant); // original uploaded file (full resolution)
+        // Background image with background-size: contain (html2canvas does not support <img object-fit>)
+        return `<div class="card-img" data-src="${zoomUrl}" style="background-image: url('${zoomUrl}');"></div>`;
+      });
+      while (slots.length < IMAGES_PER_PAGE) slots.push('<div class="card-img card-empty"></div>');
+      pagesHtml.push(`<div class="a4-page image-only">${slots.join('')}</div>`);
+    }
   }
 
   const htmlContent = `
@@ -107,10 +251,15 @@ export const generateCatalogPDF = (
       <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
       <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
       <style>
+        ${compact ? `
         @page {
           size: A4;
           margin: 10mm;
-        }
+        }` : `
+        @page {
+          size: A4 portrait;
+          margin: 0;
+        }`}
         * {
           box-sizing: border-box;
           -webkit-print-color-adjust: exact !important;
@@ -214,12 +363,12 @@ export const generateCatalogPDF = (
           max-height: 297mm;
           background: #ffffff;
           margin: 20px auto;
-          padding: 10mm;
+          padding: 8mm 10mm 6mm 10mm;
           box-shadow: 0 4px 25px rgba(0,0,0,0.12);
           border-radius: 4px;
           display: flex;
           flex-direction: column;
-          gap: 4mm;
+          justify-content: space-between;
           box-sizing: border-box;
           page-break-after: always;
           break-after: page;
@@ -227,19 +376,6 @@ export const generateCatalogPDF = (
           break-inside: avoid;
           position: relative;
         }
-
-        /* One image per slot: 3 equal slots fill the page. No names, no card boxes. */
-        .card-img {
-          flex: 1 1 0;
-          min-height: 0;
-          width: 100%;
-          background-color: #ffffff;
-          background-size: contain;
-          background-position: center;
-          background-repeat: no-repeat;
-          border: 1px solid #f1f5f9;
-        }
-        .card-empty { border-color: transparent; }
 
         /* While saving the PDF: each .a4-page is captured on its own at exact A4 size */
         body.pdf-capture .a4-page {
@@ -251,6 +387,24 @@ export const generateCatalogPDF = (
           box-shadow: none !important;
           border-radius: 0 !important;
         }
+
+        /* Image-only pages ("Download All Catalogs"): 3 equal full-width slots, no names, no card boxes */
+        .a4-page.image-only {
+          padding: 10mm;
+          gap: 4mm;
+          justify-content: flex-start;
+        }
+        .a4-page.image-only .card-img {
+          flex: 1 1 0;
+          min-height: 0;
+          width: 100%;
+          background-color: #ffffff;
+          background-size: contain;
+          background-position: center;
+          background-repeat: no-repeat;
+          border: 1px solid #f1f5f9;
+        }
+        .a4-page.image-only .card-empty { border-color: transparent; }
 
         @media print {
           html, body {
@@ -264,11 +418,11 @@ export const generateCatalogPDF = (
           }
           .a4-page {
             width: 100% !important;
-            height: 277mm !important;
-            min-height: 277mm !important;
-            max-height: 277mm !important;
+            height: 297mm !important;
+            min-height: 297mm !important;
+            max-height: 297mm !important;
             margin: 0 !important;
-            padding: 0 !important;
+            padding: 8mm 10mm 6mm 10mm !important;
             box-shadow: none !important;
             border-radius: 0 !important;
             page-break-after: always !important;
@@ -279,6 +433,13 @@ export const generateCatalogPDF = (
           .a4-page:last-child {
             page-break-after: auto !important;
             break-after: auto !important;
+          }
+          /* @page already gives a 10mm margin: page box is 277mm tall */
+          .a4-page.image-only {
+            height: 277mm !important;
+            min-height: 277mm !important;
+            max-height: 277mm !important;
+            padding: 0 !important;
           }
           tr {
             page-break-inside: avoid !important;
@@ -358,9 +519,9 @@ export const generateCatalogPDF = (
             var pages = Array.from(document.querySelectorAll('.a4-page'));
             for (var i = 0; i < pages.length; i++) {
               setStatus('⏳ Creating PDF page ' + (i + 1) + ' of ' + pages.length + '...', '#fbbf24');
-              var canvas = await html2canvas(pages[i], { scale: 3, useCORS: true, backgroundColor: '#ffffff', logging: false });
+              var canvas = await html2canvas(pages[i], { scale: ${compact ? 3 : 2}, useCORS: true, backgroundColor: '#ffffff', logging: false });
               if (i > 0) pdf.addPage();
-              pdf.addImage(canvas.toDataURL('image/jpeg', 0.97), 'JPEG', 0, 0, 210, 297);
+              pdf.addImage(canvas.toDataURL('image/jpeg', ${compact ? 0.95 : 0.92}), 'JPEG', 0, 0, 210, 297);
             }
             pdf.save('${safeFileName}');
             setStatus('✅ PDF downloaded • click "Save A4 PDF" to download again', '#34d399');
