@@ -233,8 +233,11 @@ export const generateCatalogPDF = (
     for (let start = 0; start < itemsList.length; start += IMAGES_PER_PAGE) {
       const slots = itemsList.slice(start, start + IMAGES_PER_PAGE).map(({ design, variant }) => {
         const zoomUrl = getZoomImageUrl(design, variant); // original uploaded file (full resolution)
-        // Background image with background-size: contain (html2canvas does not support <img object-fit>)
-        return `<div class="card-img" data-src="${zoomUrl}" style="background-image: url('${zoomUrl}');"></div>`;
+        const rawCode = (variant?.variant_code || design?.design_code || '').trim();
+        const productUrl = `${window.location.origin}/?design=${encodeURIComponent(design?.name || design?.design_code || rawCode)}${variant?.id ? `&variant=${variant.id}` : ''}`;
+        // Full-width background image (background-size: cover trims the photo's top/bottom edges).
+        // The link becomes a clickable area in the PDF (see savePdfFile).
+        return `<a class="card-img" href="${productUrl}" target="_blank" data-src="${zoomUrl}" style="background-image: url('${zoomUrl}');"></a>`;
       });
       while (slots.length < IMAGES_PER_PAGE) slots.push('<div class="card-img card-empty"></div>');
       pagesHtml.push(`<div class="a4-page image-only">${slots.join('')}</div>`);
@@ -395,11 +398,12 @@ export const generateCatalogPDF = (
           justify-content: flex-start;
         }
         .a4-page.image-only .card-img {
+          display: block;
           flex: 1 1 0;
           min-height: 0;
           width: 100%;
           background-color: #ffffff;
-          background-size: contain;
+          background-size: cover; /* fill the full page width; trims a little off the top/bottom */
           background-position: center;
           background-repeat: no-repeat;
           border: 1px solid #f1f5f9;
@@ -522,6 +526,19 @@ export const generateCatalogPDF = (
               var canvas = await html2canvas(pages[i], { scale: ${compact ? 3 : 2}, useCORS: true, backgroundColor: '#ffffff', logging: false });
               if (i > 0) pdf.addPage();
               pdf.addImage(canvas.toDataURL('image/jpeg', ${compact ? 0.95 : 0.92}), 'JPEG', 0, 0, 210, 297);
+              // Make every product link on this page clickable in the PDF (opens the product on the website)
+              var pageRect = pages[i].getBoundingClientRect();
+              pages[i].querySelectorAll('a[href]').forEach(function (a) {
+                var r = a.getBoundingClientRect();
+                if (!r.width || !r.height) return;
+                pdf.link(
+                  (r.left - pageRect.left) / pageRect.width * 210,
+                  (r.top - pageRect.top) / pageRect.height * 297,
+                  r.width / pageRect.width * 210,
+                  r.height / pageRect.height * 297,
+                  { url: a.href }
+                );
+              });
             }
             pdf.save('${safeFileName}');
             setStatus('✅ PDF downloaded • click "Save A4 PDF" to download again', '#34d399');
