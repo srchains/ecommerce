@@ -17,7 +17,8 @@ import {
   ChevronDown,
   ChevronUp,
   LogOut,
-  FileDown
+  FileDown,
+  Activity
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
@@ -54,6 +55,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
     { id: 'customers', name: 'Customers', icon: Users },
     { id: 'media-library', name: 'Media Library', icon: ImageIcon },
     { id: 'reports', name: 'Reports', icon: BarChart3 },
+    ...(adminRole === 'admin' ? [{ id: 'traffic', name: 'Traffic & Visitors', icon: Activity }] : []),
     ...(adminRole === 'admin' ? [{ id: 'catalogue-manager', name: 'Catalogue Manager', icon: FileDown }] : []),
     { id: 'settings', name: 'Settings', icon: Settings },
   ];

@@ -7,6 +7,7 @@ import { BuyerHomePage } from './components/BuyerHomePage';
 import { AdminBannerManager } from './components/AdminBannerManager';
 import { AdminStaffManager } from './components/AdminStaffManager';
 import { AdminCatalogueManager } from './components/AdminCatalogueManager';
+import { AdminTrafficAnalytics } from './components/AdminTrafficAnalytics';
 import { BuyerCatalogueDrawer } from './components/BuyerCatalogueDrawer';
 import { PublicDigitalCardView } from './components/PublicDigitalCardView';
 import { DigitalCardHub } from './components/DigitalCardHub';
@@ -50,6 +51,7 @@ import {
 } from 'lucide-react';
 import axios from 'axios';
 import { API_BASE_URL } from './context/AppContext';
+import { trackEvent } from './utils/analytics';
 import { downloadCatalogPDFForCollection } from './utils/catalogPdfGenerator';
 import { ProductForm } from './components/ProductForm';
 
@@ -340,6 +342,24 @@ const MainLayout: React.FC = () => {
 
   const prevDesignCodeRef = useRef<string | null>(null);
 
+  // ── Storefront analytics: one page view per screen the buyer opens (admin is never tracked) ──
+  const trackedViewRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode !== 'buyer') return;
+    const page = activePublicCardId ? 'card' : selectedDesignCode ? 'product' : aboutModalOpen ? 'about' : buyerHomeView;
+    const viewKey = `${page}:${selectedDesignCode || ''}`;
+    if (trackedViewRef.current === viewKey) return;
+    // Wait for the product list before recording a product view (so it maps to the product name)
+    if (page === 'product' && designs.length === 0) return;
+    trackedViewRef.current = viewKey;
+    if (page === 'product' && selectedDesignCode) {
+      const design = designs.find(d => d.name === selectedDesignCode) || designs.find(d => d.design_code === selectedDesignCode);
+      trackEvent('product_view', { page, design_code: design?.name || selectedDesignCode });
+    } else {
+      trackEvent('page_view', { page });
+    }
+  }, [mode, activePublicCardId, selectedDesignCode, aboutModalOpen, buyerHomeView, designs]);
+
   // ── Product open/close that preserves the list view's scroll & filters ──
   // The list (home/catalog) stays mounted (just hidden) while a product is open,
   // so its state survives; we only need to save/restore the scroll offset.
@@ -469,6 +489,10 @@ const MainLayout: React.FC = () => {
 
       // Construct the WhatsApp message estimate payload
       const orderNumber = res.data.order_number;
+      trackEvent('order', {
+        label: orderNumber,
+        value: itemsPayload.reduce((sum, i) => sum + i.price * i.quantity, 0),
+      });
       let message = `*SR CHAINS - WHOLESALE ESTIMATE*\n`;
       message += `*Customer:* ${customerName}\n`;
       message += `*Mobile:* ${mobileNumber}\n`;
@@ -1194,6 +1218,8 @@ const MainLayout: React.FC = () => {
               {adminTab === 'reports' && <Reports orders={orders} loading={loadingOrders} />}
 
               {adminTab === 'catalogue-manager' && <AdminCatalogueManager />}
+
+              {adminTab === 'traffic' && <AdminTrafficAnalytics />}
 
               {adminTab === 'all-designs' && (
                 selectedDesignCode === null ? (

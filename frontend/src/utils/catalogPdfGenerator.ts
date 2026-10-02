@@ -1,5 +1,6 @@
 // Shared Catalog PDF Generator Utility for SR Chains
 // Generates 100% non-blank, non-sliced downloadable & printable A4 catalogs.
+import { trackEvent } from './analytics';
 
 export interface PdfCatalogItem {
   design: any;
@@ -600,6 +601,9 @@ export const downloadCatalogPDFForCollection = (
   /** Buyer selection from Catalogue Manager: only these collections, minus hidden designs/variants. */
   filter?: CatalogueFilter
 ) => {
+  const isAllRequest = collectionName === 'All' || collectionName === 'All Collections' || !collectionName;
+  trackEvent('catalog_download', { label: isAllRequest ? 'All Catalogs' : collectionName });
+
   const items: PdfCatalogItem[] = [];
 
   const allowed = filter ? new Set(filter.collections) : null;

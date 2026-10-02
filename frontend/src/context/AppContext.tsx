@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from 'react';
 import axios from 'axios';
 import { getCatalogueCollections, type CatalogueFilter } from '../utils/catalogPdfGenerator';
+import { trackEvent, setAnalyticsCustomer } from '../utils/analytics';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? (typeof window !== 'undefined' ? window.location.origin : '');
 
@@ -232,6 +233,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
   const isCustomerAuthenticated = !!customerToken && !!currentCustomer;
+  // Keep analytics in sync with the logged-in buyer (restored on reload, cleared on logout).
+  // Set during render so it is already in place when child effects record page views.
+  setAnalyticsCustomer(isCustomerAuthenticated ? currentCustomer?.email || null : null);
 
   // Wishlist state — persisted in localStorage
   const [wishlist, setWishlist] = useState<WishlistItem[]>(() => {
@@ -453,6 +457,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Cart Management
   const addToCart = (newItem: CartItem) => {
+    trackEvent('add_to_cart', { design_code: newItem.design.name || newItem.design.design_code, value: newItem.quantity });
     // If locked price fields are not already provided, calculate and populate them
     if (newItem.lockedPrice === undefined) {
       const breakdown = calculatePriceBreakdown(
@@ -487,6 +492,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const addMultipleToCart = (newItems: CartItem[]) => {
+    newItems.forEach(item => trackEvent('add_to_cart', { design_code: item.design.name || item.design.design_code, value: item.quantity }));
     setCart(prev => {
       const updated = [...prev];
       newItems.forEach(newItem => {
@@ -662,6 +668,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('customer_info', JSON.stringify(info));
     setCustomerToken(token);
     setCurrentCustomer(info);
+    setAnalyticsCustomer(email);
+    trackEvent('login');
   };
 
   // Customer logout

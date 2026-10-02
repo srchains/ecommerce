@@ -215,3 +215,22 @@ class CatalogueItemVisibility(Base):
     item_id = Column(Integer, nullable=False, index=True)
     is_visible_to_buyer = Column(Boolean, default=True, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TrafficEvent(Base):
+    """Anonymous storefront analytics (page visits, product views, cart, downloads, orders).
+    visitor_id is a random ID kept in the buyer's browser; no IP address is stored."""
+    __tablename__ = "traffic_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    visitor_id = Column(String, index=True, nullable=False)
+    session_id = Column(String, index=True, nullable=False)
+    event_type = Column(String, index=True, nullable=False)  # page_view | product_view | add_to_cart | catalog_download | login | order
+    page = Column(String, nullable=True)          # home | catalog | product | about | card
+    design_code = Column(String, nullable=True)   # product viewed / added to cart
+    label = Column(String, nullable=True)         # catalogue name, order number
+    value = Column(Float, nullable=True)          # order value, cart quantity
+    customer_email = Column(String, index=True, nullable=True)  # set when the buyer is logged in
+    device = Column(String, nullable=True)        # mobile | tablet | desktop
+    referrer = Column(String, nullable=True)      # referring site domain only
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
