@@ -108,7 +108,6 @@ const AppFooter: React.FC<AppFooterProps> = ({ onHomeClick, onCatalogClick, onAb
         <div>
           <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Contact</h4>
           <div className="space-y-2 text-sm text-gray-500">
-            <p className="leading-relaxed">64, Arumuga Pillayar Koil Street,<br />Gugai,<br />Salem - 636 005</p>
             <p>Ph no : <a href="tel:+917010674487" className="hover:text-gray-900 transition-colors">70106 74487</a></p>
             <p>Email : <a href="mailto:srchains19@gmail.com" className="hover:text-gray-900 transition-colors">srchains19@gmail.com</a></p>
           </div>
