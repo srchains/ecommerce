@@ -67,10 +67,16 @@ export const getZoomImageUrl = (design?: any, variant?: any): string => {
 export const generateCatalogPDF = (
   title: string,
   itemsList: PdfCatalogItem[],
-  /** compact: continuous 4-column grid of image + name cards, no header/footer (combined "Download All" PDF). */
-  options: { compact?: boolean } = {}
+  /**
+   * compact: image-only pages (no names, weights, header or footer) used for buyer downloads.
+   * imagesPerPage: 3 = "Download All Catalogs"; 2 = single collection, with a blank writing space under each image.
+   * Without compact the detailed tag layout is used (admin Inventory PDFs).
+   */
+  options: { compact?: boolean; imagesPerPage?: 2 | 3 } = {}
 ) => {
   const compact = !!options.compact;
+  const imagesPerPage = options.imagesPerPage || 3;
+  const withNotes = compact && imagesPerPage === 2;
   if (!itemsList || itemsList.length === 0) {
     alert('No catalog items to export.');
     return;
@@ -228,9 +234,11 @@ export const generateCatalogPDF = (
   }
 
   if (compact) {
-    // Image-only catalogue: exactly 3 full-width images per A4 page, no names/codes/captions,
-    // in collection order. Fixed 3 slots per page, so an image is never split across two pages.
-    const IMAGES_PER_PAGE = 3;
+    // Image-only catalogue: full-width images, no names/codes/captions, in collection order.
+    // Fixed slots per page (3, or 2 + writing space), so an image is never split across two pages.
+    const IMAGES_PER_PAGE = imagesPerPage;
+    // Blank space under each image (2-per-page layout) for writing a description
+    const note = withNotes ? '<div class="note-space"></div>' : '';
     for (let start = 0; start < itemsList.length; start += IMAGES_PER_PAGE) {
       const slots = itemsList.slice(start, start + IMAGES_PER_PAGE).map(({ design, variant }) => {
         const zoomUrl = getZoomImageUrl(design, variant); // original uploaded file (full resolution)
@@ -238,10 +246,10 @@ export const generateCatalogPDF = (
         const productUrl = `${window.location.origin}/?design=${encodeURIComponent(design?.name || design?.design_code || rawCode)}${variant?.id ? `&variant=${variant.id}` : ''}`;
         // Full-width background image (background-size: cover trims the photo's top/bottom edges).
         // The link becomes a clickable area in the PDF (see savePdfFile).
-        return `<a class="card-img" href="${productUrl}" target="_blank" data-src="${zoomUrl}" style="background-image: url('${zoomUrl}');"></a>`;
+        return `<a class="card-img" href="${productUrl}" target="_blank" data-src="${zoomUrl}" style="background-image: url('${zoomUrl}');"></a>${note}`;
       });
-      while (slots.length < IMAGES_PER_PAGE) slots.push('<div class="card-img card-empty"></div>');
-      pagesHtml.push(`<div class="a4-page image-only">${slots.join('')}</div>`);
+      while (slots.length < IMAGES_PER_PAGE) slots.push(`<div class="card-img card-empty"></div>${note}`);
+      pagesHtml.push(`<div class="a4-page image-only${withNotes ? ' with-notes' : ''}">${slots.join('')}</div>`);
     }
   }
 
@@ -410,6 +418,9 @@ export const generateCatalogPDF = (
           border: 1px solid #f1f5f9;
         }
         .a4-page.image-only .card-empty { border-color: transparent; }
+        /* 2 per page: same image rectangle as the 3-per-page layout, blank writing space under each */
+        .a4-page.image-only.with-notes .card-img { flex: 0 0 89mm; }
+        .a4-page.image-only.with-notes .note-space { flex: 1 1 0; min-height: 0; }
 
         @media print {
           html, body {
@@ -663,5 +674,6 @@ export const downloadCatalogPDFForCollection = (
     items.sort((a, b) => rank(a) - rank(b)); // stable: keeps design order inside a collection
   }
 
-  generateCatalogPDF(displayTitle, items, { compact: isAll });
+  // Buyer downloads are image-only: 3 per page for "All", 2 per page (+ writing space) for one collection
+  generateCatalogPDF(displayTitle, items, { compact: true, imagesPerPage: isAll ? 3 : 2 });
 };
