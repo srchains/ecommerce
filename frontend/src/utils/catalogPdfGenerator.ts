@@ -69,14 +69,14 @@ export const generateCatalogPDF = (
   itemsList: PdfCatalogItem[],
   /**
    * compact: image-only pages (no names, weights, header or footer) used for buyer downloads.
-   * imagesPerPage: 3 = "Download All Catalogs"; 2 = single collection, with a blank writing space under each image.
+   * imagesPerPage: 3 = "Download All Catalogs"; 1 = single collection, with a blank writing space under the image.
    * Without compact the detailed tag layout is used (admin Inventory PDFs).
    */
-  options: { compact?: boolean; imagesPerPage?: 2 | 3 } = {}
+  options: { compact?: boolean; imagesPerPage?: 1 | 2 | 3 } = {}
 ) => {
   const compact = !!options.compact;
   const imagesPerPage = options.imagesPerPage || 3;
-  const withNotes = compact && imagesPerPage === 2;
+  const withNotes = compact && imagesPerPage < 3;
   if (!itemsList || itemsList.length === 0) {
     alert('No catalog items to export.');
     return;
@@ -235,9 +235,9 @@ export const generateCatalogPDF = (
 
   if (compact) {
     // Image-only catalogue: full-width images, no names/codes/captions, in collection order.
-    // Fixed slots per page (3, or 2 + writing space), so an image is never split across two pages.
+    // Fixed slots per page (3, or 1 + writing space), so an image is never split across two pages.
     const IMAGES_PER_PAGE = imagesPerPage;
-    // Blank space under each image (2-per-page layout) for writing a description
+    // Blank space under each image (single-collection layout) for writing a description
     const note = withNotes ? '<div class="note-space"></div>' : '';
     for (let start = 0; start < itemsList.length; start += IMAGES_PER_PAGE) {
       const slots = itemsList.slice(start, start + IMAGES_PER_PAGE).map(({ design, variant }) => {
@@ -418,7 +418,7 @@ export const generateCatalogPDF = (
           border: 1px solid #f1f5f9;
         }
         .a4-page.image-only .card-empty { border-color: transparent; }
-        /* 2 per page: same image rectangle as the 3-per-page layout, blank writing space under each */
+        /* Single collection: same image rectangle as the 3-per-page layout, blank writing space under it */
         .a4-page.image-only.with-notes .card-img { flex: 0 0 89mm; }
         .a4-page.image-only.with-notes .note-space { flex: 1 1 0; min-height: 0; }
 
@@ -674,6 +674,6 @@ export const downloadCatalogPDFForCollection = (
     items.sort((a, b) => rank(a) - rank(b)); // stable: keeps design order inside a collection
   }
 
-  // Buyer downloads are image-only: 3 per page for "All", 2 per page (+ writing space) for one collection
-  generateCatalogPDF(displayTitle, items, { compact: true, imagesPerPage: isAll ? 3 : 2 });
+  // Buyer downloads are image-only: 3 per page for "All", 1 per page (+ writing space) for one collection
+  generateCatalogPDF(displayTitle, items, { compact: true, imagesPerPage: isAll ? 3 : 1 });
 };
