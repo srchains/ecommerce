@@ -681,11 +681,47 @@ export const ProductForm: React.FC<ProductFormProps> = ({ editingCode, onSuccess
 
     try {
       setSubmitting(true);
+
+      // Any image still held as a temporary blob: preview (selected before the
+      // design code was typed, or whose upload failed) must be uploaded now —
+      // a blob: URL only exists in this browser tab and breaks everywhere else.
+      const persistSlots = async (slots: MediaSlot[], variantCode?: string): Promise<MediaSlot[]> => {
+        const out: MediaSlot[] = [];
+        for (const slot of slots) {
+          if (!slot.url.startsWith('blob:')) { out.push(slot); continue; }
+          const blob = await (await fetch(slot.url)).blob();
+          const fd = new FormData();
+          fd.append('design_code', formData.design_code.trim());
+          if (variantCode) fd.append('variant_code', variantCode);
+          fd.append('category', slot.category);
+          fd.append('file', new File([blob], slot.file_name, { type: slot.file_type || blob.type }));
+          const up = await axios.post(`${API_BASE_URL}/api/media/upload`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' }
+          });
+          out.push({ ...slot, url: up.data.url, file_size: up.data.file_size || slot.file_size, isUploading: false, isLocal: false });
+        }
+        return out;
+      };
+      let payload = formData;
+      try {
+        payload = {
+          ...formData,
+          media: await persistSlots(formData.media || []),
+          variants: await Promise.all(formData.variants.map(async v => ({
+            ...v, media: await persistSlots(v.media || [], v.variant_code.trim())
+          }))),
+        };
+      } catch (upErr) {
+        console.error('Image upload failed', upErr);
+        setErrors(['Some images could not be uploaded. Please check your connection and try again — nothing was saved.']);
+        return;
+      }
+
       if (editingCode) {
         const res = await axios.get(`${API_BASE_URL}/api/products/designs/${editingCode}`);
-        await axios.put(`${API_BASE_URL}/api/products/designs/${res.data.id}`, formData);
+        await axios.put(`${API_BASE_URL}/api/products/designs/${res.data.id}`, payload);
       } else {
-        await axios.post(`${API_BASE_URL}/api/products/designs`, formData);
+        await axios.post(`${API_BASE_URL}/api/products/designs`, payload);
       }
       await fetchDesigns('');
       onSuccess();
